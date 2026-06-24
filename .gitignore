@@ -1,0 +1,10 @@
+.env
+
+# Secrets — holds hcloud_token
+*.tfvars
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log

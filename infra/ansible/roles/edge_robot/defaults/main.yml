@@ -1,0 +1,14 @@
+---
+# Virtualenv for the RPi 5 robot control software (robot/).
+robot_venv: /opt/free-droid-venv
+
+# Python dependencies for the control stack.
+#
+# Per the v2.0 spec the motion layer is plain Python threading/asyncio over GPIO
+# (lgpio) — NOT ROS 2. rclpy is intentionally absent; ROS 2 is a later-roadmap
+# port, out of the Hacktivity scope. Voice/STT/TTS deps (whisper.cpp, piper,
+# openWakeWord) are wired up later in Phase 4.
+robot_python_deps:
+  - lgpio                    # GPIO/PWM for Cytron HAT + PCA9685 + HC-SR04P
+  - ollama                   # cloud/edge LLM client
+  - opencv-python-headless   # camera frames

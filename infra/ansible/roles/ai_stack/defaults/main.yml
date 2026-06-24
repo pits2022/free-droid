@@ -1,0 +1,11 @@
+---
+# Base model pulled into Ollama on each node.
+#
+# Per the v2.0 spec the project runs a single fine-tuned 3B model on both the
+# cloud (higher precision) and the edge (Q4_K_M). The base model is still under
+# an A/B test (Qwen 2.5 3B favourite vs Llama 3.2 3B) — keep this a one-line swap.
+#
+# NOTE: ultimately the *fine-tuned* GGUF is loaded via an Ollama Modelfile rather
+# than pulled from the registry; these registry tags are the bring-up placeholder.
+cloud_ollama_model: "qwen2.5:3b"   # cloud GEX44 (GPU) — inference only
+edge_ollama_model: "qwen2.5:3b"    # RPi 5 — offline fallback (Q4_K_M)
