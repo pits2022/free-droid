@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import asyncio
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from freedroid.config.settings import Settings
 
 
 class State(str, Enum):
@@ -25,7 +29,7 @@ class Orchestrator:
     The safety watchdog is started before any motion is ever possible.
     """
 
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         raise NotImplementedError("Phase 4.3: wire modules and implement the loop")
 
     async def run(self) -> None:

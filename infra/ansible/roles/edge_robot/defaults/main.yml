@@ -1,4 +1,9 @@
 ---
+# The unprivileged user that owns and runs the robot software on the Pi
+# (matches the inventory's ansible_user for the edge host).
+robot_user: pi
+robot_user_home: "/home/{{ robot_user }}"
+
 # Where the repo's robot/ project lives on the Pi. The orchestrator runs from here.
 robot_src_dir: /opt/free-droid/robot
 

@@ -10,7 +10,10 @@ Interfaces + stubs only.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from freedroid.config.settings import Settings
 
 
 class WakeWord(Protocol):
@@ -34,7 +37,7 @@ class VAD(Protocol):
 
 
 class OpenWakeWord:
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         raise NotImplementedError("Phase 4.2: train + integrate 'Szabi' wake word")
 
     def wait_for_wake(self) -> None:
@@ -42,7 +45,7 @@ class OpenWakeWord:
 
 
 class WhisperCppSTT:
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         raise NotImplementedError("Phase 4.2: integrate whisper.cpp (Hungarian)")
 
     def transcribe(self, audio: bytes) -> str:
@@ -50,7 +53,7 @@ class WhisperCppSTT:
 
 
 class PiperTTS:
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         raise NotImplementedError("Phase 4.2: integrate Piper hu_HU-anonymous-medium")
 
     def speak(self, text: str) -> None:

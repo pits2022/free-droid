@@ -7,7 +7,10 @@ Interface + stub only.
 
 from __future__ import annotations
 
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
+
+if TYPE_CHECKING:
+    from freedroid.config.settings import Settings
 
 
 class Watchdog(Protocol):
@@ -23,7 +26,8 @@ class UltrasonicWatchdog:
     on_obstacle is invoked (e.g. motion.stop) when any reading drops below threshold.
     """
 
-    def __init__(self, on_obstacle: Callable[[], None], settings=None) -> None:
+    def __init__(self, on_obstacle: Callable[[], None],
+                 settings: Settings | None = None) -> None:
         raise NotImplementedError("Phase 4.1: implement threaded ultrasonic watchdog")
 
     def start(self) -> None:

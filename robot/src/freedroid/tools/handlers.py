@@ -11,17 +11,26 @@ Interface + stub only.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from freedroid.tools.parser import ParsedTool
 
-Handler = Callable[[dict[str, Any]], Any]
+if TYPE_CHECKING:
+    from freedroid.camera import CameraController
+    from freedroid.motion import MotionController
+
+Handler = Callable[[ParsedTool], Any]
 
 
 class ToolRegistry:
-    """Dispatches ParsedTool -> handler. STUB."""
+    """Dispatches ParsedTool -> handler. STUB.
 
-    def __init__(self, motion=None, camera=None) -> None:
+    Resolves raw arg strings into the motion/camera enums and maps qualitative
+    speed -> PWM duty (via motion.types.SPEED_DUTY) before calling the controllers.
+    """
+
+    def __init__(self, motion: MotionController | None = None,
+                 camera: CameraController | None = None) -> None:
         raise NotImplementedError("Phase 4.1: wire handlers to motion/camera/wifi")
 
     def register(self, name: str, handler: Handler) -> None:
@@ -31,6 +40,10 @@ class ToolRegistry:
         raise NotImplementedError
 
 
-def scan_wifi(_args: dict[str, Any]) -> list[dict[str, str]]:
-    """READ-ONLY Wi-Fi listing via nmcli. Never connects. STUB."""
+def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
+    """READ-ONLY Wi-Fi listing via nmcli. Never connects. STUB.
+
+    Optional display-only args (from the grammar): filter="wpa3", sort="signal".
+    These only shape the returned list — they never trigger a connection.
+    """
     raise NotImplementedError("Phase 4.1: parse `nmcli -t -f SSID,SIGNAL,SECURITY dev wifi`")

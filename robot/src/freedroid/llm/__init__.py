@@ -9,7 +9,10 @@ Interface + stub only.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from freedroid.config.settings import Settings
 
 
 class Backend(str, Enum):
@@ -25,7 +28,7 @@ class LLMClient(Protocol):
 class FallbackLLMClient:
     """Tries cloud first, falls back to edge. STUB."""
 
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         raise NotImplementedError("Phase 4.2: implement cloud→edge Ollama fallback")
 
     def generate(self, prompt: str) -> str:

@@ -1,12 +1,14 @@
 """Runtime tunables with sane defaults. Override via env / config file later.
 
-Values not fixed by the spec (e.g. the stop threshold) are placeholders to be
-confirmed during bring-up.
+Defaults are validated once at construction (range checks) so an out-of-range
+value fails loudly at startup rather than mis-driving a motor silently.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Mapping
 
 
 @dataclass(frozen=True)
@@ -21,15 +23,27 @@ class LLMEndpoints:
 @dataclass(frozen=True)
 class SafetySettings:
     stop_threshold_cm: float = 25.0   # confirmed with Creator
-    poll_interval_s: float = 0.05   # watchdog thread cadence
-    # Per-sensor overrides, e.g. {"front": 30.0}
-    per_sensor_cm: dict[str, float] = field(default_factory=dict)
+    poll_interval_s: float = 0.05     # watchdog thread cadence
+    # Per-sensor overrides, e.g. {"front": 30.0}. Read-only (frozen settings).
+    per_sensor_cm: Mapping[str, float] = field(default_factory=lambda: MappingProxyType({}))
+
+    def __post_init__(self) -> None:
+        if self.stop_threshold_cm <= 0:
+            raise ValueError("stop_threshold_cm must be > 0")
+        if self.poll_interval_s <= 0:
+            raise ValueError("poll_interval_s must be > 0")
 
 
 @dataclass(frozen=True)
 class MotionSettings:
     default_speed: float = 0.5      # 0.0–1.0 duty
     pwm_frequency_hz: int = 1000
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.default_speed <= 1.0:
+            raise ValueError("default_speed must be in [0.0, 1.0]")
+        if self.pwm_frequency_hz <= 0:
+            raise ValueError("pwm_frequency_hz must be > 0")
 
 
 @dataclass(frozen=True)

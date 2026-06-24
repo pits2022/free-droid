@@ -15,16 +15,19 @@ terraform {
   }
 }
 
+# Hetzner private network. Kept on a DISTINCT range from the WireGuard overlay
+# (10.0.0.0/24, per spec) so the cloud host never has the same IP on two
+# interfaces. The edge (RPi) reaches the cloud over WireGuard, not this network.
 resource "hcloud_network" "vpn_network" {
   name     = "free-droid-vpn"
-  ip_range = "10.0.0.0/16"
+  ip_range = "10.1.0.0/16"
 }
 
 resource "hcloud_network_subnet" "vpn_subnet" {
   network_id   = hcloud_network.vpn_network.id
   type         = "cloud"
   network_zone = "eu-central"
-  ip_range     = "10.0.0.0/24"
+  ip_range     = "10.1.0.0/24"
 }
 
 resource "hcloud_firewall" "free_droid_fw" {
@@ -45,7 +48,7 @@ resource "hcloud_firewall" "free_droid_fw" {
 
 resource "hcloud_ssh_key" "default" {
   name       = "free-droid-key"
-  public_key = file(var.ssh_public_key_path)
+  public_key = file(pathexpand(var.ssh_public_key_path))
 }
 
 resource "hcloud_server" "mother" {
@@ -64,7 +67,7 @@ resource "hcloud_server" "mother" {
 resource "hcloud_server_network" "mother_network" {
   server_id  = hcloud_server.mother.id
   network_id = hcloud_network.vpn_network.id
-  ip         = "10.0.0.1"
+  ip         = "10.1.0.1"
   depends_on = [hcloud_network_subnet.vpn_subnet]
 }
 
@@ -83,19 +86,27 @@ resource "local_file" "ansible_inventory" {
 resource "null_resource" "trigger_ansible" {
   depends_on = [local_file.ansible_inventory, hcloud_server_network.mother_network]
 
+  # Re-run provisioning when the server or the rendered inventory changes,
+  # instead of only once at create time.
+  triggers = {
+    server_id = hcloud_server.mother.id
+    inventory = local_file.ansible_inventory.content
+  }
+
   provisioner "remote-exec" {
     inline = ["echo 'SSH is ready on mother-001!'"]
 
     connection {
       type        = "ssh"
       user        = "root"
-      private_key = file(replace(var.ssh_public_key_path, ".pub", ""))
+      private_key = file(pathexpand(replace(var.ssh_public_key_path, ".pub", "")))
       host        = hcloud_server.mother.ipv4_address
     }
   }
 
   provisioner "local-exec" {
-    # This triggers the master playbook for the entire flow
-    command = "cd ${path.root}/../ansible && ansible-playbook -i inventory.ini site.yml"
+    # Provision the cloud node. The edge (child-001) is provisioned separately so
+    # `terraform apply` doesn't block on the Pi being online.
+    command = "cd ${path.root}/../ansible && ansible-playbook -i inventory.ini --limit cloud site.yml"
   }
 }
