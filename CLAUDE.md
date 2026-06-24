@@ -42,6 +42,10 @@ What changed and what is intentionally still a placeholder:
 - **Edge (Raspberry Pi 5, 8GB):** the same model at Q4_K_M, fully offline, as fallback.
 - **Fine-tuning happens on Google Colab** (free T4) with Unsloth QLoRA — never on the cloud server.
 - **Fallback ladder:** cloud (WireGuard up) → edge (offline) → "safe mode" (canned replies, motion disabled).
+- **Health checks (`freedroid.health`):** a `freedroid-health` self-check runs at boot + every 10 min (systemd timer)
+  over network/hardware/software layers. Cloud is on-demand, so cloud checks are WARNING (edge covers it); the edge
+  stack + safety hardware + local control are CRITICAL. A vital failure → self-heal (restart the service) → re-check →
+  safe-mode (`/run/freedroid/safe_mode` flag) if still down. Status → `/run/freedroid/health.json` + journald.
 
 **Layered motion control — the LLM never drives motors directly:**
 
@@ -112,9 +116,14 @@ ansible-playbook -i inventory.ini site.yml -e edge_ollama_model=llama3.2:3b
 cd robot
 uv sync --extra dev     # create the project venv (.venv) + install
 uv run freedroid        # run the orchestrator (stub today)
-uv run pytest
+uv run freedroid-health # run the vital-function health check once
+uv run pytest           # full suite (green; Phase-4 specs xfail, Pi-only specs skip)
+uv run pytest -m phase4 # just the TDD harness
 uv run ruff check .
 ```
+Tests use `xfail_strict=true`: Phase-4 behavioural specs (`test_parser_behaviour`,
+`test_phase4_hardware`) xfail until implemented, then flip to a hard failure that forces
+removing the marker. Hardware-controller specs are `@requires_pi` (skipped off-Pi).
 Pi-only: modules are written directly against `lgpio`; importing the package works off-Pi (no top-level hardware
 imports), but instantiating a controller raises `NotImplementedError` until implemented. Build order:
 `config` → `motion`+`safety` → `tools` → `llm` → `voice` → `orchestrator`.

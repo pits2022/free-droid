@@ -1,0 +1,10 @@
+[Unit]
+Description=Free-Droid vital-function health check (network / hardware / software)
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Runs as root: it may `systemctl restart` wg-quick@wg0 / ollama / freedroid
+# (self-heal) and writes /run/freedroid/health.json + the safe-mode flag.
+ExecStart={{ robot_venv_bin }}/freedroid-health
