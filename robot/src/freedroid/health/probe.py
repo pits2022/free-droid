@@ -9,20 +9,48 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import urllib.error
 import urllib.request
 
 
 def is_pi() -> bool:
-    """True on a Raspberry Pi (used to SKIP hardware checks elsewhere)."""
+    """True on a Raspberry Pi (used to SKIP hardware checks elsewhere).
+
+    Multi-signal so a single unreadable sysfs file doesn't misreport a real Pi as
+    "not a Pi" (which would silently SKIP the CRITICAL hardware checks). On the
+    robot, set FREEDROID_ASSUME_PI=1 to force-enable hardware checks regardless —
+    then a missing device FAILs (fail-safe) instead of being skipped.
+    """
+    if os.environ.get("FREEDROID_ASSUME_PI") == "1":
+        return True
+    for path in ("/proc/device-tree/model", "/sys/firmware/devicetree/base/model"):
+        try:
+            with open(path, "rb") as fh:
+                if b"Raspberry Pi" in fh.read():
+                    return True
+        except OSError:
+            continue
     try:
-        with open("/proc/device-tree/model", "rb") as fh:
-            return b"Raspberry Pi" in fh.read()
+        with open("/proc/cpuinfo") as fh:
+            text = fh.read()
+        if "Raspberry Pi" in text or "BCM2" in text:
+            return True
     except OSError:
-        return False
+        pass
+    return False
 
 
 def path_exists(path: str) -> bool:
     return os.path.exists(path)
+
+
+def read_text(path: str) -> str | None:
+    """Read a small sysfs/proc file. Returns None if unreadable (never raises)."""
+    try:
+        with open(path) as fh:
+            return fh.read()
+    except OSError:
+        return None
 
 
 def which(binary: str) -> bool:

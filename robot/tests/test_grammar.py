@@ -70,3 +70,46 @@ def test_parsedtool_holds_positional_and_keyword():
     assert t.name == "set_mode"
     assert t.positional == ("standby",)
     assert t.args == {}
+
+
+def _dataset_modes(tool_calls) -> set[str]:
+    modes = set()
+    for c in tool_calls:
+        if c["name"] in ("move", "turn") and "mode" in c["args"]:
+            modes.add(c["args"]["mode"])
+        if c["name"] == "set_mode":  # set_mode("standby") — positional
+            modes.update(c["positional"])
+            if "mode" in c["args"]:
+                modes.add(c["args"]["mode"])
+    return modes
+
+
+# Reverse contract: every enum member is exercised by the dataset, so a dead or
+# typo'd member is caught. (Speed.NORMAL is an intentional intermediate absent from
+# the data, so Speed stays one-directional above.)
+def test_direction_enum_has_no_dead_members(tool_calls):
+    move_dirs = {c["args"]["direction"] for c in tool_calls
+                 if c["name"] == "move" and "direction" in c["args"]}
+    assert _values("Direction") == move_dirs
+
+
+def test_turn_enum_has_no_dead_members(tool_calls):
+    turn_dirs = {c["args"]["direction"] for c in tool_calls
+                 if c["name"] == "turn" and "direction" in c["args"]}
+    assert _values("TurnDir") == turn_dirs
+
+
+def test_camera_action_enum_has_no_dead_members(tool_calls):
+    actions = {c["args"]["action"] for c in tool_calls
+               if c["name"] == "camera" and "action" in c["args"]}
+    assert _values("CameraAction") == actions
+
+
+def test_mode_enum_matches_dataset_including_positional(tool_calls):
+    assert _values("Mode") == _dataset_modes(tool_calls)
+
+
+def test_set_mode_positional_values_are_valid_modes(tool_calls):
+    positional_modes = {v for c in tool_calls if c["name"] == "set_mode" for v in c["positional"]}
+    assert positional_modes  # the dataset really does use set_mode(...) positionally
+    assert positional_modes <= _values("Mode")

@@ -74,10 +74,14 @@
     mode: '0644'
   notify: Reload systemd
 
+# Flush the Reload systemd handler now (handlers otherwise run at play end, after
+# the timer start) — idempotent: the reload only fires when a unit file changed.
+- name: Apply pending unit-file changes before starting the timer
+  meta: flush_handlers
+
 - name: Enable and start the health-check timer
   when: robot_project.stat.exists
   systemd:
     name: freedroid-health.timer
     enabled: true
     state: started
-    daemon_reload: true

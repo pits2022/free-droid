@@ -21,7 +21,7 @@ def _capture_cards() -> list[tuple[str, str]]:
     """(card_number, description) for each ALSA capture device."""
     if shutil.which("arecord") is None:
         return []
-    out = subprocess.run(["arecord", "-l"], capture_output=True, text=True).stdout
+    out = subprocess.run(["arecord", "-l"], capture_output=True, text=True, timeout=10).stdout
     cards = []
     for m in re.finditer(r"card (\d+): (\S+).*?\[(.*?)\]", out):
         cards.append((m.group(1), m.group(3)))
@@ -43,11 +43,13 @@ def main() -> int:
     for card, desc in cards:
         wav = OUT_DIR / f"card{card}.wav"
         print(f"  card {card} [{desc}] -> {wav}  (speak now)")
-        subprocess.run(
+        proc = subprocess.run(
             ["arecord", "-D", f"plughw:{card},0", "-d", str(args.seconds),
              "-f", "S16_LE", "-r", "16000", "-c", "1", str(wav)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, timeout=args.seconds + 10,
         )
+        if proc.returncode != 0:
+            print(f"    ! capture failed (rc={proc.returncode}): {proc.stderr.strip()}")
 
     print("\nListen back with:  aplay /tmp/freedroid-mic/card<N>.wav")
     print("Keep the clearer one. To make card N the default capture device, create")

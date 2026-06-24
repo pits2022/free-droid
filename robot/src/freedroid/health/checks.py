@@ -26,7 +26,7 @@ from freedroid.health.model import (
     skipped,
     warn,
 )
-from freedroid.health.probe import http_get, is_pi, path_exists, run, which
+from freedroid.health.probe import http_get, is_pi, path_exists, read_text, run, which
 
 if TYPE_CHECKING:
     from freedroid.config.settings import Settings
@@ -50,11 +50,10 @@ def check_wireguard_interface(settings: Settings) -> CheckResult:
     if not path_exists("/sys/class/net/wg0"):
         return fail(name, Layer.NETWORK, Severity.WARNING, "wg0 interface absent",
                     remediation="restart_wireguard")
-    try:
-        with open("/sys/class/net/wg0/operstate") as fh:
-            state = fh.read().strip()
-    except OSError as e:
-        return warn(name, Layer.NETWORK, f"cannot read operstate: {e}")
+    raw = read_text("/sys/class/net/wg0/operstate")
+    if raw is None:
+        return warn(name, Layer.NETWORK, "cannot read wg0 operstate")
+    state = raw.strip()
     if state in ("up", "unknown"):  # wg interfaces often report 'unknown'
         return ok(name, Layer.NETWORK, detail="wg0 up")
     return fail(name, Layer.NETWORK, Severity.WARNING, f"wg0 state={state}",
@@ -133,11 +132,13 @@ def check_thermal(settings: Settings) -> CheckResult:
     name = "thermal"
     if not is_pi():
         return skipped(name, Layer.HARDWARE, "not on a Raspberry Pi")
+    raw = read_text("/sys/class/thermal/thermal_zone0/temp")
+    if raw is None:
+        return warn(name, Layer.HARDWARE, "cannot read temperature")
     try:
-        with open("/sys/class/thermal/thermal_zone0/temp") as fh:
-            temp_c = int(fh.read().strip()) / 1000.0
-    except (OSError, ValueError) as e:
-        return warn(name, Layer.HARDWARE, f"cannot read temperature: {e}")
+        temp_c = int(raw.strip()) / 1000.0
+    except ValueError:
+        return warn(name, Layer.HARDWARE, "unparseable temperature")
     if temp_c >= THERMAL_WARN_C:
         return warn(name, Layer.HARDWARE, f"CPU hot: {temp_c:.0f}°C")
     return ok(name, Layer.HARDWARE, detail=f"CPU {temp_c:.0f}°C")
@@ -174,10 +175,13 @@ def check_edge_model(settings: Settings) -> CheckResult:
     try:
         names = [m.get("name", "") for m in json.loads(body).get("models", [])]
     except (ValueError, AttributeError):
-        return warn(name, Layer.SOFTWARE, "cannot parse Ollama /api/tags")
+        # Can't confirm the offline brain's model is loaded — same safety meaning
+        # as "model absent", so CRITICAL, not a downgraded WARNING.
+        return fail(name, Layer.SOFTWARE, Severity.CRITICAL,
+                    "cannot parse Ollama /api/tags")
     wanted = settings.llm.model
     base = wanted.split(":")[0]
-    if any(n == wanted or n.startswith(base) for n in names):
+    if any(n == wanted or n.startswith(base + ":") for n in names):
         return ok(name, Layer.SOFTWARE, severity=Severity.CRITICAL, detail=f"{wanted} loaded")
     return fail(name, Layer.SOFTWARE, Severity.CRITICAL,
                 f"model {wanted} not in Ollama ({names})")

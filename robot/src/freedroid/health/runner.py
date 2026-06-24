@@ -10,7 +10,7 @@ import time
 from typing import TYPE_CHECKING, Callable
 
 from freedroid.health.checks import ALL_CHECKS, Check
-from freedroid.health.model import CheckResult, HealthReport, Status
+from freedroid.health.model import CheckResult, HealthReport, Layer, Severity, fail
 from freedroid.health.remediation import remediate
 
 if TYPE_CHECKING:
@@ -20,8 +20,22 @@ if TYPE_CHECKING:
 SETTLE_SECONDS = 5.0
 
 
+def _run_one(check: Check, settings: Settings) -> CheckResult:
+    """Run a single check, turning an unexpected crash into a CRITICAL fail.
+
+    The checks are *meant* never to raise, but enforcing it here makes the
+    guarantee real: a crashing check drives safe-mode (fail-safe) instead of
+    aborting the whole run before status/safe-mode are ever written.
+    """
+    try:
+        return check(settings)
+    except Exception as e:  # noqa: BLE001 - deliberate fail-safe boundary
+        return fail(getattr(check, "__name__", "unknown_check"), Layer.SOFTWARE,
+                    Severity.CRITICAL, f"check crashed: {e!r}")
+
+
 def run_checks(settings: Settings, checks: tuple[Check, ...] = ALL_CHECKS) -> list[CheckResult]:
-    return [check(settings) for check in checks]
+    return [_run_one(check, settings) for check in checks]
 
 
 def build_report(settings: Settings, now: float,
@@ -36,11 +50,14 @@ def heal_and_recheck(settings: Settings, now: float,
                      remediator: Callable[[str], bool] = remediate,
                      sleep: Callable[[float], None] = time.sleep,
                      settle_seconds: float = SETTLE_SECONDS) -> HealthReport:
-    """Run checks once; if anything fixable failed, self-heal and re-check once."""
+    """Run checks once; if a VITAL function failed and is fixable, self-heal and
+    re-check once. Only CRITICAL failures are remediated — a WARNING (e.g. the
+    on-demand cloud / VPN being down) is expected and must not trigger a
+    privileged service restart on every timer cycle."""
     first = build_report(settings, now, checks)
     keys = sorted({
         r.remediation for r in first.results
-        if r.status is Status.FAIL and r.remediation
+        if r.is_critical_failure and r.remediation
     })
     if not keys:
         return first

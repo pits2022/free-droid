@@ -7,4 +7,7 @@ Wants=network-online.target
 Type=oneshot
 # Runs as root: it may `systemctl restart` wg-quick@wg0 / ollama / freedroid
 # (self-heal) and writes /run/freedroid/health.json + the safe-mode flag.
+# Assert we're on the Pi so a transient device-tree read can't silently SKIP the
+# CRITICAL hardware checks (a missing device then FAILs -> safe-mode, fail-safe).
+Environment=FREEDROID_ASSUME_PI=1
 ExecStart={{ robot_venv_bin }}/freedroid-health

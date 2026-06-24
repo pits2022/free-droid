@@ -55,11 +55,16 @@ def test_tolerates_whitespace_and_ignores_prose():
 
 @pytest.mark.xfail(reason="Phase 4.1: parse_tools not implemented", strict=True)
 def test_parses_every_real_dataset_call(tool_calls):
-    # The parser must handle every call shape that appears in training data.
+    # Exact: the parser must reproduce every dataset call with numeric coercion
+    # ("2.0"->2.0 float, "90"->90 int) and not drop/duplicate args.
     for call in tool_calls:
-        rendered = _render(call)
-        out = parse_tools(f"<tool>{rendered}</tool>")
-        assert out and out[0].name == call["name"]
+        expected = ParsedTool(
+            call["name"],
+            {k: _coerce(v) for k, v in call["args"].items()},
+            tuple(_coerce(v) for v in call["positional"]),
+        )
+        out = parse_tools(f"<tool>{_render(call)}</tool>")
+        assert out == [expected]
 
 
 def _render(call: dict) -> str:
@@ -67,6 +72,12 @@ def _render(call: dict) -> str:
              for k, v in call["args"].items()]
     parts += [f'"{v}"' for v in call["positional"]]
     return f"{call['name']}({', '.join(parts)})"
+
+
+def _coerce(v: str):
+    if not _is_num(v):
+        return v
+    return float(v) if "." in v else int(v)
 
 
 def _is_num(v: str) -> bool:

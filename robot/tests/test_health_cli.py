@@ -43,3 +43,19 @@ def test_unhealthy_run_sets_safe_mode_and_exits_1(tmp_path, monkeypatch):
     assert flag.exists()
     assert "edge_ollama" in flag.read_text()
     assert json.loads(status.read_text())["healthy"] is False
+
+
+def test_cli_runs_the_real_registry_off_pi(tmp_path, monkeypatch):
+    """Drive cli.main() through the REAL ALL_CHECKS/heal path (not a mocked report),
+    stubbing only the systemctl layer. Off-Pi the edge brain is down → degraded."""
+    status, flag = _patch_paths(tmp_path, monkeypatch)
+    # No real services touched, and _unit_installed=False → no settle-sleep.
+    monkeypatch.setattr("freedroid.health.remediation.run", lambda *a, **k: (127, "", ""))
+    monkeypatch.delenv("FREEDROID_ASSUME_PI", raising=False)
+
+    rc = cli.main()
+
+    assert rc == 1  # edge Ollama unreachable on a dev box → vital failure
+    data = json.loads(status.read_text())
+    assert data["healthy"] is False
+    assert flag.exists()

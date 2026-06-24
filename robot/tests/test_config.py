@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from freedroid.config import gpio
@@ -79,5 +81,5 @@ def test_per_sensor_overrides_are_read_only():
 
 def test_settings_are_frozen():
     s = LLMEndpoints()
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         s.model = "other"  # type: ignore[misc]

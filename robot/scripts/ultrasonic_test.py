@@ -40,11 +40,12 @@ def main() -> int:
     import lgpio
 
     h = _hw.open_gpiochip()
-    for sensor in G.ULTRASONIC.values():
-        lgpio.gpio_claim_output(h, sensor["trig"], 0)
-        lgpio.gpio_claim_input(h, sensor["echo"])
 
     try:
+        for sensor in G.ULTRASONIC.values():
+            lgpio.gpio_claim_output(h, sensor["trig"], 0)
+            lgpio.gpio_claim_input(h, sensor["echo"])
+
         while True:
             readings = []
             for name, sensor in G.ULTRASONIC.items():
