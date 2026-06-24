@@ -60,3 +60,19 @@ uv run ruff check .
   `xfail_strict=true`, the moment an implementation makes one pass, the suite fails
   and forces removing the marker, turning the spec into a live guard.
 - Hardware-controller specs are `@requires_pi` (skipped off-Pi).
+
+### Hardware bring-up (Phase 1.5)
+
+Standalone, Pi-only smoke scripts that drive the hardware directly — *before* the
+control software exists — to confirm wiring. See [`scripts/README.md`](scripts/README.md).
+
+```bash
+uv run python scripts/motor_test.py        # both tracks forward/back
+uv run python scripts/servo_test.py        # pan/tilt sweep (PCA9685)
+uv run python scripts/ultrasonic_test.py   # live HC-SR04P distances
+uv run python scripts/usb_devices.py       # lsusb / arecord -l / aplay -l
+uv run python scripts/lte_modem_test.py    # HiLink modem + internet
+uv run python scripts/mic_select.py        # A/B the mics, then pick one in ALSA
+```
+
+> ⚠️ `motor_test.py` / `servo_test.py` move the robot — prop the chassis up first.

@@ -202,6 +202,17 @@ journalctl -u freedroid-health -e          # logs
 cat /run/freedroid/health.json             # machine-readable status
 ```
 
+**Hardware bring-up (Phase 1.5)** — standalone Pi-only scripts in `robot/scripts/`
+drive the hardware directly before any control software exists (motors, pan/tilt
+servos, ultrasonic sensors, USB devices, LTE modem, mic A/B). See
+[`robot/scripts/README.md`](robot/scripts/README.md).
+
+```bash
+uv run python scripts/motor_test.py        # both tracks forward/back (prop the chassis up!)
+uv run python scripts/ultrasonic_test.py   # live HC-SR04P distances
+# …servo_test, usb_devices, lte_modem_test, mic_select
+```
+
 ---
 
 ## 🚦 Project status
