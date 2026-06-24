@@ -42,12 +42,20 @@ class TrainConfig:
         return HERE / rel
 
 
-# A/B candidates — see CLAUDE.md: model choice is NOT final until the benchmark decides.
+# Candidate base models — the comparison is not limited to two. Add an entry to
+# test 3-4 models; each becomes `python finetune.py --variant <key>`, then build
+# an Ollama model `freedroid-<key>` and pass it to run_benchmark.py --models.
+# (See CLAUDE.md: the choice is NOT final until the benchmark decides.)
 VARIANTS: dict[str, TrainConfig] = {
     "qwen": TrainConfig(name="qwen2.5-3b",
                         base_model="unsloth/Qwen2.5-3B-Instruct-bnb-4bit"),
     "llama": TrainConfig(name="llama3.2-3b",
                          base_model="unsloth/Llama-3.2-3B-Instruct-bnb-4bit"),
+    # Examples — uncomment / adjust to taste (verify the exact Unsloth repo id):
+    # "gemma":   TrainConfig(name="gemma2-2b",
+    #                        base_model="unsloth/gemma-2-2b-it-bnb-4bit"),
+    # "phi":     TrainConfig(name="phi3.5-mini",
+    #                        base_model="unsloth/Phi-3.5-mini-instruct-bnb-4bit"),
 }
 
 # Curated target modules for LoRA (all attention + MLP projections).

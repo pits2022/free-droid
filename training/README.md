@@ -11,6 +11,7 @@ are CPU/ARM). Unsloth is deliberately **not** a dependency of the deployed syste
 | `colab_finetune.ipynb` | Thin Colab runner: installs Unsloth, clones the repo, calls `finetune.py` |
 | `finetune.py` | The training logic (load 4-bit base → LoRA → train → export GGUF + adapter) |
 | `config.py` | Hyperparameters + the **A/B base-model swap** (one line) |
+| `run_benchmark.py` | Runs **N** Ollama models through the 25-question benchmark → `benchmark_eredmeny.md` |
 | `system_prompt.txt` | The persona system prompt used at train time (keep in sync with `Modelfile`) |
 | `Modelfile` | Ollama export config (`ollama create szabi -f Modelfile`) |
 | `requirements.txt` | Training deps (Colab); freeze exact versions after a known-good run |
@@ -39,6 +40,22 @@ The base model (Qwen 2.5 3B vs Llama 3.2 3B) is **not final** — see `CLAUDE.md
 both on the same data, score with `persona_benchmark.json` + `ertekelo_sablon.md` (6
 dimensions, 1–5), measure tok/s + RAM on the Pi, then pick the winner and update the docs.
 Don't chase low loss (overfitting → robotic, repetitive persona); 2 epochs often beats 3.
+
+`run_benchmark.py` automates the asking for **any number of models** (2, 3, 4 …): build each
+in Ollama, then run
+
+```bash
+ollama create freedroid-qwen  -f Modelfile   # FROM the Qwen GGUF
+ollama create freedroid-llama -f Modelfile   # FROM the Llama GGUF
+ollama create freedroid-gemma -f Modelfile   # …add as many as you train
+
+python run_benchmark.py --models freedroid-qwen freedroid-llama freedroid-gemma --json-out
+# → benchmark_eredmeny.md (fill the Pont columns by hand)
+```
+
+It puts every model's answer side by side per question (temperature=0.7, seed=42, identical
+for fairness) with tok/s, leaving the score cells and the dimension summary for you to fill in.
+With no `--models` it defaults to the two `freedroid-qwen` / `freedroid-llama`.
 
 ## Deploy
 
