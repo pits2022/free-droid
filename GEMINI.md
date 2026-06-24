@@ -29,7 +29,7 @@ distributed, hybrid cloud-edge AI environment.
 - `infra/terraform/`: Hetzner provisioning. `main.tf` (providers + S3 backend), `cloud/` module.
 - `infra/ansible/`: configuration. Roles: `wireguard_setup`, `ai_stack`, `edge_robot`.
 - `training/`: fine-tuning datasets (Hungarian, Alpaca format), persona benchmark, scoring template.
-- `robot/`: (planned) RPi 5 Python control software.
+- `robot/`: RPi 5 Python control software (`freedroid` package) — scaffold (interfaces + stubs), managed with uv, Pi-only.
 - `docs/free-droid.md`: the full technical spec and phased build checklist.
 
 ## Building and Running

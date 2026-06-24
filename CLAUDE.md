@@ -74,7 +74,9 @@ first; every other module reads from it).
 - `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (615 ex.), `train.jsonl` (553), `val.jsonl` (62),
   `expansion_only.json`. `old/` is superseded per-category data. Also `persona_benchmark.json` (25 Q for the A/B model
   test) and `ertekelo_sablon.md` (scoring template). Spec also references `colab_finetune.ipynb` + `Modelfile` (not yet present).
-- `robot/` — RPi 5 Python control software. **Not yet built** (Phase 4 — depends on hardware + fine-tuned model + cloud).
+- `robot/` — RPi 5 Python control software (`freedroid` package, `src/freedroid/`). **Scaffold only** —
+  interfaces + `NotImplementedError` stubs; `config/` carries the real pinout/tunables. Pi-only (direct `lgpio`,
+  no off-Pi mock), managed with **uv**. Implementation is Phase 4 (needs hardware + fine-tuned model + cloud).
 - `README.md` (English, matches spec) · `GEMINI.md` / `PROJECT_BRIEF.md` / `CONTEXT.md` (legacy, historical).
 - `.env` is git-ignored; `infra/terraform/.tfvars` holds `hcloud_token` — **never commit secrets**.
 
@@ -100,6 +102,18 @@ ansible-playbook -i inventory.ini site.yml --limit cloud   # cloud only
 # Swap the base model without editing roles:
 ansible-playbook -i inventory.ini site.yml -e edge_ollama_model=llama3.2:3b
 ```
+
+### Robot control software (`robot/`)
+```bash
+cd robot
+uv sync --extra dev     # create the project venv (.venv) + install
+uv run freedroid        # run the orchestrator (stub today)
+uv run pytest
+uv run ruff check .
+```
+Pi-only: modules are written directly against `lgpio`; importing the package works off-Pi (no top-level hardware
+imports), but instantiating a controller raises `NotImplementedError` until implemented. Build order:
+`config` → `motion`+`safety` → `tools` → `llm` → `voice` → `orchestrator`.
 
 ### Fine-tuning (Google Colab, not local)
 Unsloth QLoRA notebook on a free T4. Base model is a one-line swap (Qwen 2.5 3B vs Llama 3.2 3B). Train on

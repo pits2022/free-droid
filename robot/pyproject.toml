@@ -1,0 +1,40 @@
+[project]
+name = "freedroid"
+version = "0.0.1"
+description = "Free-Droid (Szabi) — RPi 5 control software: orchestrator, motion, safety, voice, LLM, tools"
+readme = "README.md"
+requires-python = ">=3.11"          # Raspberry Pi OS Bookworm ships Python 3.11
+license = { text = "GPL-3.0-or-later" }
+
+# Pi-only runtime (no off-Pi mock backend — see CLAUDE.md decision).
+dependencies = [
+    "lgpio",                  # GPIO/PWM: Cytron HAT-MDD10, PCA9685, HC-SR04P
+    "ollama",                 # cloud/edge LLM client
+    "opencv-python-headless", # camera frames
+]
+
+[project.optional-dependencies]
+# Offline voice stack — integrated in Phase 4.2, kept optional for now.
+voice = [
+    "openwakeword",
+    "piper-tts",
+    # whisper.cpp is a native binary, not a pip dep — wired up separately
+]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.scripts]
+freedroid = "freedroid.orchestrator:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/freedroid"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100

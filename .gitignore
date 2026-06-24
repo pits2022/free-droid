@@ -8,3 +8,10 @@
 *.tfstate
 *.tfstate.*
 crash.log
+
+# Python / uv (robot/)
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
