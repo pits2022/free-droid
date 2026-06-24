@@ -6,7 +6,7 @@
 
 ## Project Overview
 **free-droid** (SZABI) builds a fully automated, "Zero-Touch" infrastructure for a sovereign AI robot. The system
-bridges a cloud server (Hetzner GEX44) and an edge device (Raspberry Pi 5) over a secure WireGuard VPN, creating a
+bridges a cloud server (Hetzner CAX31/41, ARM64) and an edge device (Raspberry Pi 5) over a secure WireGuard VPN, creating a
 distributed, hybrid cloud-edge AI environment.
 
 ### Core Technologies
@@ -21,7 +21,7 @@ distributed, hybrid cloud-edge AI environment.
 
 ## Architecture
 "Mother-Child" hybrid:
-- **mother-001 (Cloud):** Hetzner `gex44` instance in `nbg1`. LLM inference via Ollama.
+- **mother-001 (Cloud):** Hetzner `cax31` (ARM64, CPU-only; `cax41` optional) in `nbg1`. LLM inference via Ollama. Disposable via `terraform destroy` (the Pi is never terraform-managed).
 - **child-001 (Edge):** Raspberry Pi 5. Robot control, local sensing, offline LLM fallback.
 - **Connectivity:** private VPN range `10.0.0.0/24` (cloud `10.0.0.1` ↔ edge `10.0.0.2`).
 

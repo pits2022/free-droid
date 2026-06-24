@@ -7,5 +7,5 @@
 #
 # NOTE: ultimately the *fine-tuned* GGUF is loaded via an Ollama Modelfile rather
 # than pulled from the registry; these registry tags are the bring-up placeholder.
-cloud_ollama_model: "qwen2.5:3b"   # cloud GEX44 (GPU) — inference only
+cloud_ollama_model: "qwen2.5:3b"   # cloud CAX31/41 (ARM, CPU) — inference only
 edge_ollama_model: "qwen2.5:3b"    # RPi 5 — offline fallback (Q4_K_M)

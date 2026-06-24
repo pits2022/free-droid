@@ -27,7 +27,8 @@ What changed and what is intentionally still a placeholder:
 | Fine-tuned model | ⏳ The Ansible registry-pull is a **bring-up placeholder**; the real flow loads the fine-tuned **GGUF via an Ollama Modelfile** (not yet wired up). |
 | Motion stack | ✅ **No ROS 2.** `ros2_setup` removed; replaced by `edge_robot` (plain Python venv, `lgpio`, no `rclpy`). ROS 2 is a later-roadmap port, out of Hacktivity scope. |
 | WireGuard | ✅ `10.0.0.1` (cloud `mother-001`) ↔ `10.0.0.2` (edge `child-001`), `10.0.0.0/24` subnet. |
-| Cloud location | `nbg1` (Terraform). The spec does not mandate a location — leave unless told otherwise. |
+| Cloud server | ✅ **CAX31** (`var.cloud_server_type`, `cax41` for more headroom) in `nbg1`. **Supersedes the spec's GEX44**, which is the Hetzner dedicated GPU line and is not provisionable via the hcloud Cloud API. CAX31/41 are ARM64, CPU-only. |
+| Cloud lifecycle | ✅ Disposable by design: `terraform destroy` removes only the cloud server + its net/firewall. The Pi is Ansible-only, never terraform-managed — destroy can't touch it. Recreating the cloud mints a new WireGuard key → re-run the `wireguard_setup` role on the Pi to restore the tunnel. |
 
 > `GEMINI.md`, `PROJECT_BRIEF.md`, and `CONTEXT.md` describe the **legacy** design — treat them as historical, not
 > current (`GEMINI.md`'s overview header has been corrected to match). `README.md` matches the v2.0 spec.
@@ -36,9 +37,10 @@ What changed and what is intentionally still a placeholder:
 
 **Hybrid cloud-edge.** Same fine-tuned 3B model runs in both places; a Python orchestrator on the Pi picks the source:
 
-- **Cloud (Hetzner GEX44):** inference only, via Ollama (Q8/f16). The cloud **never** fine-tunes.
+- **Cloud (Hetzner CAX31/41 — ARM64, CPU-only):** inference only, via Ollama (Q8/f16, on CPU). The cloud **never**
+  fine-tunes. (GEX44 from the spec is unavailable on the hcloud Cloud API; CAX31/41 supersede it — see below.)
 - **Edge (Raspberry Pi 5, 8GB):** the same model at Q4_K_M, fully offline, as fallback.
-- **Fine-tuning happens on Google Colab** (free T4) with Unsloth QLoRA — never on the GEX44.
+- **Fine-tuning happens on Google Colab** (free T4) with Unsloth QLoRA — never on the cloud server.
 - **Fallback ladder:** cloud (WireGuard up) → edge (offline) → "safe mode" (canned replies, motion disabled).
 
 **Layered motion control — the LLM never drives motors directly:**
@@ -88,7 +90,9 @@ cd infra/terraform
 terraform init          # uses an S3 backend (AWS profile "terraform-s3-access") + hcloud
 terraform fmt -recursive
 terraform plan
-terraform apply         # creates the GEX44, then auto-runs the Ansible site.yml via local-exec
+terraform apply         # creates the CAX31, then auto-runs the Ansible site.yml (cloud) via local-exec
+terraform apply -var cloud_server_type=cax41   # bigger cloud box
+terraform destroy       # tears down ONLY the cloud server — the Pi (Ansible-only) is untouched
 ```
 Requires `hcloud_token` (in `.tfvars`) and AWS S3 access for remote state.
 

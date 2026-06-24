@@ -40,7 +40,14 @@ variable "ssh_public_key_path" {
   default     = "~/.ssh/id_rsa.pub"
 }
 
+variable "cloud_server_type" {
+  description = "Hetzner Cloud server type for the cloud backend (ARM64, CPU-only). CAX31 default; CAX41 for more headroom."
+  type        = string
+  default     = "cax31"
+}
+
 module "cloud" {
   source              = "./cloud"
   ssh_public_key_path = var.ssh_public_key_path
+  cloud_server_type   = var.cloud_server_type
 }

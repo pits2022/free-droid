@@ -22,7 +22,7 @@ The droid is named **Free-Droid**, but it answers to **Szabi** — a Hungarian n
 
 A hybrid **cloud-edge** design:
 
-- **Cloud (Hetzner GEX44):** Llama 3.2 3B + LoRA, served via Ollama — used for inference when online.
+- **Cloud (Hetzner CAX31/41, ARM64):** Llama 3.2 3B + LoRA, served via Ollama — used for inference when online.
 - **Edge (Raspberry Pi 5):** the same Llama 3.2 3B (Q4_K_M) running fully offline as a fallback.
 - **VPN:** WireGuard tunnel between the Pi and the cloud.
 

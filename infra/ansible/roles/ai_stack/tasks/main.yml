@@ -3,7 +3,6 @@
   apt:
     name:
       - curl
-      - gnupg
     state: present
     update_cache: yes
 
@@ -15,41 +14,8 @@
       args:
         creates: /usr/bin/docker
 
-    # --- NVIDIA Container Toolkit ---
-    # Split keyring and list into two fail-loud steps (set -euo pipefail) so a
-    # failed key fetch can't be masked by a later `tee`/`sed` and then cemented by
-    # a `creates:` guard on the wrong file.
-    - name: Add NVIDIA Container Toolkit GPG keyring
-      shell: |
-        set -euo pipefail
-        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-          | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-      args:
-        executable: /bin/bash
-        creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-
-    - name: Add NVIDIA Container Toolkit apt repository
-      shell: |
-        set -euo pipefail
-        curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-          | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-          > /etc/apt/sources.list.d/nvidia-container-toolkit.list
-      args:
-        executable: /bin/bash
-        creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-    - name: Install NVIDIA Container Toolkit
-      apt:
-        name: nvidia-container-toolkit
-        state: present
-        update_cache: yes
-
-    - name: Register the NVIDIA runtime with Docker
-      command: nvidia-ctk runtime configure --runtime=docker
-      register: nvidia_ctk
-      changed_when: "'is already configured' not in nvidia_ctk.stdout"
-      notify: Restart Docker
-
+    # CAX31/41 are ARM64, CPU-only — no GPU/NVIDIA runtime. Ollama runs the 3B
+    # model on CPU here (still well ahead of the Pi).
     - name: Ensure Docker starts after WireGuard (so it can bind the VPN IP on boot)
       copy:
         dest: /etc/systemd/system/docker.service.d/10-after-wireguard.conf
@@ -78,9 +44,9 @@
 
     # OLLAMA_HOST=0.0.0.0 is the in-container bind; the host publish is pinned to
     # {{ vpn_ip }} (wg0), so the API is VPN-only, never on the public NIC.
-    - name: Run Ollama Container (published on the WireGuard IP only)
+    - name: Run Ollama Container (CPU; published on the WireGuard IP only)
       command: >-
-        docker run -d --gpus=all -v ollama:/root/.ollama
+        docker run -d -v ollama:/root/.ollama
         -p {{ vpn_ip }}:11434:11434 --name ollama --restart always
         -e OLLAMA_HOST="0.0.0.0" ollama/ollama
       when: ollama_running.stdout == ""

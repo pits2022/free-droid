@@ -51,10 +51,15 @@ resource "hcloud_ssh_key" "default" {
   public_key = file(pathexpand(var.ssh_public_key_path))
 }
 
+# The cloud backend is intentionally disposable: `terraform destroy` tears it
+# (and its network/firewall) down to save cost while the droid is offline. The
+# RPi 5 edge is NOT managed here (Ansible-only), so destroy never touches it.
+# Note: recreating this server mints a new WireGuard key, so re-run the wireguard
+# role on the Pi (or update its wg0.conf) to restore the tunnel.
 resource "hcloud_server" "mother" {
   name         = "mother-001"
-  server_type  = "gex44"
-  image        = "ubuntu-24.04"
+  server_type  = var.cloud_server_type # ARM64 Ampere (CAX31/41), CPU-only
+  image        = "ubuntu-24.04"        # served as arm64 for CAX server types
   location     = "nbg1"
   ssh_keys     = [hcloud_ssh_key.default.id]
   firewall_ids = [hcloud_firewall.free_droid_fw.id]
