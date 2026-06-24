@@ -55,7 +55,7 @@ What changed and what is intentionally still a placeholder:
    immediate `stop()`, bypassing the LLM entirely.
 
 Known tools: `move()`, `turn()`, `stop()`, `camera()`, `set_speed()`, `set_mode()`, `request_navigation_help()`,
-`scan_wifi()`. The tool parser must be robust (tolerate extra whitespace / quote variants).
+`scan_wifi()`, `set_oracle()`. The tool parser must be robust (tolerate extra whitespace / quote variants).
 
 **Voice pipeline (fully offline on the Pi):** wake word `"Szabi"` (openWakeWord) → STT Whisper.cpp (Hungarian) →
 LLM (cloud or edge) → TTS Piper (`hu_HU-anonymous-medium`, pitch-tuned younger) → tool execution.
@@ -63,7 +63,7 @@ LLM (cloud or edge) → TTS Piper (`hu_HU-anonymous-medium`, pitch-tuned younger
 **Target `robot/` module layout** (RPi control software, not yet built): `orchestrator/` (main async loop + fallback),
 `motion/` (Cytron HAT, lgpio-based), `safety/` (ultrasonic watchdog thread), `voice/` (wake/STT/TTS/VAD),
 `llm/` (cloud+edge client), `tools/` (parser + handlers), `config/` (GPIO pinout, thresholds, audio params — build this
-first; every other module reads from it).
+first; every other module reads from it), `oracle/` (**optional** "Tudók" external-LLM routing — see below).
 
 ## Security & sovereignty invariants (do not violate)
 
@@ -71,15 +71,22 @@ first; every other module reads from it).
   security level. It must **never** connect, handle passwords, or expose an injection surface.
 - **The robot never joins a network from a spoken command.** Network setup is always manual over a trusted channel.
 - **Safety watchdog is independent of the LLM** — an obstacle stops the robot regardless of what the model says.
+- **"Tudók" oracle routing (`oracle/`, `set_oracle()`) is OFF by default and OFF on the demo.** It lets Szabi "cheat"
+  off a bigger external model (default Anthropic Opus) on hard questions, then re-filter the raw answer through her
+  Yotengrit persona. It breaks the sovereignty principle (external API), so it is **family/`extended` mode only** —
+  the Hacktivity demo runs `mode: sovereign`. The orchestrator (not the 3B model) owns the two-step call; the LLM only
+  emits a `<puska/>` hint. `provider: "ollama"` keeps it sovereign (a bigger *local* model).
 
 ## Repository layout (actual, on disk)
 
 - `docs/free-droid.md` — **the spec** (authoritative).
 - `infra/terraform/` — Hetzner provisioning (`main.tf` + S3 state backend; `cloud/` module).
 - `infra/ansible/` — `site.yml` + roles `wireguard_setup`, `ai_stack`, `edge_robot`.
-- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (615 ex.), `train.jsonl` (553), `val.jsonl` (62),
-  `expansion_only.json`. `old/` is superseded per-category data. Also `persona_benchmark.json` (25 Q for the A/B model
-  test) and `ertekelo_sablon.md` (scoring template). Spec also references `colab_finetune.ipynb` + `Modelfile` (not yet present).
+- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (630 ex.), `train.jsonl` (567), `val.jsonl` (63),
+  `expansion_only.json` (92 new). Categories include `oracle_routing` (15) — so the dataset uses `set_oracle()` and the
+  `<puska/>` hint (the grammar contract test guards this). `old/` is superseded per-category data. Also
+  `persona_benchmark.json` (25 Q A/B test) + `ertekelo_sablon.md`, and the Unsloth scaffold (`finetune.py`, `config.py`,
+  `colab_finetune.ipynb`, `Modelfile`, `system_prompt.txt`).
 - `robot/` — RPi 5 Python control software (`freedroid` package, `src/freedroid/`). **Scaffold only** —
   interfaces + `NotImplementedError` stubs; `config/` carries the real pinout/tunables. Pi-only (direct `lgpio`,
   no off-Pi mock), managed with **uv**. Implementation is Phase 4 (needs hardware + fine-tuned model + cloud).

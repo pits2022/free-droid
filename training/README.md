@@ -15,7 +15,7 @@ are CPU/ARM). Unsloth is deliberately **not** a dependency of the deployed syste
 | `system_prompt.txt` | The persona system prompt used at train time (keep in sync with `Modelfile`) |
 | `Modelfile` | Ollama export config (`ollama create szabi -f Modelfile`) |
 | `requirements.txt` | Training deps (Colab); freeze exact versions after a known-good run |
-| `dataset/` | 615 Hungarian examples, Alpaca format (`train.jsonl` 553 / `val.jsonl` 62) |
+| `dataset/` | 630 Hungarian examples, Alpaca format (`train.jsonl` 567 / `val.jsonl` 63) |
 | `persona_benchmark.json` + `ertekelo_sablon.md` | 25-question A/B benchmark + scoring sheet |
 
 ## Run (on Colab, T4)

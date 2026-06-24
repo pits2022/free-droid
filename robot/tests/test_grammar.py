@@ -13,6 +13,7 @@ from freedroid.tools.parser import ParsedTool
 KNOWN_TOOLS = {
     "move", "turn", "stop", "camera",
     "set_speed", "set_mode", "request_navigation_help", "scan_wifi",
+    "set_oracle",  # optional "Tudók" routing toggle (default off / sovereign)
 }
 
 
@@ -58,6 +59,12 @@ def test_camera_action_values_covered_by_enum(tool_calls):
     vals = {c["args"]["action"] for c in tool_calls
             if c["name"] == "camera" and "action" in c["args"]}
     assert vals <= _values("CameraAction")
+
+
+def test_set_oracle_enabled_is_boolean(tool_calls):
+    vals = {c["args"]["enabled"] for c in tool_calls
+            if c["name"] == "set_oracle" and "enabled" in c["args"]}
+    assert vals and vals <= {"true", "false"}
 
 
 def test_dataset_uses_positional_args_somewhere(tool_calls):
