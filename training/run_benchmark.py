@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""A/B persona-benchmark futtató a Free-Droid (Szabi) projekthez.
+"""Persona-benchmark futtató a Free-Droid (Szabi) projekthez — N modellre.
 
-Két, már betöltött Ollama modellnek (pl. `freedroid-qwen` és `freedroid-llama`)
-felteszi a `persona_benchmark.json` 25 kérdését azonos, determinisztikus
-beállításokkal, méri a generálási sebességet, és az eredményt az értékelő
-sablon formátumába (egymás melletti összevetés + kézzel kitölthető pontozó
-táblák) önti egy `benchmark_eredmeny.md` fájlba.
+Tetszőleges számú (2, 3, 4 ...) már betöltött Ollama modellnek felteszi a
+`persona_benchmark.json` 25 kérdését azonos, determinisztikus beállításokkal,
+méri a generálási sebességet, és az eredményt az értékelő sablon formátumába
+(modellek egymás MELLETT + kézzel kitölthető pontozó táblák) önti egy
+`benchmark_eredmeny.md` fájlba.
 
 Használat (az Ollama-nak futnia kell: `ollama serve`):
-    python run_benchmark.py
-    python run_benchmark.py --model-a freedroid-qwen --model-b freedroid-llama
-    python run_benchmark.py --force --json-out
+    python run_benchmark.py                                  # a két alapértelmezett modell
+    python run_benchmark.py --models freedroid-qwen freedroid-llama freedroid-gemma
+    python run_benchmark.py --models m1 m2 m3 m4 --force --json-out
 """
 
 from __future__ import annotations
@@ -30,7 +30,10 @@ RAW_FILE = HERE / "benchmark_raw.json"
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
-# Determinisztikus beállítás a fair összevetésért — MINDKÉT modellnél azonos.
+# Alapértelmezett modellek (felülírható a --models flaggel).
+DEFAULT_MODELS = ["freedroid-qwen", "freedroid-llama"]
+
+# Determinisztikus beállítás a fair összevetésért — MINDEN modellnél azonos.
 TEMPERATURE = 0.7
 SEED = 42
 REQUEST_TIMEOUT = 180.0  # CPU-n a generálás lassú lehet
@@ -96,15 +99,15 @@ def ollama_generate(model: str, prompt: str) -> tuple[str, float | None]:
     return valasz, tok_s
 
 
-def run_model(model: str, label: str, kerdesek: list[dict]) -> dict[str, dict]:
+def run_model(model: str, kerdesek: list[dict]) -> dict[str, dict]:
     """Mind a 25 kérdés végigfuttatása egy modellen, haladásjelzéssel."""
     n = len(kerdesek)
     eredmenyek: dict[str, dict] = {}
     for i, q in enumerate(kerdesek, 1):
-        print(f"  [{label}] {i}/{n} kérdés — {q['id']} ({q['dimenzio']}) ...", file=sys.stderr)
+        print(f"  [{model}] {i}/{n} kérdés — {q['id']} ({q['dimenzio']}) ...", file=sys.stderr)
         valasz, tok_s = ollama_generate(model, q["kerdes"])
         eredmenyek[q["id"]] = {"valasz": valasz, "tok_s": tok_s}
-    print(f"  [{label}] kész ({model}).", file=sys.stderr)
+    print(f"  [{model}] kész.", file=sys.stderr)
     return eredmenyek
 
 
@@ -133,49 +136,56 @@ def ordered_dimensions(kerdesek: list[dict]) -> list[str]:
     return rendezett + extrak
 
 
-def render_markdown(model_a: str, model_b: str, kerdesek: list[dict],
-                    res_a: dict[str, dict], res_b: dict[str, dict]) -> str:
+def _row(cells: list[str]) -> str:
+    """Markdown tábla-sor N cellából."""
+    return "| " + " | ".join(cells) + " |"
+
+
+def render_markdown(models: list[str], kerdesek: list[dict],
+                    results: dict[str, dict[str, dict]]) -> str:
+    """results: {modellnév: {kérdés_id: {valasz, tok_s}}}."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    sep = _row(["---"] * (len(models) + 1))  # bal oszlop ("") + N modell
+
     out: list[str] = []
-    out.append("# 🧪 Free-Droid A/B persona-benchmark — eredmény\n")
+    out.append("# 🧪 Free-Droid persona-benchmark — eredmény\n")
     out.append(f"*Futtatva: {now}*  ")
-    out.append(f"**Model A:** `{model_a}`  ")
-    out.append(f"**Model B:** `{model_b}`  ")
-    out.append(f"*Beállítás: temperature={TEMPERATURE}, seed={SEED} (mindkét modellnél azonos)*\n")
+    out.append(f"**Modellek:** {', '.join(f'`{m}`' for m in models)}  ")
+    out.append(f"*Beállítás: temperature={TEMPERATURE}, seed={SEED} (minden modellnél azonos)*\n")
     out.append("> A `Pont (1-5)` cellákat és az összesítő táblákat kézzel töltsd ki "
                "az `ertekelo_sablon.md` pontozási skálája szerint.\n")
 
-    # Kérdések dimenziónként csoportosítva, egymás mellett a két modell.
+    # Kérdések dimenziónként csoportosítva, a modellek egymás mellett N oszlopban.
     for dim in ordered_dimensions(kerdesek):
         out.append(f"\n## Dimenzió: {dim}\n")
         for q in [k for k in kerdesek if k["dimenzio"] == dim]:
             qid = q["id"]
-            a = res_a.get(qid, {})
-            b = res_b.get(qid, {})
             out.append(f"### {qid} — {dim}")
             out.append(f"**Kérdés:** {q['kerdes']}\n")
-            out.append(f"| | Model A (`{model_a}`) | Model B (`{model_b}`) |")
-            out.append("|---|---|---|")
-            out.append(f"| Válasz | {md_cell(a.get('valasz', ''))} | {md_cell(b.get('valasz', ''))} |")
-            out.append(f"| tok/s | {fmt_speed(a.get('tok_s'))} | {fmt_speed(b.get('tok_s'))} |")
-            out.append("| Pont (1-5) | | |")
+            out.append(_row([""] + [f"`{m}`" for m in models]))
+            out.append(sep)
+            out.append(_row(["Válasz"] + [md_cell(results[m].get(qid, {}).get("valasz", ""))
+                                          for m in models]))
+            out.append(_row(["tok/s"] + [fmt_speed(results[m].get(qid, {}).get("tok_s"))
+                                         for m in models]))
+            out.append(_row(["Pont (1-5)"] + [""] * len(models)))
             out.append("")
 
-    # Összesítő tábla (kézzel kitöltendő) a 6 dimenzióra.
+    # Összesítő tábla (kézzel kitöltendő): dimenzió-soronként, modellenként egy pont-oszlop.
     out.append("\n## Összesítő — pontozás (kézzel kitöltendő)\n")
-    out.append("| Dimenzió | Model A pont | Model B pont | Megjegyzés |")
-    out.append("|---|---|---|---|")
+    out.append(_row(["Dimenzió"] + list(models) + ["Megjegyzés"]))
+    out.append(_row(["---"] * (len(models) + 2)))
     for dim in ordered_dimensions(kerdesek):
-        out.append(f"| {dim} | | | |")
-    out.append("| **Összesen** | | | |")
+        out.append(_row([dim] + [""] * len(models) + [""]))
+    out.append(_row(["**Összesen**"] + [""] * len(models) + [""]))
 
-    # Sebesség-összesítő: átlagos tok/s modellenként.
-    avg_a = _atlag([res_a.get(q["id"], {}).get("tok_s") for q in kerdesek])
-    avg_b = _atlag([res_b.get(q["id"], {}).get("tok_s") for q in kerdesek])
+    # Sebesség-összesítő: átlagos tok/s modellenként (modell/soronként, sok modellnél is olvasható).
     out.append("\n## Sebesség-összesítő\n")
-    out.append("| | Model A | Model B |")
-    out.append("|---|---|---|")
-    out.append(f"| Átlagos tok/s | {fmt_speed(avg_a)} | {fmt_speed(avg_b)} |")
+    out.append(_row(["Modell", "Átlagos tok/s"]))
+    out.append(_row(["---", "---"]))
+    for m in models:
+        atlag = _atlag([results[m].get(q["id"], {}).get("tok_s") for q in kerdesek])
+        out.append(_row([f"`{m}`", fmt_speed(atlag)]))
     out.append("")
     return "\n".join(out)
 
@@ -191,8 +201,8 @@ def _atlag(ertekek: list[float | None]) -> float | None:
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--model-a", default="freedroid-qwen", help="Model A Ollama-neve")
-    ap.add_argument("--model-b", default="freedroid-llama", help="Model B Ollama-neve")
+    ap.add_argument("--models", nargs="+", default=DEFAULT_MODELS, metavar="MODELL",
+                    help="a tesztelendő Ollama modellek nevei (2 vagy több)")
     ap.add_argument("--force", action="store_true",
                     help="írd felül a meglévő benchmark_eredmeny.md-t (különben hiba)")
     ap.add_argument("--json-out", action="store_true",
@@ -202,6 +212,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    models: list[str] = args.models
+
+    if len(models) < 2:
+        print("HIBA: legalább 2 modell kell az összevetéshez (--models m1 m2 ...).", file=sys.stderr)
+        return 1
+    if len(set(models)) != len(models):
+        print(f"HIBA: ismétlődő modellnév a listában: {models}", file=sys.stderr)
+        return 1
 
     if RESULT_FILE.exists() and not args.force:
         print(f"HIBA: {RESULT_FILE.name} már létezik (kézi pontok elveszhetnek).\n"
@@ -218,31 +236,28 @@ def main() -> int:
         print("HIBA: a benchmark nem tartalmaz kérdéseket ('kerdesek').", file=sys.stderr)
         return 1
 
-    print(f"Benchmark: {len(kerdesek)} kérdés × 2 modell "
-          f"({args.model_a}, {args.model_b})\n", file=sys.stderr)
+    print(f"Benchmark: {len(kerdesek)} kérdés × {len(models)} modell "
+          f"({', '.join(models)})\n", file=sys.stderr)
+    results: dict[str, dict[str, dict]] = {}
     try:
-        res_a = run_model(args.model_a, "Model A", kerdesek)
-        res_b = run_model(args.model_b, "Model B", kerdesek)
+        for model in models:
+            results[model] = run_model(model, kerdesek)
     except BenchmarkError as e:
         print(f"\nHIBA: {e}", file=sys.stderr)
         return 1
 
-    RESULT_FILE.write_text(
-        render_markdown(args.model_a, args.model_b, kerdesek, res_a, res_b),
-        encoding="utf-8",
-    )
+    RESULT_FILE.write_text(render_markdown(models, kerdesek, results), encoding="utf-8")
     print(f"\nKész → {RESULT_FILE}", file=sys.stderr)
 
     if args.json_out:
         raw = {
             "meta": {
                 "futtatva": datetime.now().isoformat(timespec="seconds"),
-                "model_a": args.model_a, "model_b": args.model_b,
-                "temperature": TEMPERATURE, "seed": SEED,
+                "modellek": models, "temperature": TEMPERATURE, "seed": SEED,
             },
             "eredmenyek": [
                 {"id": q["id"], "dimenzio": q["dimenzio"], "kerdes": q["kerdes"],
-                 "model_a": res_a.get(q["id"]), "model_b": res_b.get(q["id"])}
+                 "valaszok": {m: results[m].get(q["id"]) for m in models}}
                 for q in kerdesek
             ],
         }
