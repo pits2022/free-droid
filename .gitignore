@@ -20,3 +20,5 @@ __pycache__/
 training/outputs/
 *.gguf
 *.safetensors
+# Benchmark raw dump (intermediate); the hand-scored benchmark_eredmeny.md is yours to commit
+training/benchmark_raw.json
