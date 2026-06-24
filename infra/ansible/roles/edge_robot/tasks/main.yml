@@ -1,0 +1,58 @@
+---
+# Edge (RPi 5) robot runtime — Raspberry Pi OS / Debian Bookworm.
+# Plain Python control stack (no ROS 2, per the v2.0 spec), managed with uv.
+#
+# The play runs with become: yes (root). uv must be installed and run as the
+# unprivileged robot_user, and the project tree must be owned by that user, or
+# `uv sync` fails creating .venv. We therefore pin user/home explicitly rather
+# than relying on ansible_env.HOME (which is /root under become).
+
+- name: Install system prerequisites
+  apt:
+    name:
+      - git
+      - curl
+      - python3
+      - python3-dev
+      - build-essential   # native builds (e.g. lgpio)
+    state: present
+    update_cache: yes
+
+- name: Clone the free-droid repo
+  when: robot_repo_url | length > 0
+  git:
+    repo: "{{ robot_repo_url }}"
+    version: "{{ robot_repo_version }}"
+    dest: "{{ robot_src_dir | dirname }}"
+
+- name: Ensure the project tree is owned by {{ robot_user }}
+  when: robot_repo_url | length > 0
+  file:
+    path: "{{ robot_src_dir | dirname }}"
+    owner: "{{ robot_user }}"
+    group: "{{ robot_user }}"
+    recurse: yes
+
+# uv is not packaged in Debian; use the official installer as the robot_user.
+# (Same accepted curl|installer pattern as Docker/Ollama — pin/verify later.)
+- name: Install uv (Astral) for {{ robot_user }}
+  become: true
+  become_user: "{{ robot_user }}"
+  shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+  args:
+    creates: "{{ robot_user_home }}/.local/bin/uv"
+
+- name: Check whether the robot project is present
+  stat:
+    path: "{{ robot_src_dir }}/pyproject.toml"
+  register: robot_project
+
+- name: Sync the robot project venv with uv
+  when: robot_project.stat.exists
+  become: true
+  become_user: "{{ robot_user }}"
+  command: >-
+    {{ robot_user_home }}/.local/bin/uv sync
+    {{ '--extra voice' if robot_install_voice_extra else '' }}
+  args:
+    chdir: "{{ robot_src_dir }}"

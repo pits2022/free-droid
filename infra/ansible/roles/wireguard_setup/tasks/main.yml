@@ -1,0 +1,53 @@
+---
+- name: Install WireGuard
+  apt:
+    name: wireguard
+    state: present
+    update_cache: yes
+
+- name: Enable IPv4 forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+# Persist the key on first run only — regenerating every run would mint new keys,
+# rewrite wg0.conf, and bounce the tunnel (invalidating any distributed peer keys).
+- name: Generate and store the WireGuard private key (once)
+  shell: "umask 077 && wg genkey > /etc/wireguard/privatekey"
+  args:
+    creates: /etc/wireguard/privatekey
+  no_log: true   # never echo the private key into Ansible output/logs
+
+- name: Read the stored private key
+  slurp:
+    src: /etc/wireguard/privatekey
+  register: wg_private_key_b64
+  no_log: true
+
+- name: Derive the public key
+  shell: "wg pubkey < /etc/wireguard/privatekey"
+  register: wg_public_key_result
+  changed_when: false
+  no_log: true
+
+- name: Set WireGuard facts
+  set_fact:
+    wg_private_key: "{{ wg_private_key_b64.content | b64decode | trim }}"
+    wg_public_key: "{{ wg_public_key_result.stdout | trim }}"
+  no_log: true   # wg_private_key is secret
+
+- name: Configure WireGuard Interface
+  template:
+    src: wg0.conf.j2
+    dest: /etc/wireguard/wg0.conf
+    mode: '0600'
+  notify: Restart WireGuard
+
+- name: Enable and start WireGuard
+  systemd:
+    name: wg-quick@wg0
+    enabled: yes
+    state: started

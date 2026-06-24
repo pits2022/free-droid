@@ -1,0 +1,88 @@
+---
+- name: Install prerequisites
+  apt:
+    name:
+      - curl
+    state: present
+    update_cache: yes
+
+- name: Setup Cloud Node (Ollama via Docker)
+  when: "'cloud' in group_names"
+  block:
+    - name: Install Docker
+      shell: curl -fsSL https://get.docker.com | sh
+      args:
+        creates: /usr/bin/docker
+
+    # CAX31/41 are ARM64, CPU-only — no GPU/NVIDIA runtime. Ollama runs the 3B
+    # model on CPU here (still well ahead of the Pi).
+    - name: Ensure Docker starts after WireGuard (so it can bind the VPN IP on boot)
+      copy:
+        dest: /etc/systemd/system/docker.service.d/10-after-wireguard.conf
+        mode: '0644'
+        content: |
+          [Unit]
+          After=wg-quick@wg0.service
+      notify: Reload systemd
+
+    # Apply the systemd reload + Docker restart before we touch the container.
+    - name: Apply pending systemd/docker changes
+      meta: flush_handlers
+
+    - name: Check for a running Ollama container
+      command: docker ps -q -f name=^ollama$
+      register: ollama_running
+      changed_when: false
+
+    # docker ps without -a would miss a crashed/exited container that still holds
+    # the name; remove any non-running one so we always (re)create a healthy one.
+    - name: Remove any stale (non-running) Ollama container
+      command: docker rm -f ollama
+      when: ollama_running.stdout == ""
+      failed_when: false
+      changed_when: false
+
+    # OLLAMA_HOST=0.0.0.0 is the in-container bind; the host publish is pinned to
+    # {{ vpn_ip }} (wg0), so the API is VPN-only, never on the public NIC.
+    - name: Run Ollama Container (CPU; published on the WireGuard IP only)
+      command: >-
+        docker run -d -v ollama:/root/.ollama
+        -p {{ vpn_ip }}:11434:11434 --name ollama --restart always
+        -e OLLAMA_HOST="0.0.0.0" ollama/ollama
+      when: ollama_running.stdout == ""
+
+    - name: Pull base model into Ollama (cloud)
+      command: docker exec ollama ollama pull {{ cloud_ollama_model }}
+      register: cloud_pull
+      until: cloud_pull.rc == 0
+      retries: 5
+      delay: 10
+      changed_when: true
+
+- name: Setup Edge Node (Ollama Native)
+  when: "'edge' in group_names"
+  block:
+    - name: Install Ollama natively
+      shell: curl -fsSL https://ollama.com/install.sh | sh
+      args:
+        creates: /usr/local/bin/ollama
+
+    # Edge Ollama is only ever called by the local orchestrator (offline fallback)
+    # — bind to loopback so it is never reachable over LTE/Wi-Fi/VPN.
+    - name: Bind edge Ollama to loopback only
+      lineinfile:
+        path: /etc/systemd/system/ollama.service
+        regexp: '^Environment="OLLAMA_HOST='
+        insertafter: '^\[Service\]'
+        line: 'Environment="OLLAMA_HOST=127.0.0.1"'
+      notify:
+        - Reload systemd
+        - Restart Ollama
+
+    - name: Pull base model into Ollama (edge)
+      command: ollama pull {{ edge_ollama_model }}
+      register: edge_pull
+      until: edge_pull.rc == 0
+      retries: 5
+      delay: 10
+      changed_when: true

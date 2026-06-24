@@ -1,0 +1,19 @@
+---
+- name: Configure free-droid WireGuard VPN
+  hosts: all
+  become: yes
+  roles:
+    - wireguard_setup
+
+- name: Setup Cloud AI Stack
+  hosts: cloud
+  become: yes
+  roles:
+    - ai_stack
+
+- name: Setup Edge Node AI and Robotics Stack
+  hosts: edge
+  become: yes
+  roles:
+    - ai_stack
+    - edge_robot

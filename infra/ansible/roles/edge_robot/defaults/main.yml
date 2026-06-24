@@ -1,0 +1,17 @@
+---
+# The unprivileged user that owns and runs the robot software on the Pi
+# (matches the inventory's ansible_user for the edge host).
+robot_user: pi
+robot_user_home: "/home/{{ robot_user }}"
+
+# Where the repo's robot/ project lives on the Pi. The orchestrator runs from here.
+robot_src_dir: /opt/free-droid/robot
+
+# Optional: clone the repo to {{ robot_src_dir | dirname }} if set. Leave empty to
+# deliver the code another way (rsync, image bake, manual git).
+robot_repo_url: ""
+robot_repo_version: main
+
+# Install the offline voice stack extra (openWakeWord, Piper). whisper.cpp is a
+# native binary wired up separately. Off by default until Phase 4.2.
+robot_install_voice_extra: false
