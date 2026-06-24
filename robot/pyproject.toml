@@ -8,9 +8,11 @@ license = { text = "GPL-3.0-or-later" }
 
 # Pi-only runtime (no off-Pi mock backend — see CLAUDE.md decision).
 dependencies = [
-    "lgpio",                  # GPIO/PWM: Cytron HAT-MDD10, PCA9685, HC-SR04P
-    "ollama",                 # cloud/edge LLM client
-    "opencv-python-headless", # camera frames
+    "lgpio",                               # GPIO/PWM: Cytron HAT-MDD10 motors, HC-SR04P ultrasonic
+    "adafruit-circuitpython-pca9685",      # PCA9685 servo PWM (I2C) — camera pan/tilt
+    "adafruit-circuitpython-neopixel-spi", # WS2812 status ring over SPI (spec: SPI mode → avoids PWM/DMA conflict, so not rpi_ws281x)
+    "ollama",                              # cloud/edge LLM client
+    "opencv-python-headless",              # camera frames
 ]
 
 [project.optional-dependencies]

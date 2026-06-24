@@ -20,8 +20,7 @@ class LLMEndpoints:
 
 @dataclass(frozen=True)
 class SafetySettings:
-    # TODO(confirm with Creator): real stop distance during bring-up.
-    stop_threshold_cm: float = 25.0
+    stop_threshold_cm: float = 25.0   # confirmed with Creator
     poll_interval_s: float = 0.05   # watchdog thread cadence
     # Per-sensor overrides, e.g. {"front": 30.0}
     per_sensor_cm: dict[str, float] = field(default_factory=dict)
