@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Free-Droid health check at boot and periodically
+
+[Timer]
+OnBootSec={{ health_check_on_boot_sec }}
+OnUnitActiveSec={{ health_check_interval_sec }}
+Unit=freedroid-health.service
+
+[Install]
+WantedBy=timers.target

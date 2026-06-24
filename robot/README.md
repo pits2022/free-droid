@@ -15,6 +15,7 @@ The spec's `robot/` module list is realized as the `freedroid` package (`src/fre
 | `llm/` | `freedroid.llm` | LLM client with cloud (WireGuard→Ollama) → edge fallback |
 | `voice/` | `freedroid.voice` | wake word → STT → TTS → VAD (all offline) |
 | `orchestrator/` | `freedroid.orchestrator` | main async loop tying it together + safe-mode |
+| — | `freedroid.health` | vital-function checks (network/hardware/software), self-heal → safe-mode; `freedroid-health` CLI |
 
 ## Design invariants (from the spec — do not break when implementing)
 
@@ -23,12 +24,55 @@ The spec's `robot/` module list is realized as the `freedroid` package (`src/fre
 - `scan_wifi()` is **read-only** — list networks via `nmcli`, never connect, never handle passwords.
 - **Pi-only**: code is written directly against `lgpio`; there is no off-Pi mock backend.
 
+## Health checks (`freedroid.health`)
+
+Vital-function self-check that runs **at boot and on a 10-min timer** on the Pi
+(systemd `freedroid-health.timer`). Three layers:
+
+- **network** — WireGuard up, cloud Ollama reachable. *Cloud is on-demand, so these
+  are WARNING (the edge fallback covers an outage), never a vital failure.*
+- **hardware** — GPIO chip, I²C/SPI buses, USB mic/speaker, camera, thermal, disk.
+- **software** — edge Ollama + model, orchestrator service, package import, voice binaries.
+
+On a **vital** (CRITICAL) failure it **self-heals** (restart the relevant service),
+re-checks, and if still failing enters **safe-mode** (writes `/run/freedroid/safe_mode`;
+the orchestrator reads it to disable motion). It writes `/run/freedroid/health.json`,
+logs to journald, and exits non-zero. Run manually: `freedroid-health`.
+
 ## Dev (managed with uv)
 
 ```bash
 cd robot
 uv sync --extra dev           # create venv + install
 uv run freedroid              # run the orchestrator (once implemented)
-uv run pytest
+uv run freedroid-health       # run the vital-function check once
+uv run pytest                 # full suite
+uv run pytest -m phase4       # the TDD harness (xfail until implemented)
 uv run ruff check .
 ```
+
+### Test layout
+
+- **Green now:** `test_config`, `test_motion_types`, `test_grammar` (dataset↔enum
+  contract), `test_interfaces`, and all `test_health_*` (the runtime health logic).
+- **TDD harness (xfail, strict):** `test_parser_behaviour` and `test_phase4_hardware`
+  describe intended Phase-4 behaviour. They xfail until implemented — and because
+  `xfail_strict=true`, the moment an implementation makes one pass, the suite fails
+  and forces removing the marker, turning the spec into a live guard.
+- Hardware-controller specs are `@requires_pi` (skipped off-Pi).
+
+### Hardware bring-up (Phase 1.5)
+
+Standalone, Pi-only smoke scripts that drive the hardware directly — *before* the
+control software exists — to confirm wiring. See [`scripts/README.md`](scripts/README.md).
+
+```bash
+uv run python scripts/motor_test.py        # both tracks forward/back
+uv run python scripts/servo_test.py        # pan/tilt sweep (PCA9685)
+uv run python scripts/ultrasonic_test.py   # live HC-SR04P distances
+uv run python scripts/usb_devices.py       # lsusb / arecord -l / aplay -l
+uv run python scripts/lte_modem_test.py    # HiLink modem + internet
+uv run python scripts/mic_select.py        # A/B the mics, then pick one in ALSA
+```
+
+> ⚠️ `motor_test.py` / `servo_test.py` move the robot — prop the chassis up first.

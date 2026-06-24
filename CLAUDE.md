@@ -42,6 +42,10 @@ What changed and what is intentionally still a placeholder:
 - **Edge (Raspberry Pi 5, 8GB):** the same model at Q4_K_M, fully offline, as fallback.
 - **Fine-tuning happens on Google Colab** (free T4) with Unsloth QLoRA — never on the cloud server.
 - **Fallback ladder:** cloud (WireGuard up) → edge (offline) → "safe mode" (canned replies, motion disabled).
+- **Health checks (`freedroid.health`):** a `freedroid-health` self-check runs at boot + every 10 min (systemd timer)
+  over network/hardware/software layers. Cloud is on-demand, so cloud checks are WARNING (edge covers it); the edge
+  stack + safety hardware + local control are CRITICAL. A vital failure → self-heal (restart the service) → re-check →
+  safe-mode (`/run/freedroid/safe_mode` flag) if still down. Status → `/run/freedroid/health.json` + journald.
 
 **Layered motion control — the LLM never drives motors directly:**
 
@@ -112,9 +116,14 @@ ansible-playbook -i inventory.ini site.yml -e edge_ollama_model=llama3.2:3b
 cd robot
 uv sync --extra dev     # create the project venv (.venv) + install
 uv run freedroid        # run the orchestrator (stub today)
-uv run pytest
+uv run freedroid-health # run the vital-function health check once
+uv run pytest           # full suite (green; Phase-4 specs xfail, Pi-only specs skip)
+uv run pytest -m phase4 # just the TDD harness
 uv run ruff check .
 ```
+Tests use `xfail_strict=true`: Phase-4 behavioural specs (`test_parser_behaviour`,
+`test_phase4_hardware`) xfail until implemented, then flip to a hard failure that forces
+removing the marker. Hardware-controller specs are `@requires_pi` (skipped off-Pi).
 Pi-only: modules are written directly against `lgpio`; importing the package works off-Pi (no top-level hardware
 imports), but instantiating a controller raises `NotImplementedError` until implemented. Build order:
 `config` → `motion`+`safety` → `tools` → `llm` → `voice` → `orchestrator`.
@@ -140,6 +149,20 @@ benchmarks** — and must NOT be finalized until the A/B test concludes.
   right in any dataset or prompt edit. Core motifs: the "three reeds" (Love, Wisdom, Truth) and *"Mindent szabad, ami nem
   árt másnak"* ("everything is permitted that harms no other") — directly tied to the Szabi name.
 - The fine-tune teaches **persona and values, not facts** (knowledge → RAG; style/reasoning → fine-tuning).
+
+## Known follow-ups (deferred)
+
+Conscious gaps from the PR #4 review — not bugs, but things a future session should know:
+
+- **`scripts/_hw.py` gpiochip detection** — on the Pi 5 the 40-pin bank may be `gpiochip0` or
+  `gpiochip4` and both open. We use a `FREEDROID_GPIOCHIP` env override + a diagnostic print, **not**
+  full RP1-label detection (couldn't verify on hardware). Finish the label-based pick once on a Pi.
+- **`freedroid.health.check_orchestrator_service` is CRITICAL when down** — so before the `freedroid`
+  orchestrator service exists (Phase 4.3), a real Pi reports unhealthy and enters safe-mode. This is
+  **accepted/intended** (no orchestrator = not functional). The review only removed the *restart churn*
+  (`remediate` no-ops when the unit isn't installed); do **not** "fix" the severity/skip — it's a decision.
+- **Minor, left as-is:** `check_package_import` is a near-tautological venv-intact canary (cheap, fine);
+  `tests/test_grammar.py`'s `KNOWN_TOOLS` is a hardcoded list (it mirrors the spec's tool set, not code).
 
 ## Conventions
 

@@ -56,3 +56,32 @@
     {{ '--extra voice' if robot_install_voice_extra else '' }}
   args:
     chdir: "{{ robot_src_dir }}"
+
+# --- Vital-function health check (runs at boot + on a timer) ---
+- name: Install the health-check systemd service
+  when: robot_project.stat.exists
+  template:
+    src: freedroid-health.service.j2
+    dest: /etc/systemd/system/freedroid-health.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Install the health-check systemd timer
+  when: robot_project.stat.exists
+  template:
+    src: freedroid-health.timer.j2
+    dest: /etc/systemd/system/freedroid-health.timer
+    mode: '0644'
+  notify: Reload systemd
+
+# Flush the Reload systemd handler now (handlers otherwise run at play end, after
+# the timer start) — idempotent: the reload only fires when a unit file changed.
+- name: Apply pending unit-file changes before starting the timer
+  meta: flush_handlers
+
+- name: Enable and start the health-check timer
+  when: robot_project.stat.exists
+  systemd:
+    name: freedroid-health.timer
+    enabled: true
+    state: started

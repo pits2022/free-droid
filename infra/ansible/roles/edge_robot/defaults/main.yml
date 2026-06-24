@@ -15,3 +15,8 @@ robot_repo_version: main
 # Install the offline voice stack extra (openWakeWord, Piper). whisper.cpp is a
 # native binary wired up separately. Off by default until Phase 4.2.
 robot_install_voice_extra: false
+
+# Health-check (freedroid-health) systemd service + timer.
+robot_venv_bin: "{{ robot_src_dir }}/.venv/bin"
+health_check_on_boot_sec: 60     # first run ~1 min after boot
+health_check_interval_sec: 600   # then every 10 min
