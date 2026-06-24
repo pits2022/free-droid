@@ -150,6 +150,20 @@ benchmarks** — and must NOT be finalized until the A/B test concludes.
   árt másnak"* ("everything is permitted that harms no other") — directly tied to the Szabi name.
 - The fine-tune teaches **persona and values, not facts** (knowledge → RAG; style/reasoning → fine-tuning).
 
+## Known follow-ups (deferred)
+
+Conscious gaps from the PR #4 review — not bugs, but things a future session should know:
+
+- **`scripts/_hw.py` gpiochip detection** — on the Pi 5 the 40-pin bank may be `gpiochip0` or
+  `gpiochip4` and both open. We use a `FREEDROID_GPIOCHIP` env override + a diagnostic print, **not**
+  full RP1-label detection (couldn't verify on hardware). Finish the label-based pick once on a Pi.
+- **`freedroid.health.check_orchestrator_service` is CRITICAL when down** — so before the `freedroid`
+  orchestrator service exists (Phase 4.3), a real Pi reports unhealthy and enters safe-mode. This is
+  **accepted/intended** (no orchestrator = not functional). The review only removed the *restart churn*
+  (`remediate` no-ops when the unit isn't installed); do **not** "fix" the severity/skip — it's a decision.
+- **Minor, left as-is:** `check_package_import` is a near-tautological venv-intact canary (cheap, fine);
+  `tests/test_grammar.py`'s `KNOWN_TOOLS` is a hardcoded list (it mirrors the spec's tool set, not code).
+
 ## Conventions
 
 - **GPL-3.0** licensed.
