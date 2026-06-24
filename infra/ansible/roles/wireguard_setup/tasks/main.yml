@@ -17,16 +17,19 @@
   command: wg genkey
   register: wg_private_key_result
   changed_when: false
+  no_log: true   # never echo the private key into Ansible output/logs
 
 - name: Generate WireGuard public key
   shell: "echo '{{ wg_private_key_result.stdout }}' | wg pubkey"
   register: wg_public_key_result
   changed_when: false
+  no_log: true   # the command line embeds the private key
 
 - name: Set WireGuard facts
   set_fact:
     wg_private_key: "{{ wg_private_key_result.stdout }}"
     wg_public_key: "{{ wg_public_key_result.stdout }}"
+  no_log: true   # wg_private_key is secret
 
 - name: Configure WireGuard Interface
   template:
