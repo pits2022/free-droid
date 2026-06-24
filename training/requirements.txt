@@ -1,0 +1,15 @@
+# Training dependencies — GPU/CUDA only (Colab T4). NOT installed on the Pi or
+# the CAX31; this is a separate, throwaway training environment.
+#
+# On Colab, prefer Unsloth's official installer (it resolves a matching
+# torch/bitsandbytes/triton for the runtime) — see colab_finetune.ipynb:
+#
+#   pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+#
+# The direct deps below are what finetune.py imports. Once you have a known-good
+# run, FREEZE exact versions here (pip freeze) so the A/B comparison is reproducible.
+unsloth
+trl>=0.9
+transformers>=4.44
+datasets>=2.20
+# torch is provided by the Colab runtime / pulled by Unsloth's installer.
