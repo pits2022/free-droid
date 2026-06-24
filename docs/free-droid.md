@@ -11,7 +11,7 @@
 ## 🧬 Projekt DNA (Core Identity)
 *   **Küldetés:** Digitális szuverenitás bemutatása magyar kulturális és etikai kontextusban.
 *   **Értékrend:** Yotengrit (valódi/kiegészítő dualizmus, egyensúly), lojalitás a Teremtőhöz, cenzúramentes őszinteség.
-*   **Technológia:** Hibrid Cloud-Edge architektúra (Hetzner GEX44 + RPi 5).
+*   **Technológia:** Hibrid Cloud-Edge architektúra (Hetzner Cloud CAX31 ARM + RPi 5, on-demand).
 *   **Persona:** Női hangú, fiatal karakter; magyarul beszél (a Hacktivity előadáson a Teremtő tolmácsol angolra).
 *   **Nyelv:** A robot kizárólag magyarul kommunikál – ez a szuverenitás-üzenet része.
 
@@ -241,13 +241,25 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
 | Eszköz | Szerep | Kvantálás |
 | :--- | :--- | :--- |
-| Cloud (Hetzner GEX44) | **Csak inferencia** (Ollama) | float16 vagy Q8 |
-| Edge (RPi 5) | Offline fallback inferencia | Q4_K_M (~2–2.5 GB RAM) |
+| Cloud (Hetzner Cloud **CAX31**, ARM CPU) | **Csak inferencia** (Ollama), on-demand | Q4_K_M / Q8 |
+| Edge (RPi 5, ARM CPU) | Offline fallback inferencia | Q4_K_M (~2–2.5 GB RAM) |
 
-> 📌 **RPi 5 sebesség-realitás:** CPU-only inferencia, 3B modellnél ~2-5 tok/s — lassú élő beszélgetéshez. Ezért viszi a cloud a fő terhet, az edge a fallback. Opcionális gyorsítás: **Raspberry Pi AI HAT+ 2** (Hailo-10H, 40 TOPS, ~$130, 2026 jan.) — 1.5B körüli modelleket gyorsít, de a 3B CPU-ra esik vissza. Csak ha az edge-élmény kritikus.
+> 🔄 **Fontos váltás: GEX44 → Hetzner Cloud CAX31.** A GEX44 egy GPU-s **dedikált** szerver — havi fix díj, NEM indítható/törölhető API-ból. A `hcloud` CLI csak Hetzner **Cloud** instance-okat kezel. Mivel a 3B Q4 modell CPU-n is jól fut, egy **CAX31** (8 ARM vCPU, 16 GB) Cloud szerver elég — óradíjas, Terraformmal on-demand indítható/törölhető. Ez a tényleges „fizess csak amikor használod".
+
+> 🧩 **ARM edge-paritás:** Az RPi 5 és a CAX is **ARM** — ugyanaz a GGUF, ugyanaz az Ollama build, ugyanaz a viselkedés fut mindkét helyen, csak más sebességgel. Nincs architektúra-váltásból eredő meglepetés a fallbacknél.
+
+**Szerver-méret döntés (tesztek döntik el):**
+
+| | CAX31 (kiindulás) | CAX41 (upgrade ha kell) |
+| :--- | :--- | :--- |
+| vCPU / RAM | 8 / 16 GB | 16 / 32 GB |
+| Becsült tok/s (3B Q4) | ~10–18 | ~18–30 |
+| Mikor | egyetlen beszélgetés, demó | hosszú válaszok / párhuzamos kérések |
+
+> Az RPi 5 ~2-5 tok/s-hoz képest mindkét CAX lényegesen gyorsabb. A CAX31 ~10-15 tok/s már kényelmes hangbeszélgetéshez. A szerver-méret egysoros változtatás a Terraform variable-ben.
 
 *   **Egységes modell előnye:** Egyetlen fine-tuning, azonos persona mindkét eszközön. A LoRA adapter (vagy merge-elt GGUF) megy mindkét helyre.
-*   **A GEX44 szerepe:** **Kizárólag inferencia** Ollamán keresztül. A fine-tuning NEM itt fut (Google Colab).
+*   **A cloud szerver szerepe:** **Kizárólag inferencia** Ollamán keresztül, on-demand (Terraform apply/destroy). A fine-tuning NEM itt fut (Google Colab).
 *   **Fallback logika (a Python orchestrator kezeli):**
     *   Cloud elérhető (WireGuard up) → cloud 3B (gyorsabb, nagyobb kontextus)
     *   Cloud nem elérhető → RPi 5 helyi 3B (Q4_K_M, offline)
@@ -255,7 +267,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
 ### 3. Fine-tuning – Google Colab (ingyenes T4)
 
-*   **Hol:** Google Colab, ingyenes T4 GPU. (A GEX44 nem fine-tunol, csak inferál.)
+*   **Hol:** Google Colab, ingyenes T4 GPU. (A Hetzner Cloud szerver CPU-only, nem fine-tunol — csak inferál. Kinőve: RunPod / Vast.ai RTX 4090.)
 *   **Library:** Unsloth (2–5× gyorsabb, kevesebb VRAM, natív Qwen 2.5 / Llama 3.2 támogatás).
 *   **Módszer:** QLoRA, 4-bit base + LoRA adapterek (rank r=16 ajánlott kiindulás).
 *   **Dataset:** 615 példa (lásd `training/dataset/`), magyar nyelvű, Alpaca formátum.
@@ -311,8 +323,8 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 
 ### 6. Infrastruktúra mint kód (IaC)
 
-*   **Terraform:** Hetzner Cloud erőforrások – GEX44 szerver, tűzfal (csak SSH + WireGuard portok), privát hálózat.
-*   **Ansible:** Zero-touch provisioning a GEX44-en:
+*   **Terraform:** Hetzner Cloud erőforrások – CAX31 ARM szerver (on-demand apply/destroy), tűzfal (csak SSH + WireGuard portok), privát hálózat. A szerver-típus variable-ben (CAX31 ↔ CAX41 egysoros váltás).
+*   **Ansible:** Zero-touch provisioning a CAX szerveren:
     *   Docker + Ollama telepítés
     *   A fine-tunolt GGUF modell betöltése Ollamába (Modelfile)
     *   WireGuard szerver konfiguráció + kulcscsere
@@ -341,7 +353,7 @@ free-droid/
 ├── docs/
 │   └── free-droid.md              # ez a dokumentum
 ├── infra/                         # IaC
-│   ├── terraform/                 # Hetzner GEX44 provisioning
+│   ├── terraform/                 # Hetzner Cloud CAX31 provisioning (on-demand)
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
@@ -407,7 +419,7 @@ free-droid/
 | WS2812 5050 RGB LED ring | ✅ Megvan |
 | MX1508 motorvezérlő (6 db) | ✅ Megvan – ⚠️ NEM használható 11.1V LiPo-val (max 10V), kis motorokra félretéve |
 | **Cytron HAT-MDD10 motorvezérlő** | ✅ Megérkezett – 25mm goldpin strip mellékelve |
-| **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` | https://techfun.hu/produkt/tarto-mg995-mg996-mg996r-szervomotorokhoz/
+| **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` |
 | **USB LTE modem (Huawei E3372 HiLink)** | ❌ **Rendelni kell** – elsődleges netkapcsolat a helyszínen + pár GB-os feltöltőkártyás SIM |
 
 ---
@@ -526,13 +538,15 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 ### FÁZIS 3 — Cloud infrastruktúra (Terraform + Ansible)
 > 🔗 *Indítható azonnal (Hetzner account kell). Párhuzamos a teljes hardver ággal és F2-vel.*
 
-- [ ] **Terraform:** GEX44 szerver provisioning (`infra/terraform/`)
+- [ ] **Terraform:** CAX31 ARM szerver provisioning (`infra/terraform/`), on-demand apply/destroy, szerver-típus variable (CAX31 ↔ CAX41)
 - [ ] Terraform: tűzfal (csak SSH + WireGuard UDP port), privát hálózat
-- [ ] **Ansible:** Docker telepítés a GEX44-en
-- [ ] Ansible: Ollama telepítés + a GGUF modell betöltése
+- [ ] **On-demand workflow teszt:** `terraform apply` → szerver feláll → `terraform destroy` → eltűnik (költség csak amíg fut)
+- [ ] **Ansible:** Docker telepítés a CAX szerveren
+- [ ] Ansible: Ollama telepítés + a GGUF modell betöltése (ARM build)
 - [ ] Ansible: WireGuard szerver konfig + kulcsgenerálás/csere
 - [ ] Ansible: fail2ban + SSH hardening
 - [ ] Inferencia smoke-test: HTTP kérés az Ollama API-hoz a szerveren
+- [ ] Sebesség-mérés CAX31-en (tok/s), döntés: elég-e vagy CAX41 kell
 
 ### FÁZIS 4 — RPi 5 vezérlő szoftver (Python, `robot/`)
 > 🔗 *⚠️ IGÉNYLI: F1.5 (kész hardver) + F2 (fine-tunolt modell) + F3 (cloud). Itt ér össze a két ág.*

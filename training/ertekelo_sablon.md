@@ -122,16 +122,18 @@
 
 ---
 
-## Sebesség-mérés (RPi 5, Q4_K_M, CPU-only)
+## Sebesség-mérés (három réteg)
 
-A minőség mellett a sebesség is számít az edge fallbackhez. Mérd `ollama run --verbose` vagy llama.cpp `--timing` flaggel:
+A minőség mellett a sebesség is számít. Mérd `ollama run --verbose` vagy llama.cpp `--timing` flaggel mindhárom rétegen:
 
-| Modell | tok/s (RPi 5) | RAM használat | Megjegyzés |
-| :--- | :--- | :--- | :--- |
-| Llama 3.2 3B Q4_K_M | | | |
-| Qwen 2.5 3B Q4_K_M | | | |
+| Réteg | Modell | tok/s | RAM | Megjegyzés |
+| :--- | :--- | :--- | :--- | :--- |
+| Edge — RPi 5 (ARM, CPU) | Qwen 2.5 3B Q4_K_M | | | offline fallback |
+| Edge — RPi 5 (ARM, CPU) | Llama 3.2 3B Q4_K_M | | | offline fallback |
+| Cloud — CAX31 (8 ARM vCPU) | nyertes modell Q4_K_M | | | on-demand |
+| Cloud — CAX41 (16 ARM vCPU) | nyertes modell Q4_K_M | | | csak ha CAX31 lassú |
 
-> Tipp: a cloud (Hetzner) inferencia gyors lesz mindkettőnél; a sebesség főleg az **offline edge fallback** élményét dönti el.
+> Az ARM edge-paritás miatt ugyanaz a GGUF fut az RPi 5-ön és a CAX-on — csak a sebesség más. A CAX31 ~10-18 tok/s már kényelmes; ha a hosszú válaszok döcögnek, CAX41 (egysoros Terraform váltás).
 
 ---
 

@@ -22,8 +22,9 @@ The droid is named **Free-Droid**, but it answers to **Szabi** — a Hungarian n
 
 A hybrid **cloud-edge** design:
 
-- **Cloud (Hetzner CAX31/41, ARM64):** Llama 3.2 3B + LoRA, served via Ollama — used for inference when online.
-- **Edge (Raspberry Pi 5):** the same Llama 3.2 3B (Q4_K_M) running fully offline as a fallback.
+- **Cloud (Hetzner Cloud CAX31, ARM CPU):** the fine-tuned 3B model served via Ollama, spun up **on-demand** with Terraform (`apply`/`destroy`) — you only pay while it runs.
+- **Edge (Raspberry Pi 5, ARM CPU):** the same 3B model (Q4_K_M) running fully offline as a fallback.
+- **ARM parity:** both the Pi and the cloud server are ARM, so the *same* GGUF and Ollama build run in both places — identical behavior, only the speed differs.
 - **VPN:** WireGuard tunnel between the Pi and the cloud.
 
 ### Layered motion control
@@ -59,6 +60,7 @@ Wake word "Szabi" (openWakeWord)
 | Audio | USB mic + USB speaker |
 | Status | WS2812 RGB LED ring |
 | Connectivity | USB LTE modem (primary) + WiFi (fallback) |
+| Cloud | Hetzner Cloud CAX31 (ARM), on-demand via Terraform |
 
 Full wiring, GPIO pinout, and power distribution details are in [`docs/free-droid.md`](docs/free-droid.md).
 
