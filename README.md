@@ -71,7 +71,7 @@ Full wiring, GPIO pinout, and power distribution details are in [`docs/free-droi
 - **Base:** Qwen 2.5 3B *or* Llama 3.2 3B — **currently under A/B evaluation** (decided on a Hungarian persona benchmark, not generic scores)
 - **Method:** QLoRA (4-bit base + LoRA adapters) via [Unsloth](https://github.com/unslothai/unsloth)
 - **Training:** Google Colab (free T4)
-- **Dataset:** 615 hand-curated Hungarian examples (Alpaca format) covering the Szabi persona, Yotengrit ethics, Hungarian culture, tech, robot tool-calling, and WiFi scanning.
+- **Dataset:** 630 hand-curated Hungarian examples (Alpaca format) covering the Szabi persona, Yotengrit ethics, Hungarian culture, tech, robot tool-calling, WiFi scanning, and optional oracle routing.
 
 The pipeline is **model-agnostic** — swapping the base model is a one-line change, so both candidates are trained on the same data and compared on a 25-question persona benchmark.
 
@@ -220,7 +220,7 @@ uv run python scripts/ultrasonic_test.py   # live HC-SR04P distances
 🚧 **In active development** — building toward Hacktivity 2026.
 
 - [x] Hardware design & component sourcing
-- [x] Fine-tuning dataset (615 examples)
+- [x] Fine-tuning dataset (630 examples)
 - [ ] Hardware assembly & bring-up
 - [ ] Model fine-tuning & evaluation
 - [ ] Cloud infrastructure (Terraform + Ansible)
@@ -237,6 +237,7 @@ See [`docs/free-droid.md`](docs/free-droid.md) for the detailed, phased build ch
 - **Transparent fine-tuning.** The values are in the open dataset, not a hidden alignment layer.
 - **Offline-capable.** With the edge model, the droid keeps thinking even when the network drops.
 - **It won't act blindly.** Szabi refuses to connect to networks from spoken commands, and only *reads* the WiFi environment — never joins uninvited. *"The law of good neighborliness: don't rattle someone else's gate."*
+- **Optional "Oracle" mode, off by default.** In a private/family mode Szabi *can* consult a bigger external model on hard questions, but always re-filters the answer through her own Yotengrit values — and on the Hacktivity demo it's disabled, so the droid stays fully sovereign.
 
 ---
 

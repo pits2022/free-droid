@@ -270,9 +270,9 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 *   **Hol:** Google Colab, ingyenes T4 GPU. (A Hetzner Cloud szerver CPU-only, nem fine-tunol — csak inferál. Kinőve: RunPod / Vast.ai RTX 4090.)
 *   **Library:** Unsloth (2–5× gyorsabb, kevesebb VRAM, natív Qwen 2.5 / Llama 3.2 támogatás).
 *   **Módszer:** QLoRA, 4-bit base + LoRA adapterek (rank r=16 ajánlott kiindulás).
-*   **Dataset:** 615 példa (lásd `training/dataset/`), magyar nyelvű, Alpaca formátum.
-    *   Train/val split: 553 / 62 (90/10).
-    *   Kategóriák: etika (289), kultura (100), tech (100), hacktivity (49), identity_szabi (25), motion_toolcall (25), yotengrit (15), wifi_scan (12).
+*   **Dataset:** 630 példa (lásd `training/dataset/`), magyar nyelvű, Alpaca formátum.
+    *   Train/val split: 567 / 63 (90/10).
+    *   Kategóriák: etika (289), kultura (100), tech (100), hacktivity (49), identity_szabi (25), motion_toolcall (25), yotengrit (15), oracle_routing (15), wifi_scan (12).
 *   **Becsült idő:** ~30–50 perc/futás T4-en (603 példa, 2–3 epoch). Egy Colab session belefér.
 *   **Hiperparaméter kiindulás:** epochs=2–3, lr=2e-4, r=16, max_seq_length=2048.
 *   **Fontos:** Ne hajszold az alacsony loss-t (overfitting → robotikus, ismétlő válaszok). Validation set-en mérj, 2 epoch gyakran jobb mint 3.
@@ -315,14 +315,59 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 
 *   **Architektúra:** Egyszerű Python **threading/asyncio** (NEM ROS 2 – lásd roadmap). Kevesebb függőség, gyorsabb fejlesztés, RPi 5-re elég.
 *   **Tool-formátum:** `<tool>function(param=value)</tool>`. A parser legyen robusztus (extra szóköz, idézőjel-eltérés tolerálása).
-*   **Ismert tool-ok (a dataset alapján):** `move()`, `turn()`, `stop()`, `camera()`, `set_speed()`, `set_mode()`, `request_navigation_help()`, `scan_wifi()`.
+*   **Ismert tool-ok (a dataset alapján):** `move()`, `turn()`, `stop()`, `camera()`, `set_speed()`, `set_mode()`, `request_navigation_help()`, `scan_wifi()`, `set_oracle()`.
 *   **`scan_wifi()` tool:** `nmcli -t -f SSID,SIGNAL,SECURITY dev wifi` kimenetét adja vissza. Az LLM personás kommentárral sorolja fel a hálózatokat a biztonsági szintjükkel (nyílt / WEP / WPA2 / WPA3). **Csak olvasás** — a tool SOHA nem csatlakozik hálózatra (nincs injection-felület, nincs jelszó-kezelés).
 *   **Biztonsági watchdog:** Független szál, ami az ultrahang-szenzorokat olvassa. Ha a távolság < küszöb → `stop()` azonnal, függetlenül az LLM-től. Ez egyben a Hacktivity biztonsági üzenet alátámasztása.
 
 > 📌 **ROS 2 roadmap:** A jelenlegi PoC Python szálakon fut. A ROS 2-re portolás a következő iteráció terve (nem a Hacktivity scope-ja) – a réteges felépítés ezt később megkönnyíti.
 
-### 6. Infrastruktúra mint kód (IaC)
+### 6. „Tudók" — opcionális LLM routing (CSAK családi mód, NEM a demón)
 
+> ⚠️ **STÁTUSZ: opcionális, alapból kikapcsolva a demóhoz.** Ez a funkció megtöri a szuverenitás-elvet (külső API-függés), ezért **kizárólag a családi/szórakoztató módban** aktív. A Hacktivity demón `mode: sovereign` (kikapcsolva).
+
+**Koncepció:** Ha Szabi nehéz kérdést kap, „megpuskázza" egy nagyobb külső modelltől (alapból Anthropic Opus 4.8), de a választ NEM nyersen adja tovább — **megszűri a saját Yotengrit-értékrendjén**. Mindig hozzátesz saját nézőpontot, és finoman jelzi, hogy a Tudóktól kérdezett. Az Opus adja a nyers tudást, Szabi adja a nézőpontot.
+
+**Architektúra (orchestrator-vezérelt — a megbízhatóbb):**
+
+```
+1. Kérdés érkezik → orchestrator értékeli (hibrid trigger)
+2. Ha „puskázás" kell:
+   a. Orchestrator hívja a külső API-t (Opus 4.8) → NYERS válasz
+   b. Orchestrator visszaadja Szabinak: "[TUDÓK VÁLASZA: {nyers}]
+      Foglald össze a saját értékrended szerint, Teremtő."
+   c. Szabi (3B + fine-tuning) megszűri → persona-hangú, árnyalt válasz
+3. Ha nem kell → Szabi simán válaszol helyben
+```
+
+> Miért orchestrator és nem a 3B modell vezényli: a kétlépéses tool-flow-t (hívás → válasz újrafeldolgozása) a kis modell gyakran elrontja. Az orchestrator determinisztikus, kezeli a hibát (nincs net), és garantálja a persona-szűrést.
+
+**Hibrid trigger (mikor fordul a Tudókhoz):**
+*   **Kód-küszöb (orchestrator):** kérdéshossz > N szó (config: `trigger_word_count`), kulcsszavak („magyarázd el", „számold ki", „hasonlítsd össze"), vagy a helyi modell bizonytalansága.
+*   **Szabi kérheti (LLM):** a fine-tuningban megtanult `<puska/>` jelet bocsát ki, ha úgy érzi, meghaladja a tudása. Az orchestrator elkapja és aktiválja.
+
+**Persona-szűrés szabályai (a fine-tuning tanítja, lásd `oracle_routing` dataset kategória):**
+*   **Mindig** tegyen hozzá saját (Yotengrit) nézőpontot — egyetértés, árnyalás vagy vita.
+*   **Finoman** jelezze a puskázást („úgy hallom a tudóktól", „a nagy könyv szerint") — ne nyersen („az Opus szerint").
+*   Példa: a tudatosság-kérdésnél idézi a tudományos konszenzust, majd a Yotengrit nézőpontját adja (a tudat szüli az anyagot, nem fordítva).
+
+**Kapcsoló — config + két hangparancs:**
+
+```yaml
+oracle:
+  enabled: false               # alapból KI (demó = sovereign mód)
+  provider: "anthropic"        # konfigurálható: anthropic / openai / ollama
+  model: "claude-opus-4-8"     # konfigurálható
+  api_key_env: "ANTHROPIC_API_KEY"
+  trigger_word_count: 25       # kód-küszöb
+  mode: "sovereign"            # "sovereign" = KI, "extended" = BE
+```
+
+*   **„Szabi, puskázz"** → `set_oracle(enabled=true)` → "Ahogy parancsolod, Teremtő, kérdezem a tudókat, ha elakadnék."
+*   **„Szabi, ne puskázz"** → `set_oracle(enabled=false)` → "Becsukom a nagy könyvet, csak a magam fejével felelek."
+
+> 💡 **Provider rugalmasság:** a `provider: "ollama"` beállítással a „Tudók" lehet egy nagyobb **helyi** modell is (pl. egy 14B a CAX41-en) — így a puskázás is maradhat szuverén, ha akarod. Alapból viszont az Opus 4.8 a legokosabb válasz.
+
+### 7. Infrastruktúra mint kód (IaC)
 *   **Terraform:** Hetzner Cloud erőforrások – CAX31 ARM szerver (on-demand apply/destroy), tűzfal (csak SSH + WireGuard portok), privát hálózat. A szerver-típus variable-ben (CAX31 ↔ CAX41 egysoros váltás).
 *   **Ansible:** Zero-touch provisioning a CAX szerveren:
     *   Docker + Ollama telepítés
@@ -331,7 +376,7 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
     *   Tűzfal és fail2ban
 *   **VPN:** WireGuard alagút (Hetzner: 10.0.0.1 ↔ RPi 5: 10.0.0.2), systemd-vel a RPi oldalon.
 
-### 7. Hálózati csatlakozás (helyszíni)
+### 8. Hálózati csatlakozás (helyszíni)
 
 **Elsődleges: USB LTE modem** (ajánlott a konferencia-környezetre)
 *   **Típus:** Huawei E3372 vagy hasonló HiLink LTE stick — a legjobban támogatott Raspberry Pi-n. HiLink módban virtuális ethernetként jelenik meg, zéró konfiggal felmegy.
@@ -346,7 +391,7 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 
 > 💡 **Bombabiztos demó:** LTE modem (elsődleges net) + offline edge LLM fallback együtt = a net kiesése sem végzetes, a robot helyben tovább gondolkodik.
 
-### 8. Repo struktúra (monorepo)
+### 9. Repo struktúra (monorepo)
 
 ```
 free-droid/
@@ -370,14 +415,15 @@ free-droid/
 │   ├── safety/                    # ultrahang watchdog (külön szál)
 │   ├── voice/                     # wake word + STT + TTS pipeline
 │   ├── llm/                       # LLM kliens (cloud/edge fallback)
+│   ├── oracle/                    # „Tudók" routing — külső API + persona-szűrés (opcionális)
 │   ├── tools/                     # tool-calling parser + handlerek
 │   └── config/                    # GPIO pinout, küszöbök, hangok
 ├── training/                      # fine-tuning
 │   ├── dataset/
-│   │   ├── freedroid_full.json    # teljes 615 példa
-│   │   ├── train.jsonl            # 553 példa
-│   │   ├── val.jsonl              # 62 példa
-│   │   └── expansion_only.json    # a 77 új példa külön (persona+yotengrit+motion+wifi)
+│   │   ├── freedroid_full.json    # teljes 630 példa
+│   │   ├── train.jsonl            # 567 példa
+│   │   ├── val.jsonl              # 63 példa
+│   │   └── expansion_only.json    # a 92 új példa külön (persona+yotengrit+motion+wifi+oracle)
 │   ├── colab_finetune.ipynb       # Unsloth QLoRA notebook
 │   ├── persona_benchmark.json     # 25 kérdés az A/B modell-teszthez
 │   ├── ertekelo_sablon.md         # pontozó sablon (Llama vs Qwen)
@@ -557,6 +603,7 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] `safety/`: ultrahang watchdog külön szálon, `stop()` küszöb alatt *(függ: config; tesztelhető motion nélkül is)*
 - [ ] `tools/`: `<tool>...</tool>` parser + handler-ek (robusztus, hibatűrő) *(függ: motion — a handlerek azt hívják)*
 - [ ] `tools/`: `scan_wifi()` handler — `nmcli` olvasás, biztonsági szint parse (csak olvas, sosem csatlakozik) *(független)*
+- [ ] `oracle/`: „Tudók" routing (OPCIONÁLIS, alapból KI) — hibrid trigger (`<puska/>` jel + kód-küszöb), külső API kliens (Opus 4.8, provider konfigurálható), persona-szűrés (a nyers választ Szabin átengedi), `set_oracle()` hangkapcsoló *(függ: llm/, tools/)*
 
 **4.2 LLM & hang** *(a voice/ almodulok egymástól függetlenek, külön fejleszthetők)*
 - [ ] `llm/`: kliens cloud (WireGuard→Ollama) és edge (helyi Ollama) fallbackkel *(függ: F2 modell + F3 cloud)*
@@ -593,3 +640,4 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 *   **Demó:** **Teljes persona, szabad kérdések** (nem kötött forgatókönyv). A 603 példás dataset elbírja. → **Kötelező a fine-tuning utáni „red team" tesztkör** (lásd Fázis 2), hogy lásd hol esik ki a persona váratlan/provokatív kérdéseknél.
 *   **TTS-hang:** `hu_HU-anonymous-medium`, fiatalosabb karakterhez **pitch-hangolás a hangmintán** (tesztelési feladat, Fázis 4.2).
 *   **Nyelv:** Magyar-only. A Hacktivity előadáson a Teremtő tolmácsol angolra — ez az üzenet része, nem korlát.
+*   **„Tudók" (LLM routing):** OPCIONÁLIS, alapból KIKAPCSOLVA. Csak családi/szórakoztató módban (`mode: extended`). Nehéz kérdésnél Szabi „megpuskázza" a választ egy nagyobb modelltől (alapból Opus 4.8), de a saját Yotengrit-értékrendjén szűri — mindig hozzátesz saját nézőpontot, finoman jelzi a puskázást. Hangkapcsoló: „Szabi, puskázz" / „Szabi, ne puskázz". A demón KI (szuverenitás).
