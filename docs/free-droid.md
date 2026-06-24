@@ -407,7 +407,7 @@ free-droid/
 | WS2812 5050 RGB LED ring | ✅ Megvan |
 | MX1508 motorvezérlő (6 db) | ✅ Megvan – ⚠️ NEM használható 11.1V LiPo-val (max 10V), kis motorokra félretéve |
 | **Cytron HAT-MDD10 motorvezérlő** | ✅ Megérkezett – 25mm goldpin strip mellékelve |
-| **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` |
+| **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` | https://techfun.hu/produkt/tarto-mg995-mg996-mg996r-szervomotorokhoz/
 | **USB LTE modem (Huawei E3372 HiLink)** | ❌ **Rendelni kell** – elsődleges netkapcsolat a helyszínen + pár GB-os feltöltőkártyás SIM |
 
 ---
