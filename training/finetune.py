@@ -15,6 +15,7 @@ Ollama Modelfile. Exports GGUF (q4_k_m for edge, q8_0 for cloud) + the LoRA adap
 from __future__ import annotations
 
 import argparse
+import inspect
 from pathlib import Path
 
 from config import LORA_TARGET_MODULES, VARIANTS, TrainConfig
@@ -64,10 +65,26 @@ def build_dataset(tokenizer, cfg: TrainConfig):
     return ds.map(to_text, remove_columns=ds["train"].column_names)
 
 
+def _pick_kwarg(target, names: tuple[str, ...]) -> str | None:
+    """First of `names` that `target` (a class or callable) accepts, else None.
+
+    TRL/transformers keep renaming kwargs (max_length<-max_seq_length,
+    eval_strategy<-evaluation_strategy, processing_class<-tokenizer). List the
+    modern name first; we pass whichever the installed version actually exposes,
+    so one script tracks the moving Colab stack instead of pinning a version.
+    """
+    try:
+        params = inspect.signature(target).parameters
+    except (TypeError, ValueError):
+        return None
+    return next((n for n in names if n in params), None)
+
+
 def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
+    from unsloth import FastLanguageModel  # must precede trl/transformers/peft so patches apply
+
     import torch
     from trl import SFTConfig, SFTTrainer
-    from unsloth import FastLanguageModel
 
     print(f"== fine-tuning {cfg.name} from {cfg.base_model} ==")
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -89,29 +106,41 @@ def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
     out = cfg.path(cfg.output_dir) / cfg.name
     out.mkdir(parents=True, exist_ok=True)
 
+    sft_kwargs = dict(
+        dataset_text_field="text",
+        per_device_train_batch_size=cfg.batch_size,
+        gradient_accumulation_steps=cfg.grad_accum,
+        num_train_epochs=cfg.epochs,
+        learning_rate=cfg.learning_rate,
+        warmup_ratio=cfg.warmup_ratio,
+        weight_decay=cfg.weight_decay,
+        logging_steps=10,
+        optim="adamw_8bit",
+        seed=cfg.seed,
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        output_dir=str(out / "checkpoints"),
+        report_to="none",
+    )
+    # Map the kwargs TRL/transformers renamed across versions to whatever the
+    # installed build accepts (see _pick_kwarg). Omit any the build doesn't expose
+    # rather than hard-crash at construction.
+    seq_kw = _pick_kwarg(SFTConfig, ("max_length", "max_seq_length"))
+    if seq_kw:
+        sft_kwargs[seq_kw] = cfg.max_seq_length
+    eval_kw = _pick_kwarg(SFTConfig, ("eval_strategy", "evaluation_strategy"))
+    if eval_kw:
+        sft_kwargs[eval_kw] = "epoch"          # measure on the validation set
+
+    tok_kw = _pick_kwarg(SFTTrainer, ("processing_class", "tokenizer")) or "processing_class"
+    print(f"TRL compat: seq={seq_kw!r}, eval={eval_kw!r}, tokenizer={tok_kw!r}")
+
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
         train_dataset=ds["train"],
         eval_dataset=ds["val"],
-        args=SFTConfig(
-            dataset_text_field="text",
-            max_seq_length=cfg.max_seq_length,
-            per_device_train_batch_size=cfg.batch_size,
-            gradient_accumulation_steps=cfg.grad_accum,
-            num_train_epochs=cfg.epochs,
-            learning_rate=cfg.learning_rate,
-            warmup_ratio=cfg.warmup_ratio,
-            weight_decay=cfg.weight_decay,
-            logging_steps=10,
-            eval_strategy="epoch",          # measure on the validation set
-            optim="adamw_8bit",
-            seed=cfg.seed,
-            fp16=not torch.cuda.is_bf16_supported(),
-            bf16=torch.cuda.is_bf16_supported(),
-            output_dir=str(out / "checkpoints"),
-            report_to="none",
-        ),
+        args=SFTConfig(**sft_kwargs),
+        **{tok_kw: tokenizer},
     )
     trainer.train()
 
