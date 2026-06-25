@@ -65,9 +65,13 @@ def build_dataset(tokenizer, cfg: TrainConfig):
 
 
 def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
+    import dataclasses
+    import inspect
+
+    from unsloth import FastLanguageModel  # must precede trl/transformers/peft so patches apply
+
     import torch
     from trl import SFTConfig, SFTTrainer
-    from unsloth import FastLanguageModel
 
     print(f"== fine-tuning {cfg.name} from {cfg.base_model} ==")
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -89,30 +93,43 @@ def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
     out = cfg.path(cfg.output_dir) / cfg.name
     out.mkdir(parents=True, exist_ok=True)
 
-    trainer = SFTTrainer(
+    sft_kwargs = dict(
+        dataset_text_field="text",
+        per_device_train_batch_size=cfg.batch_size,
+        gradient_accumulation_steps=cfg.grad_accum,
+        num_train_epochs=cfg.epochs,
+        learning_rate=cfg.learning_rate,
+        warmup_ratio=cfg.warmup_ratio,
+        weight_decay=cfg.weight_decay,
+        logging_steps=10,
+        eval_strategy="epoch",          # measure on the validation set
+        optim="adamw_8bit",
+        seed=cfg.seed,
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        output_dir=str(out / "checkpoints"),
+        report_to="none",
+    )
+    # TRL renamed SFTConfig.max_seq_length -> max_length (~TRL 0.20). Pick whichever
+    # the installed version exposes so this runs on old and new Colab stacks alike.
+    sft_fields = {f.name for f in dataclasses.fields(SFTConfig)}
+    seq_kw = "max_seq_length" if "max_seq_length" in sft_fields else "max_length"
+    sft_kwargs[seq_kw] = cfg.max_seq_length
+
+    trainer_kwargs = dict(
         model=model,
-        tokenizer=tokenizer,
         train_dataset=ds["train"],
         eval_dataset=ds["val"],
-        args=SFTConfig(
-            dataset_text_field="text",
-            max_seq_length=cfg.max_seq_length,
-            per_device_train_batch_size=cfg.batch_size,
-            gradient_accumulation_steps=cfg.grad_accum,
-            num_train_epochs=cfg.epochs,
-            learning_rate=cfg.learning_rate,
-            warmup_ratio=cfg.warmup_ratio,
-            weight_decay=cfg.weight_decay,
-            logging_steps=10,
-            eval_strategy="epoch",          # measure on the validation set
-            optim="adamw_8bit",
-            seed=cfg.seed,
-            fp16=not torch.cuda.is_bf16_supported(),
-            bf16=torch.cuda.is_bf16_supported(),
-            output_dir=str(out / "checkpoints"),
-            report_to="none",
-        ),
+        args=SFTConfig(**sft_kwargs),
     )
+    # Same generation of TRL replaced SFTTrainer(tokenizer=) with processing_class=.
+    trainer_params = inspect.signature(SFTTrainer.__init__).parameters
+    tok_kw = "tokenizer" if ("tokenizer" in trainer_params
+                             and "processing_class" not in trainer_params) else "processing_class"
+    trainer_kwargs[tok_kw] = tokenizer
+    print(f"TRL compat: seq kwarg={seq_kw!r}, tokenizer kwarg={tok_kw!r}")
+
+    trainer = SFTTrainer(**trainer_kwargs)
     trainer.train()
 
     adapter_dir = out / "lora-adapter"
