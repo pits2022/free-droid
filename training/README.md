@@ -34,12 +34,15 @@ python finetune.py --variant qwen --no-gguf              # quick smoke (skip exp
 Outputs land in `training/outputs/<variant>/`: `gguf-q4_k_m/` (Pi edge), `gguf-q8_0/`
 (CAX31 cloud), `lora-adapter/`. These are **git-ignored** — push to HF Hub or copy out.
 
-## A/B decision
+## A/B decision — concluded: Llama
 
-The base model (Qwen 2.5 3B vs Llama 3.2 3B) is **not final** — see `CLAUDE.md`. Train
-both on the same data, score with `persona_benchmark.json` + `ertekelo_sablon.md` (6
-dimensions, 1–5), measure tok/s + RAM on the Pi, then pick the winner and update the docs.
-Don't chase low loss (overfitting → robotic, repetitive persona); 2 epochs often beats 3.
+The base model A/B is **decided** (see `CLAUDE.md` / `docs/free-droid.md`): scored on
+`persona_benchmark.json` + `ertekelo_sablon.md` (6 dimensions, 1–5), **Llama beat Qwen at
+both 3B and 7B**, and **Llama 3.1 8B** was the first demo-quality Hungarian persona →
+**cloud 8B / edge 3B** (the 8B is cloud-only — CPU-slow, can't run on the Pi in real time).
+Don't chase low loss (overfitting → robotic, repetitive persona); the `--preset gentle`
+recipe (epochs=1, lr=5e-5, r/alpha=8) worked. **Open follow-up: tool-calling is still weak
+at every size** — a dataset gap (~6% tool examples), fixed by dataset expansion, not a model swap.
 
 `run_benchmark.py` automates the asking for **any number of models** (2, 3, 4 …): build each
 in Ollama, then run

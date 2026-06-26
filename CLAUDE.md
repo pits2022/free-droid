@@ -23,7 +23,7 @@ What changed and what is intentionally still a placeholder:
 
 | Topic | State |
 | :--- | :--- |
-| LLM | ✅ Parameterized to a **3B** base model (`ai_stack` role defaults: `cloud_ollama_model` / `edge_ollama_model`, default `qwen2.5:3b`). Base model is still **A/B-undecided** (Qwen 2.5 3B vs Llama 3.2 3B) — keep it a one-line swap. |
+| LLM | ✅ **DECIDED: Llama** (persona benchmark) — **cloud: Llama 3.1 8B**, **edge: Llama 3.2 3B**. Parameterized via `ai_stack` role defaults (`cloud_ollama_model` / `edge_ollama_model`); the defaults still read `qwen2.5:3b` and should be flipped to the Llama models (code follow-up). |
 | Fine-tuned model | ⏳ The Ansible registry-pull is a **bring-up placeholder**; the real flow loads the fine-tuned **GGUF via an Ollama Modelfile** (not yet wired up). |
 | Motion stack | ✅ **No ROS 2.** `ros2_setup` removed; replaced by `edge_robot` (plain Python venv, `lgpio`, no `rclpy`). ROS 2 is a later-roadmap port, out of Hacktivity scope. |
 | WireGuard | ✅ `10.0.0.1` (cloud `mother-001`) ↔ `10.0.0.2` (edge `child-001`), `10.0.0.0/24` subnet. |
@@ -35,11 +35,14 @@ What changed and what is intentionally still a placeholder:
 
 ## Architecture (per the v2.0 spec)
 
-**Hybrid cloud-edge.** Same fine-tuned 3B model runs in both places; a Python orchestrator on the Pi picks the source:
+**Hybrid cloud-edge (asymmetric).** A fine-tuned **Llama 3.1 8B** runs in the cloud and a fine-tuned **Llama 3.2 3B** on the Pi; a Python orchestrator on the Pi picks the source:
 
-- **Cloud (Hetzner CAX31/41 — ARM64, CPU-only):** inference only, via Ollama (Q8/f16, on CPU). The cloud **never**
-  fine-tunes. (GEX44 from the spec is unavailable on the hcloud Cloud API; CAX31/41 supersede it — see below.)
-- **Edge (Raspberry Pi 5, 8GB):** the same model at Q4_K_M, fully offline, as fallback.
+- **Cloud (Hetzner CAX31/41 — ARM64, CPU-only):** inference only — **Llama 3.1 8B** (Q4_K_M) via Ollama on CPU. The cloud
+  **never** fine-tunes. (GEX44 from the spec is unavailable on the hcloud Cloud API; CAX31/41 supersede it — see below.)
+  **8B on CPU is slow** (~4-5 tok/s even on a strong laptop); OK for the demo (short replies + live interpretation), but
+  truly fast 8B would need a GPU (out of Cloud-API scope).
+- **Edge (Raspberry Pi 5, 8GB):** the smaller **Llama 3.2 3B** at Q4_K_M, fully offline, as fallback — faster but less
+  eloquent (the 8B can't run in real time on the Pi).
 - **Fine-tuning happens on Google Colab** (free T4) with Unsloth QLoRA — never on the cloud server.
 - **Fallback ladder:** cloud (WireGuard up) → edge (offline) → "safe mode" (canned replies, motion disabled).
 - **Health checks (`freedroid.health`):** a `freedroid-health` self-check runs at boot + every 10 min (systemd timer)
@@ -136,16 +139,18 @@ imports), but instantiating a controller raises `NotImplementedError` until impl
 `config` → `motion`+`safety` → `tools` → `llm` → `voice` → `orchestrator`.
 
 ### Fine-tuning (Google Colab, not local)
-Unsloth QLoRA notebook on a free T4. Base model is a one-line swap (Qwen 2.5 3B vs Llama 3.2 3B). Train on
+Unsloth QLoRA notebook on a free T4. Base model is a one-line swap via `config.py` variants (`--variant`); the A/B chose **Llama** (8B cloud / 3B edge). Train on
 `training/dataset/train.jsonl`, validate on `val.jsonl`. Suggested start: `epochs=2–3, lr=2e-4, r=16, max_seq_length=2048`.
 **Don't chase low loss** (overfitting → robotic, repetitive persona); measure on the validation set. Export GGUF
 (Q4_K_M for edge, Q8/f16 for cloud) → Ollama `Modelfile`. A **"red team" pass** (provocative/off-topic questions) is
 mandatory before the demo.
 
-### A/B model evaluation
-Run the 25 questions in `training/persona_benchmark.json` against both fine-tuned candidates, score with
-`training/ertekelo_sablon.md` (6 dimensions, 1–5). The decision is made on this **Hungarian persona benchmark, not generic
-benchmarks** — and must NOT be finalized until the A/B test concludes.
+### A/B model evaluation — concluded: Llama wins
+Run the 25 questions in `training/persona_benchmark.json` against the fine-tuned candidates, score with
+`training/ertekelo_sablon.md` (6 dimensions, 1–5). The decision was made on this **Hungarian persona benchmark, not generic
+benchmarks**: **Llama beat Qwen at both 3B and 7B**, and **Llama 3.1 8B** was the first demo-quality Hungarian persona →
+**cloud 8B / edge 3B**. Open follow-up: **tool-calling is still weak at every size** — a dataset gap (~6% tool examples),
+fixed by dataset expansion, not a model swap.
 
 ## Persona & language rules (matter for any dataset/prompt/TTS work)
 
