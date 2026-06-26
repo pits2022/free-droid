@@ -18,31 +18,50 @@ import argparse
 import inspect
 from pathlib import Path
 
-from config import LORA_TARGET_MODULES, VARIANTS, TrainConfig
+from config import LORA_TARGET_MODULES, PRESETS, VARIANTS, TrainConfig
 
 HERE = Path(__file__).resolve().parent
 SYSTEM_PROMPT = (HERE / "system_prompt.txt").read_text(encoding="utf-8").strip()
 
 
+# Hyperparameters the CLI can override (TrainConfig field -> argparse type). Adding a
+# new tunable is one line here (the field must exist on TrainConfig); it then becomes a
+# --flag and shows in the effective-config echo. Iteration order = echo display order.
+HYPERPARAMS: dict[str, type] = {
+    "epochs": int, "learning_rate": float,
+    "lora_r": int, "lora_alpha": int, "lora_dropout": float,
+    "batch_size": int, "grad_accum": int,
+    "warmup_ratio": float, "weight_decay": float,
+    "max_seq_length": int, "seed": int,
+}
+# Extra/short flag spellings for a field (keeps the documented --lr working).
+ALIASES: dict[str, list[str]] = {"learning_rate": ["--learning-rate", "--lr"]}
+
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--variant", choices=sorted(VARIANTS), default="qwen")
-    ap.add_argument("--epochs", type=int)
-    ap.add_argument("--lr", type=float)
-    ap.add_argument("--lora-r", type=int, dest="lora_r")
-    ap.add_argument("--max-seq-length", type=int, dest="max_seq_length")
+    ap.add_argument("--preset", choices=sorted(PRESETS),
+                    help="named hyperparameter recipe; explicit flags override it")
+    ap.add_argument("--tag", default=None,
+                    help="output-dir suffix so experiments sit side by side (default: preset name)")
+    for field, typ in HYPERPARAMS.items():
+        ap.add_argument(*ALIASES.get(field, [f"--{field.replace('_', '-')}"]),
+                        type=typ, dest=field, default=None)
     ap.add_argument("--no-gguf", action="store_true", help="skip GGUF export (faster smoke run)")
     return ap.parse_args()
 
 
 def resolve_config(args: argparse.Namespace) -> TrainConfig:
-    cfg = VARIANTS[args.variant]
-    overrides = {k: v for k, v in vars(args).items()
-                 if k in {"epochs", "lr", "lora_r", "max_seq_length"} and v is not None}
-    if "lr" in overrides:
-        overrides["learning_rate"] = overrides.pop("lr")
+    """Merge VARIANT defaults < preset < explicit CLI flags into one TrainConfig."""
     from dataclasses import replace
-    return replace(cfg, **overrides) if overrides else cfg
+
+    cfg = VARIANTS[args.variant]
+    overrides: dict = dict(PRESETS.get(args.preset, {}))
+    overrides.update({f: getattr(args, f) for f in HYPERPARAMS
+                      if getattr(args, f) is not None})
+    overrides["tag"] = args.tag if args.tag is not None else (args.preset or "")
+    return replace(cfg, **overrides)
 
 
 def build_dataset(tokenizer, cfg: TrainConfig):
@@ -86,7 +105,11 @@ def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
     import torch
     from trl import SFTConfig, SFTTrainer
 
-    print(f"== fine-tuning {cfg.name} from {cfg.base_model} ==")
+    label = f"{cfg.name}-{cfg.tag}" if cfg.tag else cfg.name
+    print(f"== fine-tuning {label} from {cfg.base_model} ==")
+    print("== effective hyperparameters ==")
+    for field in HYPERPARAMS:
+        print(f"  {field} = {getattr(cfg, field)}")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=cfg.base_model,
         max_seq_length=cfg.max_seq_length,
@@ -103,7 +126,7 @@ def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
     )
 
     ds = build_dataset(tokenizer, cfg)
-    out = cfg.path(cfg.output_dir) / cfg.name
+    out = cfg.path(cfg.output_dir) / label
     out.mkdir(parents=True, exist_ok=True)
 
     sft_kwargs = dict(

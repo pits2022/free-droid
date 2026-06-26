@@ -34,6 +34,7 @@ class TrainConfig:
     train_file: str = "dataset/train.jsonl"
     val_file: str = "dataset/val.jsonl"
     output_dir: str = "outputs"
+    tag: str = ""                  # experiment label -> output subdir (set via --tag/--preset)
 
     # GGUF quantizations to export: Q4_K_M for the Pi 5 edge, Q8_0 for the CAX31.
     gguf_quants: tuple[str, ...] = ("q4_k_m", "q8_0")
@@ -56,6 +57,17 @@ VARIANTS: dict[str, TrainConfig] = {
     #                        base_model="unsloth/gemma-2-2b-it-bnb-4bit"),
     # "phi":     TrainConfig(name="phi3.5-mini",
     #                        base_model="unsloth/Phi-3.5-mini-instruct-bnb-4bit"),
+}
+
+# Named hyperparameter recipes — `python finetune.py --variant qwen --preset gentle`.
+# Explicit CLI flags override a preset; the preset name becomes the output-dir tag.
+# "gentle" is the small-data anti-overfitting recipe (gentler than the v1 defaults that
+# produced word-salad Hungarian): fewer epochs, lower LR, smaller LoRA rank. Note alpha
+# tracks r (8/8 -> scaling 1.0) — dropping r alone while alpha stayed 16 would *raise*
+# the adapter's influence (alpha/r), the opposite of "gentle".
+PRESETS: dict[str, dict] = {
+    "gentle": {"learning_rate": 5e-5, "epochs": 1,
+               "lora_r": 8, "lora_alpha": 8, "lora_dropout": 0.05},
 }
 
 # Curated target modules for LoRA (all attention + MLP projections).

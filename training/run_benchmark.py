@@ -4,8 +4,8 @@
 Tetszőleges számú (2, 3, 4 ...) már betöltött Ollama modellnek felteszi a
 `persona_benchmark.json` 25 kérdését azonos, determinisztikus beállításokkal,
 méri a generálási sebességet, és az eredményt az értékelő sablon formátumába
-(modellek egymás MELLETT + kézzel kitölthető pontozó táblák) önti egy
-`benchmark_eredmeny.md` fájlba.
+(modellek egymás MELLETT + kézzel kitölthető pontozó táblák) önti egy dátumozott
+`benchmark_eredmeny_<ÉÉÉÉ-HH-NN>.md` fájlba.
 
 Használat (az Ollama-nak futnia kell: `ollama serve`):
     python run_benchmark.py                                  # a két alapértelmezett modell
@@ -25,8 +25,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BENCHMARK_FILE = HERE / "persona_benchmark.json"
-RESULT_FILE = HERE / "benchmark_eredmeny.md"
-RAW_FILE = HERE / "benchmark_raw.json"
+# The result/raw filenames are date-stamped per run (see main()) so a new run doesn't
+# clobber an already hand-scored result from another day.
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
@@ -204,9 +204,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--models", nargs="+", default=DEFAULT_MODELS, metavar="MODELL",
                     help="a tesztelendő Ollama modellek nevei (2 vagy több)")
     ap.add_argument("--force", action="store_true",
-                    help="írd felül a meglévő benchmark_eredmeny.md-t (különben hiba)")
+                    help="írd felül az aznapi benchmark_eredmeny_<dátum>.md-t (különben hiba)")
     ap.add_argument("--json-out", action="store_true",
-                    help="a nyers válaszokat is mentsd benchmark_raw.json-be")
+                    help="a nyers válaszokat is mentsd benchmark_raw_<dátum>.json-be")
     return ap.parse_args()
 
 
@@ -221,8 +221,12 @@ def main() -> int:
         print(f"HIBA: ismétlődő modellnév a listában: {models}", file=sys.stderr)
         return 1
 
-    if RESULT_FILE.exists() and not args.force:
-        print(f"HIBA: {RESULT_FILE.name} már létezik (kézi pontok elveszhetnek).\n"
+    today = datetime.now().strftime("%Y-%m-%d")
+    result_file = HERE / f"benchmark_eredmeny_{today}.md"
+    raw_file = HERE / f"benchmark_raw_{today}.json"
+
+    if result_file.exists() and not args.force:
+        print(f"HIBA: {result_file.name} már létezik (kézi pontok elveszhetnek).\n"
               f"  Felülíráshoz add meg a --force flaget.", file=sys.stderr)
         return 1
 
@@ -246,8 +250,8 @@ def main() -> int:
         print(f"\nHIBA: {e}", file=sys.stderr)
         return 1
 
-    RESULT_FILE.write_text(render_markdown(models, kerdesek, results), encoding="utf-8")
-    print(f"\nKész → {RESULT_FILE}", file=sys.stderr)
+    result_file.write_text(render_markdown(models, kerdesek, results), encoding="utf-8")
+    print(f"\nKész → {result_file}", file=sys.stderr)
 
     if args.json_out:
         raw = {
@@ -261,8 +265,8 @@ def main() -> int:
                 for q in kerdesek
             ],
         }
-        RAW_FILE.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"Nyers adat → {RAW_FILE}", file=sys.stderr)
+        raw_file.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Nyers adat → {raw_file}", file=sys.stderr)
 
     return 0
 
