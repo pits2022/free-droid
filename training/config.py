@@ -52,6 +52,16 @@ VARIANTS: dict[str, TrainConfig] = {
                         base_model="unsloth/Qwen2.5-3B-Instruct-bnb-4bit"),
     "llama": TrainConfig(name="llama3.2-3b",
                          base_model="unsloth/Llama-3.2-3B-Instruct-bnb-4bit"),
+    # Larger candidates to test the Hungarian-fluency ceiling (3B Hungarian is weak,
+    # even untuned). batch_size=1 + grad_accum=8 keeps QLoRA inside a free Colab T4
+    # (15 GB) at effective batch 8. NB: the Pi 5 can't run these in real time, so these
+    # are CLOUD-ONLY / hybrid candidates, not edge models. (Llama "8B" = 3.1, not 3.2.)
+    "qwen7b": TrainConfig(name="qwen2.5-7b",
+                          base_model="unsloth/Qwen2.5-7B-Instruct-bnb-4bit",
+                          batch_size=1, grad_accum=8),
+    "llama8b": TrainConfig(name="llama3.1-8b",
+                           base_model="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+                           batch_size=1, grad_accum=8),
     # Examples — uncomment / adjust to taste (verify the exact Unsloth repo id):
     # "gemma":   TrainConfig(name="gemma2-2b",
     #                        base_model="unsloth/gemma-2-2b-it-bnb-4bit"),
