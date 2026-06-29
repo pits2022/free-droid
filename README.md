@@ -22,9 +22,9 @@ The droid is named **Free-Droid**, but it answers to **Szabi** — a Hungarian n
 
 A hybrid **cloud-edge** design:
 
-- **Cloud (Hetzner Cloud CAX31, ARM CPU):** the fine-tuned 3B model served via Ollama, spun up **on-demand** with Terraform (`apply`/`destroy`) — you only pay while it runs.
-- **Edge (Raspberry Pi 5, ARM CPU):** the same 3B model (Q4_K_M) running fully offline as a fallback.
-- **ARM parity:** both the Pi and the cloud server are ARM, so the *same* GGUF and Ollama build run in both places — identical behavior, only the speed differs.
+- **Cloud (Hetzner Cloud CAX31, ARM CPU):** the fine-tuned **Llama 3.1 8B** served via Ollama, spun up **on-demand** with Terraform (`apply`/`destroy`) — you only pay while it runs. (8B on CPU is slow, ~4-5 tok/s; fine for the demo with short replies + live interpretation.)
+- **Edge (Raspberry Pi 5, ARM CPU):** the smaller fine-tuned **Llama 3.2 3B** (Q4_K_M) running fully offline as a fallback — faster, less eloquent (the 8B can't run in real time on the Pi).
+- **Asymmetric hybrid:** the cloud runs a bigger model than the edge, so behavior differs by design (the edge is the "less eloquent but sovereign" fallback). Both are ARM + Ollama; the stack is identical, only the model size differs.
 - **VPN:** WireGuard tunnel between the Pi and the cloud.
 
 ### Layered motion control
@@ -40,7 +40,7 @@ The LLM **never** drives the motors directly. Three layers keep it safe and fast
 ```
 Wake word "Szabi" (openWakeWord)
    → STT: Whisper.cpp (Hungarian)
-   → LLM: Llama 3.2 3B + LoRA (cloud or edge)
+   → LLM: Llama 3.1 8B (cloud) / Llama 3.2 3B (edge) + LoRA
    → TTS: Piper (Hungarian female voice)
    → + tool execution (motion / camera / wifi scan)
 ```
@@ -68,7 +68,7 @@ Full wiring, GPIO pinout, and power distribution details are in [`docs/free-droi
 
 ## 🧠 The model
 
-- **Base:** Qwen 2.5 3B *or* Llama 3.2 3B — **currently under A/B evaluation** (decided on a Hungarian persona benchmark, not generic scores)
+- **Base:** **Llama** — chosen on the Hungarian persona benchmark (beat Qwen at 3B *and* 7B): **Llama 3.1 8B** (cloud) / **Llama 3.2 3B** (edge). Open: tool-calling still needs dataset expansion.
 - **Method:** QLoRA (4-bit base + LoRA adapters) via [Unsloth](https://github.com/unslothai/unsloth)
 - **Training:** Google Colab (free T4)
 - **Dataset:** 630 hand-curated Hungarian examples (Alpaca format) covering the Szabi persona, Yotengrit ethics, Hungarian culture, tech, robot tool-calling, WiFi scanning, and optional oracle routing.
@@ -251,4 +251,4 @@ See [`docs/free-droid.md`](docs/free-droid.md) for the detailed, phased build ch
 
 - **Yotengrit** philosophy — the heritage of the rábaközi sages, preserved by Máté Imre (1934–2012). Authentic source: [yotengrit.hu](https://yotengrit.hu/)
 - [Unsloth](https://github.com/unslothai/unsloth), [Ollama](https://ollama.com/), [Piper](https://github.com/rhasspy/piper), [openWakeWord](https://github.com/dscripka/openWakeWord), [whisper.cpp](https://github.com/ggerganov/whisper.cpp)
-- Meta's Llama 3.2 / Alibaba's Qwen 2.5 (base model candidates)
+- Meta's Llama 3.1 8B (cloud) / Llama 3.2 3B (edge) — chosen base models (Qwen 2.5 was the A/B runner-up)

@@ -11,7 +11,7 @@
 ## 🧬 Projekt DNA (Core Identity)
 *   **Küldetés:** Digitális szuverenitás bemutatása magyar kulturális és etikai kontextusban.
 *   **Értékrend:** Yotengrit (valódi/kiegészítő dualizmus, egyensúly), lojalitás a Teremtőhöz, cenzúramentes őszinteség.
-*   **Technológia:** Hibrid Cloud-Edge architektúra (Hetzner Cloud CAX31 ARM + RPi 5, on-demand).
+*   **Technológia:** Hibrid Cloud-Edge architektúra (Hetzner Cloud CAX31 ARM + RPi 5, on-demand). Fine-tunolt **Llama**: **3.1 8B a felhőben**, **3.2 3B az edge-en** (fallback).
 *   **Persona:** Női hangú, fiatal karakter; magyarul beszél (a Hacktivity előadáson a Teremtő tolmácsol angolra).
 *   **Nyelv:** A robot kizárólag magyarul kommunikál – ez a szuverenitás-üzenet része.
 
@@ -226,27 +226,28 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 *   **OS:** Raspberry Pi OS 64-bit Lite (**Debian Bookworm** alapú – nem Ubuntu).
 *   **Telepítés:** RPi Imager (előre konfigurált Wi-Fi, SSH pubkey és user).
 
-### 2. AI Modellek — A/B teszt alatt (modell-választás NEM végleges)
+### 2. AI Modellek — DÖNTÉS: Llama (8B cloud / 3B edge)
 
-> ⚠️ **STÁTUSZ: A/B teszt folyamatban.** A base modell még nincs véglegesítve. Két jelölt versenyez, a döntés a saját magyar persona-teszten dől el (nem benchmarkon). A Claude Code NE véglegesítse a modellt, amíg az A/B teszt le nem zárult.
+> ✅ **STÁTUSZ: az A/B lezárult.** A saját magyar persona-benchmark (`training/persona_benchmark.json` + `ertekelo_sablon.md`) alapján a **Llama család győzött** — a Llama erősebb magyart adott, mint a Qwen mindkét méretben. **Hibrid, aszimmetrikus felállás:** felhőben **Llama 3.1 8B**, edge-en **Llama 3.2 3B** (fine-tunolva, Q4_K_M).
 
-**Jelöltek (2026 júniusi mezőny alapján):**
+**Az A/B tanulsága (3B → 7-8B benchmark):**
 
-| Modell | Mellette szól | Ellene szól |
-| :--- | :--- | :--- |
-| **Qwen 2.5 3B** (favorit) | Erős magyar/többnyelvű, kiváló tool-calling, jó minőség/paraméter arány | — |
-| **Llama 3.2 3B** (eredeti terv) | Bevált, széles ökoszisztéma | Gyengébb magyar és reasoning a friss benchmarkokon |
+| Méret | Eredmény |
+| :--- | :--- |
+| 3B (Qwen 2.5 / Llama 3.2) | Magyar nyelvileg törött / hallucináló — a 3B a magyar plafonja, demóra nem elég. |
+| 7B Qwen | Jobb, de a magyarja még gyengébb, mint a Llamáé. |
+| **Llama 3.1 8B (győztes)** | Első demó-közeli magyar persona — koherens, hangban van. |
 
-**Miért A/B és nem azonnali váltás:** a teljes pipeline (Unsloth QLoRA, Ollama, GGUF, 615 példás dataset) modell-agnosztikus — a base modell egysoros csere a Colab notebookban. Ezért mindkettő letréningelhető azonos dataseten (~30-50 perc/futás), és a magyar persona-teszt dönt. Lásd `training/persona_benchmark.json` (25 kérdés) és `training/ertekelo_sablon.md`.
+> 🔑 **Két külön probléma vált szét:** a **magyar/persona = méret** (a 8B megoldja); a **tool-calling = adat** (minden méretnél gyenge maradt, mert a datasetnek csak ~6%-a tool-példa — ez dataset-bővítéssel javul, NEM modell-cserével). A tény-hallucinációt pedig **RAG** kezeli (tények → RAG; stílus/érték → fine-tune).
 
-| Eszköz | Szerep | Kvantálás |
-| :--- | :--- | :--- |
-| Cloud (Hetzner Cloud **CAX31**, ARM CPU) | **Csak inferencia** (Ollama), on-demand | Q4_K_M / Q8 |
-| Edge (RPi 5, ARM CPU) | Offline fallback inferencia | Q4_K_M (~2–2.5 GB RAM) |
+| Eszköz | Modell | Szerep | Kvantálás |
+| :--- | :--- | :--- | :--- |
+| Cloud (Hetzner Cloud **CAX31**, ARM CPU) | **Llama 3.1 8B** | **Csak inferencia** (Ollama), on-demand | Q4_K_M |
+| Edge (RPi 5, ARM CPU) | **Llama 3.2 3B** | Offline fallback inferencia | Q4_K_M (~2–2.5 GB RAM) |
 
 > 🔄 **Fontos váltás: GEX44 → Hetzner Cloud CAX31.** A GEX44 egy GPU-s **dedikált** szerver — havi fix díj, NEM indítható/törölhető API-ból. A `hcloud` CLI csak Hetzner **Cloud** instance-okat kezel. Mivel a 3B Q4 modell CPU-n is jól fut, egy **CAX31** (8 ARM vCPU, 16 GB) Cloud szerver elég — óradíjas, Terraformmal on-demand indítható/törölhető. Ez a tényleges „fizess csak amikor használod".
 
-> 🧩 **ARM edge-paritás:** Az RPi 5 és a CAX is **ARM** — ugyanaz a GGUF, ugyanaz az Ollama build, ugyanaz a viselkedés fut mindkét helyen, csak más sebességgel. Nincs architektúra-váltásból eredő meglepetés a fallbacknél.
+> 🧩 **Aszimmetrikus hibrid:** a felhő nagyobb modellt (8B) futtat, mint az edge (3B) — a két hely viselkedése tehát KÜLÖNBÖZIK: az edge tudatosan egy „kevésbé ékesszóló, de szuverén" fallback. (Mindkét hely ARM + Ollama, a stack azonos; csak a modellméret és a minőség/sebesség tér el. Ez felülírja a korábbi „ugyanaz a GGUF fut mindkét helyen" tervet.)
 
 **Szerver-méret döntés (tesztek döntik el):**
 
@@ -256,7 +257,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 | Becsült tok/s (3B Q4) | ~10–18 | ~18–30 |
 | Mikor | egyetlen beszélgetés, demó | hosszú válaszok / párhuzamos kérések |
 
-> Az RPi 5 ~2-5 tok/s-hoz képest mindkét CAX lényegesen gyorsabb. A CAX31 ~10-15 tok/s már kényelmes hangbeszélgetéshez. A szerver-méret egysoros változtatás a Terraform variable-ben.
+> ⚠️ **Sebesség-realitás a 8B-re:** a fenti tok/s a **3B**-re vonatkozik. A **8B Q4 CPU-n mindenhol lassú** — egy erős x86 laptopon is csak ~4-5 tok/s, a CAX31 ARM CPU-ján hasonló vagy lassabb. A demón ez vállalható, mert a válaszok rövidek (tömör persona) és a Teremtő élőben tolmácsol — ez időt ad. Igazán snappy 8B **GPU**-t igényelne, ami a hcloud Cloud API-n nem elérhető (ezért esett ki a GEX44 is); a CAX = CPU-only. Az **edge 3B** marad a gyorsabb (~2-5 tok/s a Pin) offline út. A szerver-méret egysoros változtatás a Terraform variable-ben.
 
 *   **Egységes modell előnye:** Egyetlen fine-tuning, azonos persona mindkét eszközön. A LoRA adapter (vagy merge-elt GGUF) megy mindkét helyre.
 *   **A cloud szerver szerepe:** **Kizárólag inferencia** Ollamán keresztül, on-demand (Terraform apply/destroy). A fine-tuning NEM itt fut (Google Colab).
@@ -268,13 +269,13 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 ### 3. Fine-tuning – Google Colab (ingyenes T4)
 
 *   **Hol:** Google Colab, ingyenes T4 GPU. (A Hetzner Cloud szerver CPU-only, nem fine-tunol — csak inferál. Kinőve: RunPod / Vast.ai RTX 4090.)
-*   **Library:** Unsloth (2–5× gyorsabb, kevesebb VRAM, natív Qwen 2.5 / Llama 3.2 támogatás).
+*   **Library:** Unsloth (2–5× gyorsabb, kevesebb VRAM, natív Llama 3.1/3.2 támogatás). A 7-8B QLoRA is befér a T4-be (batch=1, grad_accum=8).
 *   **Módszer:** QLoRA, 4-bit base + LoRA adapterek (rank r=16 ajánlott kiindulás).
 *   **Dataset:** 630 példa (lásd `training/dataset/`), magyar nyelvű, Alpaca formátum.
     *   Train/val split: 567 / 63 (90/10).
     *   Kategóriák: etika (289), kultura (100), tech (100), hacktivity (49), identity_szabi (25), motion_toolcall (25), yotengrit (15), oracle_routing (15), wifi_scan (12).
 *   **Becsült idő:** ~30–50 perc/futás T4-en (603 példa, 2–3 epoch). Egy Colab session belefér.
-*   **Hiperparaméter kiindulás:** epochs=2–3, lr=2e-4, r=16, max_seq_length=2048.
+*   **Hiperparaméter:** a `--preset gentle` (epochs=1, lr=5e-5, r/alpha=8, dropout=0.05) vált be — a v1 (epochs=2–3, lr=2e-4, r=16) **túltanult** (törött magyar). A tényleges nyereség a **8B méret** + a tömörebb dataset volt, nem a recept finomhangolása.
 *   **Fontos:** Ne hajszold az alacsony loss-t (overfitting → robotikus, ismétlő válaszok). Validation set-en mérj, 2 epoch gyakran jobb mint 3.
 *   **Export:** GGUF (Q4_K_M edge-re, Q8/f16 cloud-ra) → Ollama Modelfile.
 
@@ -286,7 +287,7 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 1. WAKE WORD: "Szabi"  →  openWakeWord (saját betanított modell)
 2. FELVÉTEL          →  USB mikrofon + VAD (Voice Activity Detection)
 3. STT (magyar)      →  Whisper.cpp (base vagy small modell)
-4. LLM               →  Qwen 2.5 3B / Llama 3.2 3B + LoRA (cloud VAGY edge, fallback szerint)
+4. LLM               →  Llama 3.1 8B (cloud) / Llama 3.2 3B (edge) + LoRA (fallback szerint)
                         → persona válasz + opcionális <tool> blokk
 5a. TTS (női hang)   →  Piper (hu_HU-anonymous-medium)
 5b. VEZÉRLÉS         →  a <tool> blokkot a Python orchestrator végrehajtja
