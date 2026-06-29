@@ -31,7 +31,7 @@ BENCHMARK_FILE = HERE / "persona_benchmark.json"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 # Alapértelmezett modellek (felülírható a --models flaggel).
-DEFAULT_MODELS = ["freedroid-qwen", "freedroid-llama"]
+DEFAULT_MODELS = ["freedroid-llama", "freedroid-qwen"]
 
 # Determinisztikus beállítás a fair összevetésért — MINDEN modellnél azonos.
 TEMPERATURE = 0.7

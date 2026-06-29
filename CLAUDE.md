@@ -60,9 +60,10 @@ Known tools: `move()`, `turn()`, `stop()`, `camera()`, `set_speed()`, `set_mode(
 **Voice pipeline (fully offline on the Pi):** wake word `"Szabi"` (openWakeWord) → STT Whisper.cpp (Hungarian) →
 LLM (cloud or edge) → TTS Piper (`hu_HU-anonymous-medium`, pitch-tuned younger) → tool execution.
 
-**Target `robot/` module layout** (RPi control software, not yet built): `orchestrator/` (main async loop + fallback),
+**Target `robot/` module layout** (RPi control software — mostly scaffold, but `rag/` is implemented + tested): `orchestrator/` (main async loop + fallback),
 `motion/` (Cytron HAT, lgpio-based), `safety/` (ultrasonic watchdog thread), `voice/` (wake/STT/TTS/VAD),
-`llm/` (cloud+edge client), `tools/` (parser + handlers), `config/` (GPIO pinout, thresholds, audio params — build this
+`llm/` (cloud+edge client), `tools/` (parser + handlers), `rag/` (offline BM25 retrieval over the Yotengrit corpus:
+chunker, Hungarian normalizer, self-contained Okapi BM25, grounding-prompt builder), `config/` (GPIO pinout, thresholds, audio params — build this
 first; every other module reads from it), `oracle/` (**optional** "Tudók" external-LLM routing — see below).
 
 ## Security & sovereignty invariants (do not violate)
@@ -82,14 +83,17 @@ first; every other module reads from it), `oracle/` (**optional** "Tudók" exter
 - `docs/free-droid.md` — **the spec** (authoritative).
 - `infra/terraform/` — Hetzner provisioning (`main.tf` + S3 state backend; `cloud/` module).
 - `infra/ansible/` — `site.yml` + roles `wireguard_setup`, `ai_stack`, `edge_robot`.
-- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (630 ex.), `train.jsonl` (567), `val.jsonl` (63),
+- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (745 ex.), `train.jsonl` (671), `val.jsonl` (74),
   `expansion_only.json` (92 new). Categories include `oracle_routing` (15) — so the dataset uses `set_oracle()` and the
   `<puska/>` hint (the grammar contract test guards this). `old/` is superseded per-category data. Also
   `persona_benchmark.json` (25 Q A/B test) + `ertekelo_sablon.md`, and the Unsloth scaffold (`finetune.py`, `config.py`,
-  `colab_finetune.ipynb`, `Modelfile`, `system_prompt.txt`).
+  `colab_finetune.ipynb`, `colab_finetune_szabi.ipynb` (the v2 fine-tune on the 745-ex dataset), `Modelfile`, `system_prompt.txt`).
+  The dataset since gained a terse-góbés persona voice (`persona_voice.md`), a tool-call expansion (`dataset/tool_calls_expansion.json` — tool examples 6%→17%), and a RAG-grounding category (`dataset/rag_category.json`, "válasz adott kontextusból"). `dataset/merge_and_split.py` merges the staged `tool_calls_expansion.json` + `rag_category.json` into `freedroid_full.json` and regenerates the split. RAG knowledge source: `rag/yotengrit.md` → `rag/yotengrit_corpus.json` (31 chunks, `python -m freedroid.rag.corpus`).
 - `robot/` — RPi 5 Python control software (`freedroid` package, `src/freedroid/`). **Scaffold only** —
   interfaces + `NotImplementedError` stubs; `config/` carries the real pinout/tunables. Pi-only (direct `lgpio`,
   no off-Pi mock), managed with **uv**. Implementation is Phase 4 (needs hardware + fine-tuned model + cloud).
+Exception: `rag/` is fully implemented + unit-tested (pure-python, off-Pi) — chunker, Hungarian-normalized self-contained
+BM25 retriever, grounding-prompt builder; only wiring it into the orchestrator loop remains Phase 4.
 - `README.md` (English, matches spec) · `GEMINI.md` / `PROJECT_BRIEF.md` / `CONTEXT.md` (legacy, historical).
 - `.env` is git-ignored; `infra/terraform/.tfvars` holds `hcloud_token` — **never commit secrets**.
 
@@ -155,7 +159,7 @@ benchmarks** — and must NOT be finalized until the A/B test concludes.
 - Yotengrit's dualism is **complementary** (forces add up / reinforce), **not** oppositional like yin-yang — get this
   right in any dataset or prompt edit. Core motifs: the "three reeds" (Love, Wisdom, Truth) and *"Mindent szabad, ami nem
   árt másnak"* ("everything is permitted that harms no other") — directly tied to the Szabi name.
-- The fine-tune teaches **persona and values, not facts** (knowledge → RAG; style/reasoning → fine-tuning).
+- The fine-tune teaches **persona and values, not facts** (knowledge → RAG, implemented in `robot/src/freedroid/rag/`; style/reasoning → fine-tuning).
 
 ## Known follow-ups (deferred)
 

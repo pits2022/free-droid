@@ -4,8 +4,8 @@
 GPU-only (CUDA) — runs on Colab's free T4, NOT on the Pi or the CAX31. The thin
 notebook (colab_finetune.ipynb) installs Unsloth and calls this.
 
-    python finetune.py --variant qwen      # or: --variant llama
-    python finetune.py --variant qwen --epochs 3 --lr 1e-4
+    python finetune.py --variant llama     # the chosen 3B base (or: --variant qwen)
+    python finetune.py --variant llama --epochs 3 --lr 1e-4
 
 Trains WITH the inference-time system prompt (system_prompt.txt) so the model
 learns to answer in persona given that system message — keep it in sync with the
@@ -40,7 +40,7 @@ ALIASES: dict[str, list[str]] = {"learning_rate": ["--learning-rate", "--lr"]}
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--variant", choices=sorted(VARIANTS), default="qwen")
+    ap.add_argument("--variant", choices=sorted(VARIANTS), default="llama")
     ap.add_argument("--preset", choices=sorted(PRESETS),
                     help="named hyperparameter recipe; explicit flags override it")
     ap.add_argument("--tag", default=None,

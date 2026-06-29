@@ -42,7 +42,7 @@ def test_edge_ollama_down_is_critical_with_remediation(monkeypatch, settings):
 
 
 def test_edge_model_present(monkeypatch, settings):
-    body = '{"models": [{"name": "qwen2.5:3b"}]}'
+    body = '{"models": [{"name": "llama3.2:3b"}]}'
     monkeypatch.setattr(checks, "http_get", lambda url, **k: (200, body))
     r = checks.check_edge_model(settings)
     assert r.status is Status.OK
@@ -133,14 +133,14 @@ def test_edge_model_malformed_json_is_critical(monkeypatch, settings):
 
 
 def test_edge_model_rejects_different_family(monkeypatch, settings):
-    body = '{"models":[{"name":"qwen2.5-coder:7b"},{"name":"llama3.2:3b"}]}'
+    body = '{"models":[{"name":"llama3.2-vision:11b"},{"name":"qwen2.5:3b"}]}'
     monkeypatch.setattr(checks, "http_get", lambda u, **k: (200, body))
     assert checks.check_edge_model(settings).is_critical_failure
 
 
 def test_edge_model_accepts_family_tag(monkeypatch, settings):
     monkeypatch.setattr(checks, "http_get",
-                        lambda u, **k: (200, '{"models":[{"name":"qwen2.5:3b-instruct-q4"}]}'))
+                        lambda u, **k: (200, '{"models":[{"name":"llama3.2:3b-instruct-q4"}]}'))
     assert checks.check_edge_model(settings).status is Status.OK
 
 

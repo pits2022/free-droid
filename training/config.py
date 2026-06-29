@@ -46,7 +46,9 @@ class TrainConfig:
 # Candidate base models — the comparison is not limited to two. Add an entry to
 # test 3-4 models; each becomes `python finetune.py --variant <key>`, then build
 # an Ollama model `freedroid-<key>` and pass it to run_benchmark.py --models.
-# (See CLAUDE.md: the choice is NOT final until the benchmark decides.)
+# DECISION (Hungarian persona benchmark): Llama won — asymmetric hybrid, llama8b on
+# the cloud / llama (3.2 3B) on the edge; hence --variant defaults to "llama". The
+# qwen/qwen7b entries stay for reproducibility. (See CLAUDE.md.)
 VARIANTS: dict[str, TrainConfig] = {
     "qwen": TrainConfig(name="qwen2.5-3b",
                         base_model="unsloth/Qwen2.5-3B-Instruct-bnb-4bit"),
