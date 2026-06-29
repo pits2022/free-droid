@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 _H2 = re.compile(r"^##\s+(.*?)\s*$")
 _H3 = re.compile(r"^###\s+(.*?)\s*$")
+_HR = re.compile(r"^-{3,}\s*$")  # horizontal rule: section boundary, never chunk body
 _PLACEHOLDER = re.compile(r"^\s*>?\s*_\.\.\._\s*$")
 
 
@@ -45,6 +46,10 @@ def parse_chunks(md_text: str) -> list[Chunk]:
         elif m2 := _H2.match(line):
             flush()
             section = m2.group(1)
+        elif _HR.match(line):
+            # `---` separates sections (and precedes the trailing editor note); end the
+            # current chunk here so neither the rule nor post-rule meta-text leaks in.
+            flush()
         elif title is not None and not _PLACEHOLDER.match(line):
             body.append(line)
     flush()

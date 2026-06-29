@@ -83,7 +83,7 @@ first; every other module reads from it), `oracle/` (**optional** "Tudók" exter
 - `docs/free-droid.md` — **the spec** (authoritative).
 - `infra/terraform/` — Hetzner provisioning (`main.tf` + S3 state backend; `cloud/` module).
 - `infra/ansible/` — `site.yml` + roles `wireguard_setup`, `ai_stack`, `edge_robot`.
-- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (745 ex.), `train.jsonl` (671), `val.jsonl` (74),
+- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (744 ex.), `train.jsonl` (670), `val.jsonl` (74),
   `expansion_only.json` (92 new). Categories include `oracle_routing` (15) — so the dataset uses `set_oracle()` and the
   `<puska/>` hint (the grammar contract test guards this). `old/` is superseded per-category data. Also
   `persona_benchmark.json` (25 Q A/B test) + `ertekelo_sablon.md`, and the Unsloth scaffold (`finetune.py`, `config.py`,

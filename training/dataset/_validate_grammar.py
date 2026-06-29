@@ -13,17 +13,24 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[1] / "robot" / "src"))
 
+# Import the real grammar enums (no hardware deps → they load off-Pi, as test_grammar.py
+# does) so a new enum value can't slip past this validator the way a hardcoded mirror would.
+from freedroid.camera import CameraAction  # noqa: E402
+from freedroid.motion.types import Direction, Mode, Speed, TurnDir  # noqa: E402
+
+# Tool names have no code enum (they are a spec list); mirrors robot/tests/test_grammar.py.
 KNOWN_TOOLS = {
     "move", "turn", "stop", "camera",
     "set_speed", "set_mode", "request_navigation_help", "scan_wifi", "set_oracle",
 }
 ENUMS = {
-    "Direction": {"forward", "backward"},
-    "TurnDir": {"left", "right"},
-    "Speed": {"slow", "normal", "fast"},
-    "Mode": {"approach_speaker", "follow_speaker", "face_audience", "standby"},
-    "CameraAction": {"face_speaker", "nod", "scan"},
+    "Direction": {m.value for m in Direction},
+    "TurnDir": {m.value for m in TurnDir},
+    "Speed": {m.value for m in Speed},
+    "Mode": {m.value for m in Mode},
+    "CameraAction": {m.value for m in CameraAction},
 }
 
 _TOOL_RE = re.compile(r"<tool>(.*?)</tool>", re.S)

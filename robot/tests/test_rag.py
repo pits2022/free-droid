@@ -53,6 +53,17 @@ def test_chunker_splits_headings_and_skips_meta():
     assert {c.id for c in out} == {"yot-000", "yot-001"}  # stable, order-based, unique
 
 
+def test_chunker_drops_rules_and_trailing_note():
+    md = (
+        "## 1. S\n\n### Q1?\n\nA1.\n\n---\n\n## 2. T\n\n### Q2?\n\nA2.\n\n"
+        "---\n\n*(trailing editor note, not a chunk)*\n"
+    )
+    out = parse_chunks(md)
+    assert [c.title for c in out] == ["Q1?", "Q2?"]
+    assert out[0].text == "A1." and out[1].text == "A2."   # no `---` absorbed
+    assert all("---" not in c.text and "editor note" not in c.text for c in out)
+
+
 def test_real_corpus_is_clean(chunks):
     assert len(chunks) > 20
     assert all(c.text.strip() for c in chunks)            # no empty bodies
@@ -129,6 +140,12 @@ def test_corpus_build_load_roundtrip(tmp_path, chunks):
     loaded = load_corpus(out)
     assert built == loaded == chunks
     assert json.loads(out.read_text(encoding="utf-8"))[0].keys() >= {"id", "section", "title", "text"}
+
+
+def test_committed_corpus_matches_markdown(chunks):
+    """Guard against the committed artifact drifting from the source .md (run
+    `python -m freedroid.rag.corpus` after editing yotengrit.md)."""
+    assert load_corpus() == chunks, "yotengrit_corpus.json is stale — rebuild it"
 
 
 # --- settings validation --------------------------------------------------- #

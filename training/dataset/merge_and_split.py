@@ -28,6 +28,10 @@ VAL = HERE / "val.jsonl"
 SEED = 42
 VAL_RATIO = 0.10
 
+# Entries removed from the merged dataset: bare-fact answers that conflict with the RAG
+# corpus (facts belong in RAG, not the fine-tune). Matched on exact instruction text.
+DROP = {"Ki volt Máté Imre?"}
+
 
 def _key(ex: dict) -> tuple[str, str]:
     return (ex.get("instruction", ""), ex.get("output", ""))
@@ -53,6 +57,9 @@ def main() -> int:
                 seen.add(_key(ex))
                 added += 1
 
+    dropped = sum(1 for e in full if e.get("instruction") in DROP)
+    full = [e for e in full if e.get("instruction") not in DROP]
+
     rng = random.Random(SEED)
     shuffled = full[:]
     rng.shuffle(shuffled)
@@ -60,6 +67,7 @@ def main() -> int:
     val, train = shuffled[:n_val], shuffled[n_val:]
 
     print(f"merged additions:   +{added}")
+    print(f"dropped (DROP set):  -{dropped}")
     print(f"total examples:     {len(full)}")
     print(f"train / val split:  {len(train)} / {len(val)}  (seed={SEED}, val_ratio={VAL_RATIO})")
 

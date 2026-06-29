@@ -3,8 +3,9 @@
 
 Filter: persona (non-technical) entries with >=290 chars OR >=5 sentences. The tight
 4-sentence/250-285 persona answers are intentionally left alone (don't over-edit good
-copy). Technical/how-to entries are untouched per the agreed policy. Same
-verify-before-apply machinery as _persona_rewrites.py.
+copy). Technical/how-to entries are untouched per the agreed policy. Same index-based
+apply machinery as _persona_rewrites.py (same caveat: indices are valid against the
+original git-main order; range + tool-tag guards only, no shifted-index detection).
 
     python _persona_rewrites_2.py            # dry-run + write persona_rewrites_2.json
     python _persona_rewrites_2.py --write    # apply in place to freedroid_full.json

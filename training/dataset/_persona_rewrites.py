@@ -6,9 +6,10 @@ Batch 1: the 33 entries over ~330 chars. Persona/philosophy entries are cut hard
 command/spec payload and only shed filler. Facts (Gönüz→gonosz, three reeds,
 Tengervégtelen, Isz/Szusz) are preserved.
 
-Rewrites are keyed by the entry's index in freedroid_full.json AND verified against
-the original output text before applying, so a drifted index fails loudly instead of
-clobbering the wrong entry.
+Rewrites are keyed by the entry's INDEX in freedroid_full.json, valid against the
+ORIGINAL (git main) dataset order. Re-run only on that pristine base. The apply path
+guards index-range and refuses any target already carrying a <tool>/<puska tag, but it
+does NOT detect a silently shifted index — do not run after the dataset is reordered.
 
     python _persona_rewrites.py            # dry-run: write persona_rewrites.json review artifact + stats
     python _persona_rewrites.py --write    # apply in place to freedroid_full.json
