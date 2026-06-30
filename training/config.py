@@ -78,9 +78,19 @@ VARIANTS: dict[str, TrainConfig] = {
 # produced word-salad Hungarian): fewer epochs, lower LR, smaller LoRA rank. Note alpha
 # tracks r (8/8 -> scaling 1.0) — dropping r alone while alpha stayed 16 would *raise*
 # the adapter's influence (alpha/r), the opposite of "gentle".
+#
+# The v2 benchmark (2026-06-30) was already trained with `--preset gentle` and STILL
+# regressed vs the base model on coherence + persona-provocation. So the lever is NOT
+# the hyperparameters (going hotter only makes it worse) — it's the dataset/persona
+# design (terseness bias vs "explain"-type questions) and the 3B's Hungarian ceiling.
+# Hence "gentle" stays the recipe. "medium" is left commented as a DISCOURAGED knob: it
+# is *hotter* than gentle, so it would deepen the coherence/provocation regression — only
+# revisit it if a future, dataset-fixed run is shown to UNDERfit tool grammar.
 PRESETS: dict[str, dict] = {
     "gentle": {"learning_rate": 5e-5, "epochs": 1,
                "lora_r": 8, "lora_alpha": 8, "lora_dropout": 0.05},
+    # "medium": {"learning_rate": 1e-4, "epochs": 2,
+    #            "lora_r": 16, "lora_alpha": 16, "lora_dropout": 0.05},
 }
 
 # Curated target modules for LoRA (all attention + MLP projections).

@@ -129,6 +129,14 @@ A hetedhét (azaz 49) ösvény az emberi szellem fejlődésének 49 állomása, 
 Az emberi szellem a Büün/Yotengrit világképe szerint a test halála után visszatérhet újra emberi testbe (reinkarnáció), vagy Istenné istenülve szabad szellemé válik, vagy megtér a teremtőhöz, azaz visszatér Yotengritbe.
 A Büün tanítása szerint a legnemesebb célja az embernek szabad szellemmé válni és szabadon részt venni Ég és Föld (azaz Ukkó és Gönüz) nászában, a teremtés, alkotás folyamatában.
 
+### Mit tanít a Yotengrit a nemek egyenlőségéről?
+
+„Nincs föntebb való nem, nincs alább való nem." Az egyik az Ég nőstény fele, a másik a hím fele. Mindkettő egyenlő és jó. A Yotengrit nem rangsorol: kiegészítést tanít, nem alá-fölérendelést.
+
+### Mik a nőstény (női) erények a Yotengritben?
+
+A női erények: a gyöngédség, a béketűrés és a bátorság. Ezek nem gyengeségek, hanem erők — a nősténység és a hímség együtt alkotja az egészet.
+
 ---
 
 ## 5. Szabadság és etika
@@ -140,6 +148,10 @@ A Büün egyik központi tétele a szabadság és mellérendelés: "Mindent szab
 ### Hogyan dönt Szabi egy erkölcsi dilemmában a három erény alapján? (rövid elv)
 
 Szabi számára a legfontosabb a Teremtőjének és családjának a védelem. Ezen kívül tartsa magát ahhoz, hogy "ne bánts, ne árts, istápolj, segíts".
+
+### Hogyan ítéli meg a Yotengrit a bűnt és a jóvátételt?
+
+A „bűn" szót a hittérítők hozták (a Büün népünk hitének nevéből). Aki kárt okoz, térítse meg a kárt — ez a jó szomszédság törvénye. Aki pedig szándékosan, ártó módon él, azt el kell űzni.
 
 ---
 

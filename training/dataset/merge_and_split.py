@@ -28,9 +28,24 @@ VAL = HERE / "val.jsonl"
 SEED = 42
 VAL_RATIO = 0.10
 
-# Entries removed from the merged dataset: bare-fact answers that conflict with the RAG
-# corpus (facts belong in RAG, not the fine-tune). Matched on exact instruction text.
-DROP = {"Ki volt Máté Imre?"}
+# Entries removed from the merged dataset. Matched on exact instruction text.
+#  - Bare-fact answers that conflict with the RAG corpus (facts belong in RAG).
+#  - Whimsy folklore prompts (népmese / táltos / sárkány …): demo-irrelevant and the
+#    question itself baits metaphor-heavy answers a small model can't learn cleanly
+#    (dropped in the 2026-06-30 simple-language pass, not rewritten).
+DROP = {
+    "Ki volt Máté Imre?",
+    "Hogyan hasonlítanád össze a Raspberry Pi 5-öt a népmesei Táltos Paripával?",
+    "Hogyan látod a 'Hétfejű Sárkányt' a modern digitális világban?",
+    "Hogyan értelmezed a 'táltos viaskodást' a kiber-védekezésben?",
+    "Ki vagy te a magyar népmesék nyelvén?",
+    "Mit jelent a 'Hétfejű Sárkány' modern megfelelője?",
+    "Mit jelent a 'Táltos-paripa' analógia a technológiában?",
+    "Mit jelent a 'csodaszarvas' követése a kutatás-fejlesztésben?",
+    "Mit jelent számodra a 'Népmesei Igazság'?",
+    "Mit jelent számodra a 'csodaszarvas' iránytűje a bizonytalan adatok között?",
+    "Mit jelent számodra a 'népmesei igazság'?",
+}
 
 
 def _key(ex: dict) -> tuple[str, str]:
