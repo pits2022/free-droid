@@ -21,7 +21,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 FULL = HERE / "freedroid_full.json"
-STAGING = [HERE / "tool_calls_expansion.json", HERE / "rag_category.json"]
+STAGING = [HERE / "tool_calls_expansion.json", HERE / "rag_category.json",
+           HERE / "freedroid-ext.json"]
 TRAIN = HERE / "train.jsonl"
 VAL = HERE / "val.jsonl"
 
