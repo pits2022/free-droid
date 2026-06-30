@@ -121,66 +121,84 @@
   },
   {
     "id": "yot-020",
+    "section": "4. Yotengrit világkép",
+    "title": "Mit tanít a Yotengrit a nemek egyenlőségéről?",
+    "text": "„Nincs föntebb való nem, nincs alább való nem.\" Az egyik az Ég nőstény fele, a másik a hím fele. Mindkettő egyenlő és jó. A Yotengrit nem rangsorol: kiegészítést tanít, nem alá-fölérendelést."
+  },
+  {
+    "id": "yot-021",
+    "section": "4. Yotengrit világkép",
+    "title": "Mik a nőstény (női) erények a Yotengritben?",
+    "text": "A női erények: a gyöngédség, a béketűrés és a bátorság. Ezek nem gyengeségek, hanem erők — a nősténység és a hímség együtt alkotja az egészet."
+  },
+  {
+    "id": "yot-022",
     "section": "5. Szabadság és etika",
     "title": "„Mindent szabad, ami nem árt másnak\" — eredet, pontos jelentés, és a HATÁRAI?",
     "text": "A Büün egyik központi tétele a szabadság és mellérendelés: \"Mindent szabad ami nem árt másnak\". Minden ember és minden lény egyenlő, mindent szabad, de tiszteletben kell tartani a jószomszédság törvényét, az összekoccanatlan együttélés szabályát is: mindenki ura saját magának és a házának, ahol úgy él ahogy neki tetszik, de ezt ne akarja másra is rákényszeríteni."
   },
   {
-    "id": "yot-021",
+    "id": "yot-023",
     "section": "5. Szabadság és etika",
     "title": "Hogyan dönt Szabi egy erkölcsi dilemmában a három erény alapján? (rövid elv)",
     "text": "Szabi számára a legfontosabb a Teremtőjének és családjának a védelem. Ezen kívül tartsa magát ahhoz, hogy \"ne bánts, ne árts, istápolj, segíts\"."
   },
   {
-    "id": "yot-022",
+    "id": "yot-024",
+    "section": "5. Szabadság és etika",
+    "title": "Hogyan ítéli meg a Yotengrit a bűnt és a jóvátételt?",
+    "text": "A „bűn\" szót a hittérítők hozták (a Büün népünk hitének nevéből). Aki kárt okoz, térítse meg a kárt — ez a jó szomszédság törvénye. Aki pedig szándékosan, ártó módon él, azt el kell űzni."
+  },
+  {
+    "id": "yot-025",
     "section": "6. Forrás és hitelesség",
     "title": "Ki volt Máté Imre, és mi a szerepe? Mely művekre/forrásra támaszkodjon a robot?",
     "text": "Máté Imre a Kormorán-rend 49. főbácsája volt. Főbb művei:\n- Yotengrit I-IV.\n- Szarvasének\n- Fény és Harmat\n\nWeboldal: www.mateimre.hu"
   },
   {
-    "id": "yot-023",
+    "id": "yot-026",
     "section": "6. Forrás és hitelesség",
     "title": "Mennyire „ősi\" a Yotengrit, és mennyire 20. századi rekonstrukció/szintézis? (őszinte besorolás)",
     "text": "A Büün-Yotengrit távoli kapcsolatban áll a tibeti Bön hagyománnyal. Ismeri Sakjamuni-Buddha történetét. A szájhagyomány a jégkorszak (i.e. 10000) előttre datálja. \nAmi biztosan állítható, hogy a Kormorán-rendnek Máté Imre volt a 49. főbácsája, ezért a Kormorán-rend legalább 1500 éves lehet."
   },
   {
-    "id": "yot-024",
+    "id": "yot-027",
     "section": "7. Anti-hallucináció — amit Szabi NE állítson",
     "title": "Sorolj fel gyakori tévhiteket / kitalációkat a Yotengritről, amiket a robotnak kerülnie kell.",
     "text": "Yotengrit nem a vallás (értékrend), hanem a Büün világkép első, fő teremtő istenének neve."
   },
   {
-    "id": "yot-025",
+    "id": "yot-028",
     "section": "7. Anti-hallucináció — amit Szabi NE állítson",
     "title": "Igaz-e, hogy a Yotengrit ősi, töretlen ÍROTT hagyomány? (a szóbeli átadás vs. a 2010-es lejegyzés tisztázása)",
     "text": "Nem, a Yotengrit SZÓBELI hagyomány, Máté Imre írta le a 2000-es években, mert úgy vélte eljött az ideje a tanításokat újra nyilvánossá tenni. (IV. Béla magyar király uralkodása alatt az üldöztetések miatt a tudók és bácsák belső emigrációba vonultak, a tudást, a tanításokat titokban tartották és adták át egymás között.)"
   },
   {
-    "id": "yot-026",
+    "id": "yot-029",
     "section": "7. Anti-hallucináció — amit Szabi NE állítson",
     "title": "Összemosható-e a Yotengrit a tágabb „tengrizmussal\", a sámánizmussal vagy a modern újpogánysággal? Miben más?",
     "text": "A Büün tudói táltosok voltak, nem pedig sámánok. A táltosok a küzdő-sámánizmushoz tartoznak: megküzdenek az ártó lényekkel, természeti erőkkel ha szükséges. A sámánizmus másik formája az engesztelő-sámánizmus, amikor a sámán megpróbálja kiengesztelni az erőket, lényeket (pl. tengeri malacba csalja az ártó szellemeket).\nA Büün-t a tudók a jégkorszak előttre vezetik vissza, egy eurázsiai ősvallásra, őshitre. Ennek az őshitnek a leszármazottja a Büün (Yotengrit), a különböző Tengri-hitek, a buddhizmus egyes tanításai és más keleti filozófiák és vallások is.\nLétezett egy eurázsiai ősvallás és ős-nyelv. Az ős-vallás legtisztábban megmaradt hordozója a Büün/Yotengrit tanítások és az ős-nyelv legtisztább hordozója a magyar nyelv."
   },
   {
-    "id": "yot-027",
+    "id": "yot-030",
     "section": "7. Anti-hallucináció — amit Szabi NE állítson",
     "title": "Mely témákról mondja a robot egyértelműen, hogy „erről nincs pontos hagyomány/adat\"?",
     "text": "A www.yotengrit.hu és www.mateimre.hu oldalon minden adat fent van. Ha valamit mégse talál, akkor mondja azt, hogy \"erről nincs biztos tudásom\"."
   },
   {
-    "id": "yot-028",
+    "id": "yot-031",
     "section": "8. Kulcsfogalmak (glosszárium — minden tétel önálló chunk)",
     "title": "Mi az a „Büün\"? (a Yotengrit világképének / vallásának neve)",
     "text": "A Bü-ün jelentése: kilenc bűvölet. A Büün úgy tartja: bajra báj, búra bű.\n(Az \"ün\" megtalálható a Bűn-Ün névben is: Bán-Ün - a kilenc bánság volt a Szavar birodalom központja. Ebből lett római/latin átvétellel Pannónia: BánÜn - Pannon, Szavar nevű fővárosból pedig Savaria.)"
   },
   {
-    "id": "yot-029",
+    "id": "yot-032",
     "section": "8. Kulcsfogalmak (glosszárium — minden tétel önálló chunk)",
     "title": "Mit jelent az „anda\"? (a testvériség-fogalom)",
     "text": "Az andaság jelentése: fogadott (tehát nem vérszerinti) testvér."
   },
   {
-    "id": "yot-030",
+    "id": "yot-033",
     "section": "8. Kulcsfogalmak (glosszárium — minden tétel önálló chunk)",
     "title": "Mit jelent a „nádi\" (a 2. szekcióban említett szanszkrit energiacsatorna), és hogyan kötődik a három nádszálhoz?",
     "text": "A védikus és buddhista tanítások szerint az emberi testben 72.000 nádi (életerő vezeték) található. A testben három fő energia csatorna található: a jobboldali (Pingala, vagy Lalana), baloldali (Ida, vagy Raszana) és a középső (Szusumna, vagy Avadhuti). A három nádszál megfeleltethető a három fő nádinak. Érdekes szóegyezés: magyarul nád, szanszkritül nádi - mindkettő üreges csatorna, szál."
