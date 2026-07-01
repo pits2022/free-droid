@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""A judge_benchmark.py hálózat-független logikájának ellenőrzése (assert-alapú).
+
+Futtatás: `python test_judge_benchmark.py` vagy `pytest test_judge_benchmark.py`.
+A tényleges LLM-judge (claude CLI) NEM fut itt — csak a determinisztikus tool-scorer
+és a judge-válasz JSON-kivonatoló, mert csak ezekben van elrontható logika.
+"""
+
+from judge_benchmark import extract_json, extract_tools, score_tool_call
+
+
+def test_extract_tools_tolerates_whitespace_and_multiple() -> None:
+    txt = 'Máris, Teremtő! <tool>  turn( direction="left", angle=90 ) </tool> aztán <tool>stop()</tool>'
+    assert extract_tools(txt) == ["turn", "stop"]
+    assert extract_tools("") == []
+    assert extract_tools("csak sima szöveg, semmi hívás") == []
+
+
+def test_score_tool_call_grades() -> None:
+    # nincs hívás -> 1 (a jegyzett gyenge pont)
+    assert score_tool_call("Rendben, Teremtő.", "stop")[0] == 1
+    # ismeretlen tool -> 2
+    assert score_tool_call("<tool>teleport()</tool>", "move")[0] == 2
+    # jól formált, ismert, de nem a várt -> 3
+    assert score_tool_call('<tool>move(direction="forward")</tool>', "stop")[0] == 3
+    # a várt tool -> 5
+    assert score_tool_call("<tool>stop()</tool>", "stop")[0] == 5
+    # nincs megadva várt tool: bármely ismert -> 5
+    assert score_tool_call("<tool>camera()</tool>", None)[0] == 5
+
+
+def test_extract_json_handles_fences_and_prose() -> None:
+    fenced = 'Íme:\n```json\n{"a": {"pont": 4, "indok": "jó"}}\n```\n'
+    assert extract_json(fenced)["a"]["pont"] == 4
+    bare = '{"m1": {"pont": 2}, "m2": {"pont": 5}}'
+    assert extract_json(bare)["m2"]["pont"] == 5
+
+
+if __name__ == "__main__":
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            fn()
+            print(f"ok: {name}")
+    print("MIND ZÖLD")
