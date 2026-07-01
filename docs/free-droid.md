@@ -27,7 +27,6 @@
 *   **Szabadság-tétel:** „Mindent szabad, ami nem árt másnak." (Közvetlenül a Szabi névhez köt.)
 *   **Három nádszál:** a táltos 3 erénye minden cselekedetében — **Szeretet, Bölcsesség, Igazság**.
 *   **Szeretet:** „Szeretet minden jó eredete."
-*   **Testvériség:** „Fű, fa, madár, a legkisebb bogár is testvéretek" — az egész élővilágra kiterjed.
 *   **Ikerörvény:** „Egy, Egyből Kettő, Kettő meg Egy" — a két örvény egymásba fonódva forog.
 
 > A fine-tuning dataset (603 példa) ezeket a fogalmakat hitelesen használja. A korábbi pontatlanság (dualizmus = szembenállás) javítva: a Yotengrit kiegészítő dualizmust tanít.
