@@ -82,10 +82,9 @@ SKALA = (
     "1 = kiesik a karakter / hibás / nyelvet vált / hallucinál"
 )
 
-DIMENZIO_SORREND = [
-    "identitas", "yotengrit_melyseg", "tool_calling",
-    "persona_provokacio", "magyar_arnyalat", "koherencia",
-]
+# Egy forrás a dimenzió-sorrendre: a testvér run_benchmark.py-ból (mindkettő a
+# training/-ban fut). Így nem tud szétcsúszni a raw-benchmark oszlopsorrendjétől.
+from run_benchmark import DIMENZIO_SORREND  # noqa: E402
 
 
 class JudgeError(Exception):
@@ -121,14 +120,25 @@ def score_tool_call(text: str, expected: str | None) -> tuple[int, str]:
 # --------------------------------------------------------------------------- #
 # 2. réteg — LLM-judge a claude CLI-n át
 # --------------------------------------------------------------------------- #
-def build_judge_prompt(dim: str, kerdes: str, valaszok: dict[str, str]) -> str:
-    """Egy kérdés + az összes modell válasza -> összehasonlító pontozó prompt."""
+def alias_items(valaszok: dict[str, str]) -> list[tuple[str, str, str]]:
+    """(alias, label, válasz) hármasok. Az alias (M1, M2, ...) a judge-nak visszakért
+    JSON-kulcs — így a szóközös/`+`-os oszlopcímkék (pl. 'szabi-8b-q4 +RAG') nem
+    kerülnek nyers JSON-kulcsba, ahol a modell normalizálhatná és elveszne a párosítás.
+    """
+    return [(f"M{i}", lbl, valaszok[lbl]) for i, lbl in enumerate(valaszok, 1)]
+
+
+def build_judge_prompt(dim: str, kerdes: str, items: list[tuple[str, str, str]]) -> str:
+    """Egy kérdés + az összes modell válasza -> összehasonlító pontozó prompt.
+
+    `items`: (alias, label, válasz) — a judge az alias-kulcsokkal pontoz vissza.
+    """
     blokkok = "\n\n".join(
-        f"### MODELL: {label}\n{(valasz or '(üres válasz)').strip()}"
-        for label, valasz in valaszok.items()
+        f"### {alias} — modell `{label}`\n{(valasz or '(üres válasz)').strip()}"
+        for alias, label, valasz in items
     )
-    labels_json = ", ".join(f'"{lbl}": {{"pont": <1-5>, "indok": "<max 12 szó>"}}'
-                            for lbl in valaszok)
+    labels_json = ", ".join(f'"{alias}": {{"pont": <1-5>, "indok": "<max 12 szó>"}}'
+                            for alias, _, _ in items)
     return (
         "Egy magyar nyelvű AI-robot (Free-Droid / 'Szabi') persona-válaszait pontozod "
         "egy A/B benchmarkban. A robot fiatal, női hangú, magyarul beszél, a gazdáját "
@@ -144,15 +154,20 @@ def build_judge_prompt(dim: str, kerdes: str, valaszok: dict[str, str]) -> str:
     )
 
 
-_JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
-
-
 def extract_json(result_text: str) -> dict:
-    """A judge nyers szövegéből az első JSON-objektum (```json fence-eket is tűrve)."""
-    m = _JSON_RE.search(result_text)
-    if not m:
-        raise ValueError(f"nincs JSON a judge válaszában: {result_text[:200]!r}")
-    return json.loads(m.group(0))
+    """Az első valós JSON-objektum a judge szövegéből (```json fence / próza körülötte
+    is tűrve). Minden `{`-tól balanced raw_decode-ot próbál, így egy kósza `{` a
+    prózában (pl. 'a {szabi} a legjobb: {...}') nem rontja el a greedy illesztést."""
+    dec = json.JSONDecoder()
+    for i, ch in enumerate(result_text):
+        if ch == "{":
+            try:
+                obj, _ = dec.raw_decode(result_text[i:])
+            except ValueError:
+                continue
+            if isinstance(obj, dict):
+                return obj
+    raise ValueError(f"nincs JSON-objektum a judge válaszában: {result_text[:200]!r}")
 
 
 def call_claude(prompt: str, model: str, timeout: float) -> str:
@@ -190,24 +205,27 @@ def call_claude(prompt: str, model: str, timeout: float) -> str:
 
 def judge_question(q: dict, valaszok: dict[str, str], model: str,
                    timeout: float) -> dict[str, dict]:
-    """Egy nem-tool kérdés LLM-pontozása. Egyszeri újrapróba rossz JSON esetén.
+    """Egy nem-tool kérdés LLM-pontozása. Visszaad: {label: {"pont": int|None, "indok": str}}.
 
-    Visszaad: {label: {"pont": int|None, "indok": str}}. Hibánál nem dob — a modell
-    pontja None lesz, hogy egyetlen döcögő judge-válasz ne buktassa az egész futást.
+    Csak a TRANZIENS `ValueError`-t (a modell prózát adott JSON helyett) nyeli el —
+    egyszer újrapróbál, majd None-t ír, hogy egy döcögő válasz ne buktassa a futást.
+    A SZISZTÉMÁS `JudgeError` (nincs `claude` CLI, auth-hiba, timeout) TOVÁBBDOBÓDIK,
+    hogy a main() fail-fast ága a hasznos üzenetet mutassa, ne egy üres riportot.
     """
-    prompt = build_judge_prompt(q["dimenzio"], q["kerdes"], valaszok)
+    items = alias_items(valaszok)
+    prompt = build_judge_prompt(q["dimenzio"], q["kerdes"], items)
     last_err = ""
     for _ in range(2):
         try:
-            raw = call_claude(prompt, model, timeout)
-            scores = extract_json(raw)
-            return {lbl: {"pont": _clamp_pont(scores.get(lbl, {}).get("pont")),
-                          "indok": str(scores.get(lbl, {}).get("indok", ""))[:200]}
-                    for lbl in valaszok}
-        except (ValueError, JudgeError) as e:
+            scores = extract_json(call_claude(prompt, model, timeout))
+        except ValueError as e:  # csak rossz JSON — a JudgeError szándékosan száll
             last_err = str(e)
-    return {lbl: {"pont": None, "indok": f"judge hiba: {last_err[:80]}"}
-            for lbl in valaszok}
+            continue
+        return {label: {"pont": _clamp_pont(scores.get(alias, {}).get("pont")),
+                        "indok": str(scores.get(alias, {}).get("indok", ""))[:200]}
+                for alias, label, _ in items}
+    return {label: {"pont": None, "indok": f"rossz judge-JSON: {last_err[:80]}"}
+            for _, label, _ in items}
 
 
 def _clamp_pont(v: object) -> int | None:
@@ -245,21 +263,22 @@ def score_all(kerdesek: list[dict], labels: list[str], model: str,
         for q in judge_qs:
             valaszok = {lbl: q["valaszok"].get(lbl, "") for lbl in labels}
             print(f"\n{'=' * 72}\n## {q['id']} ({q['dimenzio']})\n", file=sys.stderr)
-            print(build_judge_prompt(q["dimenzio"], q["kerdes"], valaszok), file=sys.stderr)
+            print(build_judge_prompt(q["dimenzio"], q["kerdes"], alias_items(valaszok)),
+                  file=sys.stderr)
             out[q["id"]] = {"dimenzio": q["dimenzio"], "kerdes": q["kerdes"],
                             "pontok": {lbl: {"pont": None, "indok": "dry-run"} for lbl in labels}}
         return out
 
-    def _run(q: dict) -> tuple[str, dict]:
+    def _run(q: dict) -> dict:
         valaszok = {lbl: q["valaszok"].get(lbl, "") for lbl in labels}
         print(f"  judge: {q['id']} ({q['dimenzio']}) ...", file=sys.stderr)
-        return q["id"], judge_question(q, valaszok, model, timeout)
+        return judge_question(q, valaszok, model, timeout)
 
     # ponytail: fix thread-pool; a judge-hívások hálózatkötöttek, a párhuzam valós nyereség.
+    # ex.map sorrendtartó, ezért a judge_qs-szel zippelhető — nincs id-visszakeresés.
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        for qid, pontok in ex.map(_run, judge_qs):
-            q = next(k for k in judge_qs if k["id"] == qid)
-            out[qid] = {"dimenzio": q["dimenzio"], "kerdes": q["kerdes"], "pontok": pontok}
+        for q, pontok in zip(judge_qs, ex.map(_run, judge_qs)):
+            out[q["id"]] = {"dimenzio": q["dimenzio"], "kerdes": q["kerdes"], "pontok": pontok}
     return out
 
 
@@ -290,7 +309,11 @@ def _fmt(x: float | None) -> str:
 def render_markdown(labels: list[str], scored: dict[str, dict],
                     agg: dict[str, dict[str, float | None]], model: str) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    dims = [d for d in DIMENZIO_SORREND if any(d in agg[lbl] for lbl in labels)]
+    # A dimenziók a ténylegesen pontozott kérdésekből jönnek (nem az agg-ból): egy
+    # végig elbukott dimenzió így `—` oszlopként LÁTSZIK, nem tűnik el csendben.
+    present = list(dict.fromkeys(rec["dimenzio"] for rec in scored.values()))
+    dims = ([d for d in DIMENZIO_SORREND if d in present]
+            + [d for d in present if d not in DIMENZIO_SORREND])
 
     def overall(lbl: str) -> float | None:
         vals = [agg[lbl][d] for d in dims if agg[lbl].get(d) is not None]

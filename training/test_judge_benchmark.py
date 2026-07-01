@@ -6,7 +6,12 @@ A tényleges LLM-judge (claude CLI) NEM fut itt — csak a determinisztikus tool
 és a judge-válasz JSON-kivonatoló, mert csak ezekben van elrontható logika.
 """
 
-from judge_benchmark import extract_json, extract_tools, score_tool_call
+from judge_benchmark import (
+    alias_items,
+    extract_json,
+    extract_tools,
+    score_tool_call,
+)
 
 
 def test_extract_tools_tolerates_whitespace_and_multiple() -> None:
@@ -34,6 +39,19 @@ def test_extract_json_handles_fences_and_prose() -> None:
     assert extract_json(fenced)["a"]["pont"] == 4
     bare = '{"m1": {"pont": 2}, "m2": {"pont": 5}}'
     assert extract_json(bare)["m2"]["pont"] == 5
+
+
+def test_extract_json_skips_stray_brace_in_prose() -> None:
+    # A greedy `\{.*\}` ezen elbukna: a kósza `{szabi}` és a valódi objektum közti
+    # szöveget is beszívná. A balanced-scan az első ÉRVÉNYES objektumot adja.
+    txt = 'A {szabi-8b} a legjobb. Íme: {"M1": {"pont": 5, "indok": "ok"}}'
+    assert extract_json(txt)["M1"]["pont"] == 5
+
+
+def test_alias_items_maps_tricky_labels_to_safe_keys() -> None:
+    # A szóközös/`+`-os RAG-címke nem kerülhet nyers JSON-kulcsba.
+    got = alias_items({"szabi-8b-q4": "v1", "szabi-8b-q4 +RAG": "v2"})
+    assert got == [("M1", "szabi-8b-q4", "v1"), ("M2", "szabi-8b-q4 +RAG", "v2")]
 
 
 if __name__ == "__main__":
