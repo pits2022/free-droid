@@ -46,6 +46,10 @@ DEFAULT_MODELS = ["freedroid-llama", "freedroid-qwen"]
 # Determinisztikus beállítás a fair összevetésért — MINDEN modellnél azonos.
 TEMPERATURE = 0.7
 SEED = 42
+# Válasz-hossz sapka: nyers jelöltek (pl. puli-llumix) néha nem tüzelik a stop-tokent és
+# a kontextus-limitig ömlesztenek (2000+ token → ~10 perc/válasz 8B CPU-n). Egy robot
+# amúgy is rövid, kimondható válaszokat ad → 512 token bőven elég, és korlátozza a futásidőt.
+NUM_PREDICT = 512
 REQUEST_TIMEOUT = 600.0  # 8B CPU-n + RAG-grounding lassú lehet; a --timeout felülírja
 
 # A 6 dimenzió kívánt sorrendje a kimenetben (az ertekelo_sablon.md szerint).
@@ -149,7 +153,8 @@ def ollama_generate(model: str, prompt: str,
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": TEMPERATURE, "seed": SEED},
+        "options": {"temperature": TEMPERATURE, "seed": SEED,
+                    "num_predict": NUM_PREDICT},
     }).encode("utf-8")
     req = urllib.request.Request(
         OLLAMA_URL, data=payload, headers={"Content-Type": "application/json"},
