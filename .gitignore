@@ -9,6 +9,10 @@
 *.tfstate.*
 crash.log
 
+# Local agent / editor tooling (per-developer, not project code)
+.claude/
+.agents/
+
 # Python / uv (robot/)
 __pycache__/
 *.pyc
