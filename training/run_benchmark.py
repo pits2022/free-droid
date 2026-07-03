@@ -24,6 +24,7 @@ Használat (az Ollama-nak futnia kell: `ollama serve`):
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import sys
 import urllib.error
@@ -46,7 +47,11 @@ DEFAULT_MODELS = ["freedroid-llama", "freedroid-qwen"]
 # Determinisztikus beállítás a fair összevetésért — MINDEN modellnél azonos.
 TEMPERATURE = 0.7
 SEED = 42
-REQUEST_TIMEOUT = 180.0  # CPU-n a generálás lassú lehet
+# Válasz-hossz sapka: nyers jelöltek (pl. puli-llumix) néha nem tüzelik a stop-tokent és
+# a kontextus-limitig ömlesztenek (2000+ token → ~10 perc/válasz 8B CPU-n). Egy robot
+# amúgy is rövid, kimondható válaszokat ad → 512 token bőven elég, és korlátozza a futásidőt.
+NUM_PREDICT = 512
+REQUEST_TIMEOUT = 600.0  # 8B CPU-n + RAG-grounding lassú lehet; a --timeout felülírja
 
 # A 6 dimenzió kívánt sorrendje a kimenetben (az ertekelo_sablon.md szerint).
 DIMENZIO_SORREND = [
@@ -60,7 +65,13 @@ DIMENZIO_SORREND = [
 
 
 class BenchmarkError(Exception):
-    """Felhasználónak szóló, értelmes hibaüzenet (nem stacktrace)."""
+    """Felhasználónak szóló, értelmes hibaüzenet (nem stacktrace) — HARD FAIL."""
+
+
+class GenerationTimeout(Exception):
+    """Egy kérdés túllépte az időkorlátot. NEM állítja le a futást: a run_target
+    elkapja, a cellát TIMEOUT-nak jelöli, és a benchmark megy tovább — így egy lassú
+    8B-kérdés nem viszi el a már kész (drága) oszlopok eredményét."""
 
 
 # --------------------------------------------------------------------------- #
@@ -130,25 +141,36 @@ class RagContext:
 # --------------------------------------------------------------------------- #
 # Ollama
 # --------------------------------------------------------------------------- #
-def ollama_generate(model: str, prompt: str) -> tuple[str, float | None]:
+def ollama_generate(model: str, prompt: str,
+                    timeout: float = REQUEST_TIMEOUT) -> tuple[str, float | None]:
     """Egy prompt elküldése az Ollama /api/generate végponton.
 
     Visszaad: (válasz_szöveg, tokens_per_sec | None). A modell SYSTEM promptja
     a Modelfile-ban van beégetve; itt a kérdést (vagy RAG módban a grounding-
-    promptot) küldjük.
+    promptot) küldjük. A read-timeout `GenerationTimeout`-ot dob (a futás folytatódik);
+    a setup-hibák (404, kapcsolat) továbbra is `BenchmarkError` (hard fail).
     """
     payload = json.dumps({
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": TEMPERATURE, "seed": SEED},
+        "options": {"temperature": TEMPERATURE, "seed": SEED,
+                    "num_predict": NUM_PREDICT},
     }).encode("utf-8")
     req = urllib.request.Request(
         OLLAMA_URL, data=payload, headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read())
+    except TimeoutError as e:
+        # A modell nem válaszolt időben (lassú 8B / hosszú RAG-válasz). Nem hard fail.
+        raise GenerationTimeout(f"'{model}' > {timeout:.0f}s") from e
+    except (ConnectionError, http.client.HTTPException, json.JSONDecodeError) as e:
+        # Az Ollama menet közben elhalt (OOM-kill/restart) vagy csonka választ adott.
+        # Nem hard fail: a cellát a timeouttal azonos módon degradáljuk, hogy a már
+        # kész oszlopok ne vesszenek el.
+        raise GenerationTimeout(f"'{model}' megszakadt: {type(e).__name__}") from e
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")
         if e.code == 404:
@@ -185,8 +207,14 @@ def _use_rag(target: Target, q: dict, rag_dims: set[str] | None) -> bool:
 
 
 def run_target(target: Target, kerdesek: list[dict],
-               rag_ctx: RagContext | None, rag_dims: set[str] | None) -> dict[str, dict]:
-    """Mind a 25 kérdés végigfuttatása egy oszlop-célon, haladásjelzéssel."""
+               rag_ctx: RagContext | None, rag_dims: set[str] | None,
+               timeout: float) -> dict[str, dict]:
+    """Mind a 25 kérdés végigfuttatása egy oszlop-célon, haladásjelzéssel.
+
+    Egy kérdés bukása (timeout VAGY megszakadt generálás) NEM állítja le a futást: a
+    cella `skipped=True` jelet + `⏱ KIHAGYVA` sentinelt kap, és a benchmark megy tovább
+    a többi kérdéssel/oszloppal. A judge a `skipped` jelet látva kihagyja a cellát.
+    """
     n = len(kerdesek)
     eredmenyek: dict[str, dict] = {}
     for i, q in enumerate(kerdesek, 1):
@@ -197,8 +225,15 @@ def run_target(target: Target, kerdesek: list[dict],
             prompt, forras = q["kerdes"], []
         print(f"  [{target.label}] {i}/{n} kérdés — {q['id']} ({q['dimenzio']}) ...",
               file=sys.stderr)
-        valasz, tok_s = ollama_generate(target.model, prompt)
-        eredmenyek[q["id"]] = {"valasz": valasz, "tok_s": tok_s, "forras": forras}
+        skipped = False
+        try:
+            valasz, tok_s = ollama_generate(target.model, prompt, timeout)
+        except GenerationTimeout as e:
+            print(f"  ⏱ [{target.label}] {q['id']} kihagyva ({e}) — a futás folytatódik",
+                  file=sys.stderr)
+            valasz, tok_s, skipped = f"⏱ KIHAGYVA ({e})", None, True
+        eredmenyek[q["id"]] = {"valasz": valasz, "tok_s": tok_s,
+                               "forras": forras, "skipped": skipped}
     print(f"  [{target.label}] kész.", file=sys.stderr)
     return eredmenyek
 
@@ -345,6 +380,9 @@ def parse_args() -> argparse.Namespace:
                     help="RAG: mely dimenziók kapjanak forrást (alap: yotengrit_melyseg; "
                          "'all' = minden dimenzió). A többi kérdés a `+RAG` oszlopban is "
                          "puszta kérdést kap — így a különbség a tudás-dimenzióra szűkül.")
+    ap.add_argument("--timeout", type=float, default=REQUEST_TIMEOUT, metavar="MP",
+                    help=f"egy kérdés időkorlátja másodpercben (alap: {REQUEST_TIMEOUT:.0f}); "
+                         "time-outnál a cella TIMEOUT-ot jelöl és a futás folytatódik")
     ap.add_argument("--dry-run", action="store_true",
                     help="csak a RAG-promptokat írja ki (Ollama nélkül); --rag-gal együtt")
     ap.add_argument("--force", action="store_true",
@@ -417,7 +455,7 @@ def main() -> int:
     results: dict[str, dict[str, dict]] = {}
     try:
         for target in targets:
-            results[target.label] = run_target(target, kerdesek, rag_ctx, rag_dims)
+            results[target.label] = run_target(target, kerdesek, rag_ctx, rag_dims, args.timeout)
     except BenchmarkError as e:
         print(f"\nHIBA: {e}", file=sys.stderr)
         return 1
