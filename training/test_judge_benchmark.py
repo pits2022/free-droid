@@ -16,7 +16,7 @@ from judge_benchmark import (
 
 
 def test_extract_tools_tolerates_whitespace_and_multiple() -> None:
-    txt = 'Máris, Teremtő! <tool>  turn( direction="left", angle=90 ) </tool> aztán <tool>stop()</tool>'
+    txt = 'Máris, Teremtő! <tool>  turn left 90 </tool> aztán <tool>stop</tool>'
     assert extract_tools(txt) == ["turn", "stop"]
     assert extract_tools("") == []
     assert extract_tools("csak sima szöveg, semmi hívás") == []
@@ -26,13 +26,13 @@ def test_score_tool_call_grades() -> None:
     # nincs hívás -> 1 (a jegyzett gyenge pont)
     assert score_tool_call("Rendben, Teremtő.", "stop")[0] == 1
     # ismeretlen tool -> 2
-    assert score_tool_call("<tool>teleport()</tool>", "move")[0] == 2
+    assert score_tool_call("<tool>teleport</tool>", "move")[0] == 2
     # jól formált, ismert, de nem a várt -> 3
-    assert score_tool_call('<tool>move(direction="forward")</tool>', "stop")[0] == 3
+    assert score_tool_call("<tool>move forward 2</tool>", "stop")[0] == 3
     # a várt tool -> 5
-    assert score_tool_call("<tool>stop()</tool>", "stop")[0] == 5
+    assert score_tool_call("<tool>stop</tool>", "stop")[0] == 5
     # nincs megadva várt tool: bármely ismert -> 5
-    assert score_tool_call("<tool>camera()</tool>", None)[0] == 5
+    assert score_tool_call("<tool>camera scan</tool>", None)[0] == 5
 
 
 def test_extract_json_handles_fences_and_prose() -> None:
@@ -59,7 +59,7 @@ def test_skipped_cell_scored_none_not_penalized() -> None:
     # A timeout/megszakadt cella (skipped) NEM kaphat kemény 1-est — pont=None, hogy
     # az aggregátum kihagyja, különben a rangsor a timeoutot persona/tool-hibaként bünteti.
     kerdesek = [{"id": "tc_01", "dimenzio": "tool_calling", "kerdes": "?",
-                 "valaszok": {"M": "", "N": 'ok <tool>stop()</tool>'},
+                 "valaszok": {"M": "", "N": 'ok <tool>stop</tool>'},
                  "skipped": {"M"}}]
     out = score_all(kerdesek, labels=["M", "N"], model="x",
                     max_workers=1, timeout=1.0, dry_run=False)

@@ -11,7 +11,7 @@ The spec's `robot/` module list is realized as the `freedroid` package (`src/fre
 | `motion/` | `freedroid.motion` | Cytron HAT-MDD10 track control (lgpio) — `move/turn/stop/set_speed`; closed value domains in `motion.types` |
 | `motion/` (camera) | `freedroid.camera` | Camera pan/tilt servos via PCA9685 — `pan/tilt/action` (distinct from the track motors) |
 | `safety/` | `freedroid.safety` | HC-SR04P ultrasonic watchdog on a separate thread — `stop()` below threshold, bypassing the LLM |
-| `tools/` | `freedroid.tools` | `<tool>fn(k=v)</tool>` parser + handler registry |
+| `tools/` | `freedroid.tools` | `<tool>NAME v1 v2</tool>` positional parser + handler registry |
 | `llm/` | `freedroid.llm` | LLM client with cloud (WireGuard→Ollama) → edge fallback |
 | `voice/` | `freedroid.voice` | wake word → STT → TTS → VAD (all offline) |
 | `orchestrator/` | `freedroid.orchestrator` | main async loop tying it together + safe-mode |

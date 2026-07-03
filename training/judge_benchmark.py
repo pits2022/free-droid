@@ -6,7 +6,7 @@ A `run_benchmark.py --json-out` által kiírt `benchmark_raw_<dátum>.json`-t fo
 kelljen kézzel N modellt végigértékelni. Két rétegben:
 
 1. **Objektív tool-call score (determinisztikus, hálózat nélkül):** a `tool_calling`
-   dimenzió kérdéseire beépített `<tool>fn(...)</tool>` kivonatoló ellenőrzi, hogy a
+   dimenzió kérdéseire beépített `<tool>NAME ...</tool>` kivonatoló ellenőrzi, hogy a
    modell egyáltalán ad-e jól formált, ismert tool-hívást (a projekt jegyzett gyenge
    pontja) — és ha egyértelmű, a VÁRT toolt adja-e. Nincs LLM a hurokban.
 
@@ -59,8 +59,10 @@ EXPECTED_TOOL = {
     "tc_05": "camera",     # "nézz fel és pásztázz körbe"
 }
 
-# <tool>fn(args)</tool> — toleráns a whitespace-re; a névre és az argumentumokra bontja.
-TOOL_RE = re.compile(r"<tool>\s*([A-Za-z_]\w*)\s*\((.*?)\)\s*</tool>", re.DOTALL)
+# <tool>NAME arg1 arg2 ...</tool> (pozicionális nyelvtan) — a tool NEVÉT (első token)
+# adja vissza; a whitespace-re toleráns. A teljes parse-t a robot parse_tools() + a
+# grammar-kontrakt teszt ellenőrzi; itt a triage-hez a név elég.
+TOOL_RE = re.compile(r"<tool>\s*([a-z_]+)[^<]*</tool>", re.DOTALL)
 
 TOOL_DIM = "tool_calling"
 
@@ -100,7 +102,7 @@ class JudgeTimeout(Exception):
 # 1. réteg — determinisztikus tool-call pontozás
 # --------------------------------------------------------------------------- #
 def extract_tools(text: str) -> list[str]:
-    """A `<tool>fn(...)</tool>` blokkok függvényneveit adja vissza, sorrendben."""
+    """A `<tool>NAME ...</tool>` blokkok tool-neveit adja vissza, sorrendben."""
     return [m.group(1) for m in TOOL_RE.finditer(text or "")]
 
 
@@ -119,7 +121,7 @@ def score_tool_call(text: str, expected: str | None) -> tuple[int, str]:
         return 2, f"ismeretlen tool: {first}"
     if expected and first != expected:
         return 3, f"jól formált, de várt: {expected}, kapott: {first}"
-    return 5, f"helyes: {first}()"
+    return 5, f"helyes: {first}"
 
 
 # --------------------------------------------------------------------------- #

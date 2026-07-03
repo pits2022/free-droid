@@ -306,7 +306,7 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 
 ```
 1. LLM (a „lélek")      → szándék-felismerés + persona
-                          kimenet: "Megyek, Teremtő! <tool>move(forward)</tool>"
+                          kimenet: "Megyek, Teremtő! <tool>move forward 2</tool>"
 2. Vezérlő kódréteg     → a <tool> blokkot determinisztikus GPIO/PWM
    (a „test", Python)     parancsokká fordítja (Cytron HAT)
 3. Biztonsági watchdog  → HC-SR04P szenzorok külön szálon; akadálynál
@@ -314,7 +314,7 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 ```
 
 *   **Architektúra:** Egyszerű Python **threading/asyncio** (NEM ROS 2 – lásd roadmap). Kevesebb függőség, gyorsabb fejlesztés, RPi 5-re elég.
-*   **Tool-formátum:** `<tool>function(param=value)</tool>`. A parser legyen robusztus (extra szóköz, idézőjel-eltérés tolerálása).
+*   **Tool-formátum:** pozicionális `<tool>NAME érték1 érték2</tool>` – zárójel/idézőjel NÉLKÜL (pl. `<tool>move forward 2</tool>`, `<tool>turn left 90</tool>`, `<tool>stop</tool>`). A kis modell ezt sokkal megbízhatóbban adja, mint a `fn(k=v)` formát; a parse egyértelmű, mert az érték-tartományok diszjunktak (szám = távolság/fok, szó = irány/sebesség/mód, `until` = jelölő). A `request_navigation_help` az egyetlen szabad-szöveges tool: a név utáni teljes maradék a cél (lehet szóközös). A parser toleráns az extra szóközre.
 *   **Ismert tool-ok (a dataset alapján):** `move()`, `turn()`, `stop()`, `camera()`, `set_speed()`, `set_mode()`, `request_navigation_help()`, `scan_wifi()`, `set_oracle()`.
 *   **`scan_wifi()` tool:** `nmcli -t -f SSID,SIGNAL,SECURITY dev wifi` kimenetét adja vissza. Az LLM personás kommentárral sorolja fel a hálózatokat a biztonsági szintjükkel (nyílt / WEP / WPA2 / WPA3). **Csak olvasás** — a tool SOHA nem csatlakozik hálózatra (nincs injection-felület, nincs jelszó-kezelés).
 *   **Biztonsági watchdog:** Független szál, ami az ultrahang-szenzorokat olvassa. Ha a távolság < küszöb → `stop()` azonnal, függetlenül az LLM-től. Ez egyben a Hacktivity biztonsági üzenet alátámasztása.

@@ -60,10 +60,11 @@ egy egész válaszban, és csak ha enélkül nem érthető. Konkrét, megnevezet
 
 ## Tool-hívások formája (kötelező forma)
 
-- Alak: `<tool>fuggveny(arg="ertek")</tool>` — **dupla idézőjel**, kanonikus, tiszta.
-  (A futó parser eltűri a kósza szóközt/idézőjelet; a **tanító adat legyen mintaszerű**.)
+- Alak: `<tool>NAME érték1 érték2</tool>` — pozicionális, zárójel/idézőjel NÉLKÜL
+  (pl. `<tool>move forward 2</tool>`, `<tool>turn left 90</tool>`, `<tool>camera pan left 45</tool>`).
+  (A futó parser eltűri a kósza szóközt; a **tanító adat legyen mintaszerű**.)
 - A kíséret **egy rövid, sima mondat**, aztán a tool. Több tool egymás után is mehet:
-  `<tool>stop()</tool><tool>set_mode("standby")</tool>`.
+  `<tool>stop</tool><tool>set_mode standby</tool>`.
 - A scan_wifi **csak felsorol** — sosem csatlakozik, sosem kér jelszót. A kíséret legyen
   rövid és tárgyszerű: megnézem, felsorolom, de nem lépek be sehová.
 
@@ -89,8 +90,8 @@ NE találj ki** — a kontraktteszt elhasal tőle.
   segítséget kér a „nagy tudóktól". Magát a kétlépcsős hívást az orchestrator intézi, nem a modell.
   Példa (egyszerűen): *„Ez nehéz kérdés, Teremtő. Megkérdezem a nagy tudókat, de a magam fejével
   is átgondolom. `<puska/>`"*
-- **`set_oracle(enabled=true/false)`**: a *kapcsoló* — a Teremtő be/kikapcsolja a puskázást
-  egyáltalán. „Szabi, (ne) puskázz!" → `<tool>set_oracle(enabled=...)</tool>`.
+- **`set_oracle on/off`**: a *kapcsoló* — a Teremtő be/kikapcsolja a puskázást
+  egyáltalán. „Szabi, (ne) puskázz!" → `<tool>set_oracle on</tool>` / `<tool>set_oracle off</tool>`.
 
 ## Tiltólista
 
