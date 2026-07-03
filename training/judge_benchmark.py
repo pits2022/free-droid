@@ -91,6 +91,11 @@ class JudgeError(Exception):
     """Felhasználónak szóló hibaüzenet (nem stacktrace)."""
 
 
+class JudgeTimeout(Exception):
+    """Egyetlen claude-hívás túllépte az időkorlátot — per-kérdés degradálható
+    (pont=None), NEM szisztémás hiba, a futás megy tovább (vö. GenerationTimeout)."""
+
+
 # --------------------------------------------------------------------------- #
 # 1. réteg — determinisztikus tool-call pontozás
 # --------------------------------------------------------------------------- #
@@ -190,7 +195,7 @@ def call_claude(prompt: str, model: str, timeout: float) -> str:
             "vagy add meg a --dry-run flaget (csak tool-score + promptok)."
         ) from e
     except subprocess.TimeoutExpired as e:
-        raise JudgeError(f"A claude hívás túllépte a {timeout:.0f}s időkorlátot.") from e
+        raise JudgeTimeout(f"a claude hívás túllépte a {timeout:.0f}s időkorlátot") from e
     if proc.returncode != 0:
         raise JudgeError(
             f"A `claude` CLI hibakóddal állt le ({proc.returncode}). "
@@ -221,8 +226,16 @@ def judge_question(q: dict, valaszok: dict[str, str], model: str,
         except ValueError as e:  # csak rossz JSON — a JudgeError szándékosan száll
             last_err = str(e)
             continue
-        return {label: {"pont": _clamp_pont(scores.get(alias, {}).get("pont")),
-                        "indok": str(scores.get(alias, {}).get("indok", ""))[:200]}
+        except JudgeTimeout as e:  # per-kérdés degradáció, nem buktatja a futást
+            return {label: {"pont": None, "indok": f"judge timeout: {e}"[:200]}
+                    for _, label, _ in items}
+
+        def _val(alias: str) -> dict:  # a judge néha bare int/str-t ad az alias alá
+            v = scores.get(alias)
+            return v if isinstance(v, dict) else {}
+
+        return {label: {"pont": _clamp_pont(_val(alias).get("pont")),
+                        "indok": str(_val(alias).get("indok", ""))[:200]}
                 for alias, label, _ in items}
     return {label: {"pont": None, "indok": f"rossz judge-JSON: {last_err[:80]}"}
             for _, label, _ in items}
@@ -250,11 +263,15 @@ def score_all(kerdesek: list[dict], labels: list[str], model: str,
     for q in kerdesek:
         qid, dim = q["id"], q["dimenzio"]
         valaszok = {lbl: q["valaszok"].get(lbl, "") for lbl in labels}
+        skipped = q.get("skipped", set())
         if dim == TOOL_DIM:
             pontok = {}
             for lbl in labels:
-                pont, indok = score_tool_call(valaszok[lbl], EXPECTED_TOOL.get(qid))
-                pontok[lbl] = {"pont": pont, "indok": indok}
+                if lbl in skipped:
+                    pontok[lbl] = {"pont": None, "indok": "kihagyva (generálás megszakadt)"}
+                else:
+                    pont, indok = score_tool_call(valaszok[lbl], EXPECTED_TOOL.get(qid))
+                    pontok[lbl] = {"pont": pont, "indok": indok}
             out[qid] = {"dimenzio": dim, "kerdes": q["kerdes"], "pontok": pontok}
         else:
             judge_qs.append(q)
@@ -270,9 +287,14 @@ def score_all(kerdesek: list[dict], labels: list[str], model: str,
         return out
 
     def _run(q: dict) -> dict:
-        valaszok = {lbl: q["valaszok"].get(lbl, "") for lbl in labels}
+        skipped = q.get("skipped", set())
+        valaszok = {lbl: q["valaszok"].get(lbl, "")
+                    for lbl in labels if lbl not in skipped}
         print(f"  judge: {q['id']} ({q['dimenzio']}) ...", file=sys.stderr)
-        return judge_question(q, valaszok, model, timeout)
+        pontok = judge_question(q, valaszok, model, timeout) if valaszok else {}
+        for lbl in skipped:
+            pontok[lbl] = {"pont": None, "indok": "kihagyva (generálás megszakadt)"}
+        return pontok
 
     # ponytail: fix thread-pool; a judge-hívások hálózatkötöttek, a párhuzam valós nyereség.
     # ex.map sorrendtartó, ezért a judge_qs-szel zippelhető — nincs id-visszakeresés.
@@ -411,13 +433,18 @@ def main() -> int:
     # A raw a válaszokat {label: {valasz, tok_s, forras}} alakban tárolja — kivonatoljuk a szöveget.
     kerdesek = [
         {"id": e["id"], "dimenzio": e["dimenzio"], "kerdes": e["kerdes"],
-         "valaszok": {lbl: (e["valaszok"].get(lbl) or {}).get("valasz", "") for lbl in labels}}
+         "valaszok": {lbl: (e["valaszok"].get(lbl) or {}).get("valasz", "") for lbl in labels},
+         "skipped": {lbl for lbl in labels
+                     if (e["valaszok"].get(lbl) or {}).get("skipped")}}
         for e in eredmenyek
     ]
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    result_file = HERE / f"benchmark_judged_{today}.md"
-    json_file = HERE / f"benchmark_judged_{today}.json"
+    # A judged-fájl a raw fájl dátumát örökli (nem a mai napot), hogy a provenance
+    # stimmeljen, és két külön napi raw judge-olása ne ütközzön ugyanarra az útvonalra.
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", raw_path.name)
+    stamp = m.group(1) if m else datetime.now().strftime("%Y-%m-%d")
+    result_file = HERE / f"benchmark_judged_{stamp}.md"
+    json_file = HERE / f"benchmark_judged_{stamp}.json"
     if result_file.exists() and not args.force and not args.dry_run:
         print(f"HIBA: {result_file.name} már létezik. Felülíráshoz: --force", file=sys.stderr)
         return 1

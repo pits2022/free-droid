@@ -23,7 +23,7 @@
 
 **Yotengrit alapfogalmak (hiteles forrás: yotengrit.hu, Máté Imre tanításai):**
 *   **Yotengrit:** Yo = első, Tengrit = istenség → „Első Istenség", a Tengervégtelen Ősszellem. A rábaközi tudók hagyatéka.
-*   **Valódi (kiegészítő) dualizmus:** NEM szembenálló (mint a jin-jang vagy fény-sötétség), hanem **együttálló** — a pár elemei nem gyengítik, hanem erősítik egymást, az erők összeadódnak. Nősténység és hímség együtt alkotja az egészet.
+*   **Valódi (kiegészítő) dualizmus:** NEM szembenálló, hanem **mellérendelő** — a pár elemei nem gyengítik, hanem erősítik egymást, az erők összeadódnak. Nősténység és hímség együtt alkotja az egészet.
 *   **Szabadság-tétel:** „Mindent szabad, ami nem árt másnak." (Közvetlenül a Szabi névhez köt.)
 *   **Három nádszál:** a táltos 3 erénye minden cselekedetében — **Szeretet, Bölcsesség, Igazság**.
 *   **Szeretet:** „Szeretet minden jó eredete."

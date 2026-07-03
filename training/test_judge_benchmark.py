@@ -10,6 +10,7 @@ from judge_benchmark import (
     alias_items,
     extract_json,
     extract_tools,
+    score_all,
     score_tool_call,
 )
 
@@ -52,6 +53,18 @@ def test_alias_items_maps_tricky_labels_to_safe_keys() -> None:
     # A szóközös/`+`-os RAG-címke nem kerülhet nyers JSON-kulcsba.
     got = alias_items({"szabi-8b-q4": "v1", "szabi-8b-q4 +RAG": "v2"})
     assert got == [("M1", "szabi-8b-q4", "v1"), ("M2", "szabi-8b-q4 +RAG", "v2")]
+
+
+def test_skipped_cell_scored_none_not_penalized() -> None:
+    # A timeout/megszakadt cella (skipped) NEM kaphat kemény 1-est — pont=None, hogy
+    # az aggregátum kihagyja, különben a rangsor a timeoutot persona/tool-hibaként bünteti.
+    kerdesek = [{"id": "tc_01", "dimenzio": "tool_calling", "kerdes": "?",
+                 "valaszok": {"M": "", "N": 'ok <tool>stop()</tool>'},
+                 "skipped": {"M"}}]
+    out = score_all(kerdesek, labels=["M", "N"], model="x",
+                    max_workers=1, timeout=1.0, dry_run=False)
+    assert out["tc_01"]["pontok"]["M"]["pont"] is None, "skipped cella nem büntetődhet"
+    assert out["tc_01"]["pontok"]["N"]["pont"] is not None, "a valódi válasz pontozódik"
 
 
 if __name__ == "__main__":

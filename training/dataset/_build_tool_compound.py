@@ -92,8 +92,10 @@ COMPOUND = [
     ("Fordulj felém, és kövesd a hangomat.",
      'Feléd fordulok, és követem a hangodat, Teremtő. '
      '<tool>camera(action="face_speaker")</tool><tool>set_mode("follow_speaker")</tool>'),
-    ("Menj a színpad közepére, aztán fordulj a közönségnek.",
-     'A színpad közepére gurulok, majd a közönség felé fordulok, Teremtő. '
+    # A távot a Teremtő adja meg (nem kitalált cél), így a move() megalapozott — az
+    # AMBIGUOUS szabály tiltja a nem-lokalizálható helyre kitalált navigációt.
+    ("Told magad előre másfél métert, aztán fordulj a közönség felé.",
+     'Előre gurulok másfél métert, majd a közönség felé fordulok, Teremtő. '
      '<tool>move(direction="forward", distance=1.5)</tool><tool>turn(mode="face_audience")</tool>'),
     ("Hajtsd le a fejed, biccents, aztán nézz vissza rám.",
      'Lehajtom a fejem, biccentek, majd visszanézek rád, Teremtő. '

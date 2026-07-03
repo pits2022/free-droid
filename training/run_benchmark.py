@@ -24,6 +24,7 @@ Használat (az Ollama-nak futnia kell: `ollama serve`):
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import sys
 import urllib.error
@@ -165,6 +166,11 @@ def ollama_generate(model: str, prompt: str,
     except TimeoutError as e:
         # A modell nem válaszolt időben (lassú 8B / hosszú RAG-válasz). Nem hard fail.
         raise GenerationTimeout(f"'{model}' > {timeout:.0f}s") from e
+    except (ConnectionError, http.client.HTTPException, json.JSONDecodeError) as e:
+        # Az Ollama menet közben elhalt (OOM-kill/restart) vagy csonka választ adott.
+        # Nem hard fail: a cellát a timeouttal azonos módon degradáljuk, hogy a már
+        # kész oszlopok ne vesszenek el.
+        raise GenerationTimeout(f"'{model}' megszakadt: {type(e).__name__}") from e
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")
         if e.code == 404:
@@ -205,8 +211,9 @@ def run_target(target: Target, kerdesek: list[dict],
                timeout: float) -> dict[str, dict]:
     """Mind a 25 kérdés végigfuttatása egy oszlop-célon, haladásjelzéssel.
 
-    Egy kérdés time-outja NEM állítja le a futást: a cella `⏱ TIMEOUT` jelölést kap
-    (látható a kimenetben) és a benchmark megy tovább a többi kérdéssel/oszloppal.
+    Egy kérdés bukása (timeout VAGY megszakadt generálás) NEM állítja le a futást: a
+    cella `skipped=True` jelet + `⏱ KIHAGYVA` sentinelt kap, és a benchmark megy tovább
+    a többi kérdéssel/oszloppal. A judge a `skipped` jelet látva kihagyja a cellát.
     """
     n = len(kerdesek)
     eredmenyek: dict[str, dict] = {}
@@ -218,13 +225,15 @@ def run_target(target: Target, kerdesek: list[dict],
             prompt, forras = q["kerdes"], []
         print(f"  [{target.label}] {i}/{n} kérdés — {q['id']} ({q['dimenzio']}) ...",
               file=sys.stderr)
+        skipped = False
         try:
             valasz, tok_s = ollama_generate(target.model, prompt, timeout)
         except GenerationTimeout as e:
-            print(f"  ⏱ [{target.label}] {q['id']} TIMEOUT ({e}) — cella kihagyva, "
-                  f"a futás folytatódik", file=sys.stderr)
-            valasz, tok_s = f"⏱ TIMEOUT (>{timeout:.0f}s)", None
-        eredmenyek[q["id"]] = {"valasz": valasz, "tok_s": tok_s, "forras": forras}
+            print(f"  ⏱ [{target.label}] {q['id']} kihagyva ({e}) — a futás folytatódik",
+                  file=sys.stderr)
+            valasz, tok_s, skipped = f"⏱ KIHAGYVA ({e})", None, True
+        eredmenyek[q["id"]] = {"valasz": valasz, "tok_s": tok_s,
+                               "forras": forras, "skipped": skipped}
     print(f"  [{target.label}] kész.", file=sys.stderr)
     return eredmenyek
 

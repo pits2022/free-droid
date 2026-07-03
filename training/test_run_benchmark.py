@@ -26,8 +26,30 @@ def test_timeout_degrades_and_run_continues() -> None:
     finally:
         rb.ollama_generate = orig
     assert len(res) == 3, "mind a 3 kérdés meglegyen — a futás nem állhatott le"
-    assert all(v["valasz"].startswith("⏱ TIMEOUT") for v in res.values())
+    assert all(v["valasz"].startswith("⏱ KIHAGYVA") for v in res.values())
     assert all(v["tok_s"] is None for v in res.values())
+    assert all(v["skipped"] is True for v in res.values()), \
+        "a degradált cella strukturált skipped=True jelet kap (a judge ezt látva kihagyja)"
+
+
+def test_connection_error_degrades_to_generation_timeout() -> None:
+    # Ha az Ollama menet közben elhal (ConnectionResetError), az NEM hard fail:
+    # GenerationTimeout-tá alakul, hogy a cella a timeouttal azonos módon degradáljon.
+    import urllib.request
+    orig = urllib.request.urlopen
+
+    def _boom(*_a, **_k):
+        raise ConnectionResetError("ollama meghalt")
+
+    urllib.request.urlopen = _boom
+    try:
+        rb.ollama_generate("m", "?", timeout=1.0)
+    except rb.GenerationTimeout:
+        pass  # elvárt
+    else:
+        raise AssertionError("ConnectionError-nak GenerationTimeout-tá kell alakulnia")
+    finally:
+        urllib.request.urlopen = orig
 
 
 def test_setup_error_still_hard_fails() -> None:
