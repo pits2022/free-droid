@@ -21,7 +21,9 @@ def load_tool_calls() -> list[ParsedTool]:
     of truth). The contract tests then check those parsed values against the enums."""
     calls: list[ParsedTool] = []
     for ex in json.loads(_DATASET.read_text()):
-        calls.extend(parse_tools(ex.get("output", "")))
+        # strict: a malformed dataset call raises (naming it) instead of being
+        # silently dropped, so bad training data can't drift past the contract.
+        calls.extend(parse_tools(ex.get("output", ""), strict=True))
     return calls
 
 

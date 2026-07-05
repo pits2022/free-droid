@@ -6,7 +6,9 @@ guards — no xfail. Handlers wiring to hardware stays Phase 4 / @requires_pi.
 
 from __future__ import annotations
 
-from freedroid.tools.parser import ParsedTool, parse_tools
+import pytest
+
+from freedroid.tools.parser import ParsedTool, ToolParseError, parse_tools
 
 
 def test_parses_single_call_with_distance():
@@ -63,3 +65,52 @@ def test_parses_multiple_calls_in_one_response():
 def test_tolerates_whitespace_and_ignores_prose():
     assert parse_tools("no tools here") == []
     assert parse_tools("<tool>  stop </tool>") == [ParsedTool("stop")]
+
+
+# --- robustness: malformed/truncated model output (findings 1, 2, 4, 5, 6) --- #
+
+# each row is a plausible small-model glitch that must NOT crash the parser.
+MALFORMED = [
+    "<tool></tool>",                       # empty (truncated)
+    "<tool>scan_wifi filter</tool>",       # missing value
+    "<tool>scan_wifi rescan now</tool>",   # invented key (injection surface)
+    "<tool>set_speed</tool>",              # missing arg
+    "<tool>set_mode</tool>",
+    "<tool>set_oracle</tool>",
+    "<tool>set_oracle true</tool>",        # not on/off (finding 5)
+    "<tool>camera pan left</tool>",        # missing degrees
+    "<tool>camera pan left sok</tool>",    # non-numeric degrees
+    "<tool>camera pan up 45</tool>",       # pan can't go up (finding 4-ish)
+    "<tool>move forward until</tool>",     # dangling until marker
+    "<tool>turn balra 90</tool>",          # unknown (Hungarian) direction (finding 2)
+    "<tool>move left 90</tool>",           # turn-word on move (finding 4)
+    "<tool>turn forward 2</tool>",         # move-word on turn (finding 4)
+]
+
+
+@pytest.mark.parametrize("bad", MALFORMED)
+def test_tolerant_drops_malformed_block_without_crashing(bad):
+    assert parse_tools(bad) == []            # fail-closed: no call, no exception
+
+
+@pytest.mark.parametrize("bad", MALFORMED)
+def test_strict_raises_on_malformed_block(bad):
+    with pytest.raises(ToolParseError):
+        parse_tools(bad, strict=True)
+
+
+def test_bad_block_does_not_lose_valid_siblings():
+    # finding 1: one broken block must not drop the valid stop() next to it.
+    out = parse_tools("Megyek! <tool></tool> <tool>stop</tool>")
+    assert out == [ParsedTool("stop")]
+
+
+def test_scan_wifi_reads_whitelisted_pairs():
+    assert parse_tools("<tool>scan_wifi filter wpa3 sort signal</tool>") == [
+        ParsedTool("scan_wifi", {"filter": "wpa3", "sort": "signal"})]
+
+
+def test_camera_degrees_tolerates_float_like_turn():
+    # finding 8: camera uses int(float(...)) just like turn, no ValueError.
+    assert parse_tools("<tool>camera pan left 45.5</tool>") == [
+        ParsedTool("camera", {"pan": "left", "degrees": 45})]

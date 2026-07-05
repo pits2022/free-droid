@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE.parents[1] / "robot" / "src"))
 # Real parser + enums (pure-python, load off-Pi like test_grammar.py).
 from freedroid.camera import CameraAction  # noqa: E402
 from freedroid.motion.types import Direction, Mode, Speed, TurnDir  # noqa: E402
-from freedroid.tools.parser import parse_tools  # noqa: E402
+from freedroid.tools.parser import ToolParseError, parse_tools  # noqa: E402
 
 KNOWN_TOOLS = {
     "move", "turn", "stop", "camera",
@@ -34,13 +34,20 @@ def load_tool_calls(paths: list[Path]):
     calls = []
     for p in paths:
         for ex in json.loads(p.read_text(encoding="utf-8")):
-            calls.extend(parse_tools(ex.get("output", "")))
+            # strict: unknown token / missing arg raises (naming the call) rather
+            # than being silently dropped before the enum checks can see it.
+            calls.extend(parse_tools(ex.get("output", ""), strict=True))
     return calls
 
 
 def main() -> int:
     paths = [HERE / "freedroid_full.json", HERE / "tool_calls_expansion.json"]
-    tc = load_tool_calls(paths)
+    try:
+        tc = load_tool_calls(paths)
+    except ToolParseError as e:
+        print(f"  [FAIL] a dataset egy tool-hívása nem parse-olható: {e}")
+        print("\nCONTRACT BROKEN")
+        return 1
     checks: list[tuple[str, bool, str]] = []
 
     def chk(name, cond, detail=""):

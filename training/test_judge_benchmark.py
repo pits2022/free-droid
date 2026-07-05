@@ -33,6 +33,10 @@ def test_score_tool_call_grades() -> None:
     assert score_tool_call("<tool>stop</tool>", "stop")[0] == 5
     # nincs megadva várt tool: bármely ismert -> 5
     assert score_tool_call("<tool>camera scan</tool>", None)[0] == 5
+    # finding 7: régi fn() grammar NEM végrehajtható → 2 (rosszul formált), nem 5.
+    assert score_tool_call('<tool>move(direction="forward")</tool>', "move")[0] == 2
+    # finding 9: nagybetűs tool-név rosszul formált, de VAN hívás → 2, nem 1.
+    assert score_tool_call("<tool>Stop</tool>", "stop")[0] == 2
 
 
 def test_extract_json_handles_fences_and_prose() -> None:

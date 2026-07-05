@@ -59,10 +59,13 @@ EXPECTED_TOOL = {
     "tc_05": "camera",     # "nézz fel és pásztázz körbe"
 }
 
-# <tool>NAME arg1 arg2 ...</tool> (pozicionális nyelvtan) — a tool NEVÉT (első token)
-# adja vissza; a whitespace-re toleráns. A teljes parse-t a robot parse_tools() + a
-# grammar-kontrakt teszt ellenőrzi; itt a triage-hez a név elég.
-TOOL_RE = re.compile(r"<tool>\s*([a-z_]+)[^<]*</tool>", re.DOTALL)
+# <tool>NAME arg1 arg2 ...</tool> (pozicionális nyelvtan) — az ELSŐ token EGÉSZÉT
+# adja vissza (whitespace-ig), nem csak a [a-z_] előtagját. Így a régi `fn()` alak
+# (`move(direction="forward")`) és a nagybetűs `Stop` a teljes, ismeretlen tokent
+# adja → KNOWN_TOOLS-check megbukik → 2 pont (rosszul formált), nem 5/1. A pontos
+# arg-parse-t a robot parse_tools() + a grammar-kontraktteszt őrzi; itt a
+# triage-hez a név elég. (ponytail: csak név-szintű ellenőrzés, arg-szint nem.)
+TOOL_RE = re.compile(r"<tool>\s*([^\s<]+)[^<]*</tool>", re.DOTALL)
 
 TOOL_DIM = "tool_calling"
 
