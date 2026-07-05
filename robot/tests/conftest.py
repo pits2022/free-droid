@@ -3,55 +3,32 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import pytest
 
 from freedroid.config.settings import Settings, load_settings
 from freedroid.health.probe import is_pi
+from freedroid.tools.parser import ParsedTool, parse_tools
 
 IS_PI = is_pi()
 
 # repo root: robot/tests/conftest.py -> parents[2]
 _DATASET = Path(__file__).resolve().parents[2] / "training" / "dataset" / "freedroid_full.json"
 
-_TOOL_RE = re.compile(r"<tool>(.*?)</tool>", re.S)
-_CALL_RE = re.compile(r"^\s*([a-z_]+)\s*\((.*)\)\s*$", re.S)
-
-
-def _parse_arg(arg: str):
-    """('key', value) for key=value, or (None, value) for a positional arg."""
-    arg = arg.strip()
-    if "=" in arg:
-        k, v = arg.split("=", 1)
-        return k.strip(), v.strip().strip('"')
-    return None, arg.strip().strip('"')
-
-
-def load_tool_calls() -> list[dict]:
-    """Every <tool> call in the dataset as {name, args: {k: v}, positional: [v]}."""
-    calls = []
+def load_tool_calls() -> list[ParsedTool]:
+    """Every <tool> call in the dataset, parsed via the real parser (single source
+    of truth). The contract tests then check those parsed values against the enums."""
+    calls: list[ParsedTool] = []
     for ex in json.loads(_DATASET.read_text()):
-        for raw in _TOOL_RE.findall(ex.get("output", "")):
-            m = _CALL_RE.match(raw.strip())
-            if not m:
-                continue
-            name, inside = m.group(1), m.group(2).strip()
-            args, positional = {}, []
-            if inside:
-                for part in inside.split(","):
-                    key, val = _parse_arg(part)
-                    if key is None:
-                        positional.append(val)
-                    else:
-                        args[key] = val
-            calls.append({"name": name, "args": args, "positional": positional})
+        # strict: a malformed dataset call raises (naming it) instead of being
+        # silently dropped, so bad training data can't drift past the contract.
+        calls.extend(parse_tools(ex.get("output", ""), strict=True))
     return calls
 
 
 @pytest.fixture(scope="session")
-def tool_calls() -> list[dict]:
+def tool_calls() -> list[ParsedTool]:
     return load_tool_calls()
 
 

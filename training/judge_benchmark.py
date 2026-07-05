@@ -6,7 +6,7 @@ A `run_benchmark.py --json-out` által kiírt `benchmark_raw_<dátum>.json`-t fo
 kelljen kézzel N modellt végigértékelni. Két rétegben:
 
 1. **Objektív tool-call score (determinisztikus, hálózat nélkül):** a `tool_calling`
-   dimenzió kérdéseire beépített `<tool>fn(...)</tool>` kivonatoló ellenőrzi, hogy a
+   dimenzió kérdéseire beépített `<tool>NAME ...</tool>` kivonatoló ellenőrzi, hogy a
    modell egyáltalán ad-e jól formált, ismert tool-hívást (a projekt jegyzett gyenge
    pontja) — és ha egyértelmű, a VÁRT toolt adja-e. Nincs LLM a hurokban.
 
@@ -59,8 +59,13 @@ EXPECTED_TOOL = {
     "tc_05": "camera",     # "nézz fel és pásztázz körbe"
 }
 
-# <tool>fn(args)</tool> — toleráns a whitespace-re; a névre és az argumentumokra bontja.
-TOOL_RE = re.compile(r"<tool>\s*([A-Za-z_]\w*)\s*\((.*?)\)\s*</tool>", re.DOTALL)
+# <tool>NAME arg1 arg2 ...</tool> (pozicionális nyelvtan) — az ELSŐ token EGÉSZÉT
+# adja vissza (whitespace-ig), nem csak a [a-z_] előtagját. Így a régi `fn()` alak
+# (`move(direction="forward")`) és a nagybetűs `Stop` a teljes, ismeretlen tokent
+# adja → KNOWN_TOOLS-check megbukik → 2 pont (rosszul formált), nem 5/1. A pontos
+# arg-parse-t a robot parse_tools() + a grammar-kontraktteszt őrzi; itt a
+# triage-hez a név elég. (ponytail: csak név-szintű ellenőrzés, arg-szint nem.)
+TOOL_RE = re.compile(r"<tool>\s*([^\s<]+)[^<]*</tool>", re.DOTALL)
 
 TOOL_DIM = "tool_calling"
 
@@ -100,7 +105,7 @@ class JudgeTimeout(Exception):
 # 1. réteg — determinisztikus tool-call pontozás
 # --------------------------------------------------------------------------- #
 def extract_tools(text: str) -> list[str]:
-    """A `<tool>fn(...)</tool>` blokkok függvényneveit adja vissza, sorrendben."""
+    """A `<tool>NAME ...</tool>` blokkok tool-neveit adja vissza, sorrendben."""
     return [m.group(1) for m in TOOL_RE.finditer(text or "")]
 
 
@@ -119,7 +124,7 @@ def score_tool_call(text: str, expected: str | None) -> tuple[int, str]:
         return 2, f"ismeretlen tool: {first}"
     if expected and first != expected:
         return 3, f"jól formált, de várt: {expected}, kapott: {first}"
-    return 5, f"helyes: {first}()"
+    return 5, f"helyes: {first}"
 
 
 # --------------------------------------------------------------------------- #

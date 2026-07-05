@@ -52,13 +52,15 @@ What changed and what is intentionally still a placeholder:
 
 **Layered motion control — the LLM never drives motors directly:**
 
-1. **LLM ("soul")** — intent + persona; emits a `<tool>function(param=value)</tool>` call.
+1. **LLM ("soul")** — intent + persona; emits a positional `<tool>NAME value ...</tool>` call, e.g. `<tool>move forward 2</tool>` / `<tool>turn left 90</tool>` / `<tool>stop</tool>` (no parens/quotes).
 2. **Control layer ("body", Python)** — deterministically turns tool calls into GPIO/PWM (Cytron HAT-MDD10).
 3. **Safety watchdog ("reflex")** — HC-SR04P ultrasonic sensors on a *separate thread*; obstacle under threshold →
    immediate `stop()`, bypassing the LLM entirely.
 
-Known tools: `move()`, `turn()`, `stop()`, `camera()`, `set_speed()`, `set_mode()`, `request_navigation_help()`,
-`scan_wifi()`, `set_oracle()`. The tool parser must be robust (tolerate extra whitespace / quote variants).
+Known tools: `move`, `turn`, `stop`, `camera`, `set_speed`, `set_mode`, `request_navigation_help`,
+`scan_wifi`, `set_oracle`. Positional args, disjoint value-domains (number → distance/degrees, word →
+direction/speed/mode/action, `until` → marker); `request_navigation_help` takes rest-of-line as a
+free-text target. The parser (`robot/src/freedroid/tools/parser.py`, implemented) tolerates extra whitespace.
 
 **Voice pipeline (fully offline on the Pi):** wake word `"Szabi"` (openWakeWord) → STT Whisper.cpp (Hungarian) →
 LLM (cloud or edge) → TTS Piper (`hu_HU-anonymous-medium`, pitch-tuned younger) → tool execution.
@@ -95,8 +97,9 @@ first; every other module reads from it), `oracle/` (**optional** "Tudók" exter
 - `robot/` — RPi 5 Python control software (`freedroid` package, `src/freedroid/`). **Scaffold only** —
   interfaces + `NotImplementedError` stubs; `config/` carries the real pinout/tunables. Pi-only (direct `lgpio`,
   no off-Pi mock), managed with **uv**. Implementation is Phase 4 (needs hardware + fine-tuned model + cloud).
-Exception: `rag/` is fully implemented + unit-tested (pure-python, off-Pi) — chunker, Hungarian-normalized self-contained
-BM25 retriever, grounding-prompt builder; only wiring it into the orchestrator loop remains Phase 4.
+Exceptions (implemented + unit-tested, pure-python, off-Pi): `rag/` — chunker, Hungarian-normalized self-contained
+BM25 retriever, grounding-prompt builder; and `tools/parser.py` — `parse_tools()` for the positional `<tool>NAME v…</tool>`
+grammar (the contract test drives it). Only the tool **handlers** (GPIO/camera/wifi) + orchestrator wiring remain Phase 4.
 - `README.md` (English, matches spec) · `GEMINI.md` / `PROJECT_BRIEF.md` / `CONTEXT.md` (legacy, historical).
 - `.env` is git-ignored; `infra/terraform/.tfvars` holds `hcloud_token` — **never commit secrets**.
 
