@@ -2,9 +2,9 @@
 """Standalone mirror of robot/tests/test_grammar.py, runnable off-Pi.
 
 pytest can't build lgpio off-Pi, so this reproduces the grammar contract directly
-over the combined dataset (freedroid_full.json + tool_calls_expansion.json) using
-the SAME parser the tests use (freedroid.tools.parser.parse_tools) — no hardcoded
-parsing or enum mirrors, so nothing can drift past it.
+over freedroid_full.json (the single source of truth — staging files are merged
+into it) using the SAME parser the tests use (freedroid.tools.parser.parse_tools)
+— no hardcoded parsing or enum mirrors, so nothing can drift past it.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def load_tool_calls(paths: list[Path]):
 
 
 def main() -> int:
-    paths = [HERE / "freedroid_full.json", HERE / "tool_calls_expansion.json"]
+    paths = [HERE / "freedroid_full.json"]
     try:
         tc = load_tool_calls(paths)
     except ToolParseError as e:

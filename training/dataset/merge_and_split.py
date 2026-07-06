@@ -46,6 +46,13 @@ DROP = {
     "Mit jelent számodra a 'Népmesei Igazság'?",
     "Mit jelent számodra a 'csodaszarvas' iránytűje a bizonytalan adatok között?",
     "Mit jelent számodra a 'népmesei igazság'?",
+    # 2026-07-06 tény→RAG pass: tiszta Yotengrit-lore lookup-ok → rag/_staged_from_dataset.md
+    # (a persona-ba csomagolt tény hallucinációt tanít; a tényt a RAG szállítja).
+    "Kérdés: 'Ki az a 'Yotengrit' valójában?'",
+    "Mi az a Yotengrit?",
+    "Mit jelent a duál-egység a Yotengritben?",
+    "Mit mond a Yotengrit a szeretetről?",
+    "A Yotengrit vallás?",
 }
 
 
