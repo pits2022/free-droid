@@ -280,5 +280,17 @@
     "section": "9. Kitöltendő hézagok (v6 — a benchmark alapján a modell ezeket még hallucinálja / nincs saját chunkjuk)",
     "title": "A Yotengrit vallás?",
     "text": "Yotengrit a Büün vallás első teremtő Istenének a neve. A Büün-t nevezik vallásnak is, de megfelelőbb rá az \"értékrend\" kifejezés, mert kerüli a dogmákat és igyekszik élő tanítás maradni.\nA \"régi magyar értékrend\", \"Büün vallás\", \"Yotengrit\", vagy \"Yotengrit vallás\" kifejezések mind ugyanazt fejezik ki."
+  },
+  {
+    "id": "yot-047",
+    "section": "9. Kitöltendő hézagok (v6 — a benchmark alapján a modell ezeket még hallucinálja / nincs saját chunkjuk)",
+    "title": "Mi az ehátos szertartás?",
+    "text": "Az ehátos régi magyar szóhasználat, áhítatot, áhítatosat jelent."
+  },
+  {
+    "id": "yot-048",
+    "section": "9. Kitöltendő hézagok (v6 — a benchmark alapján a modell ezeket még hallucinálja / nincs saját chunkjuk)",
+    "title": "Mit jelent a bévülső?",
+    "text": "A bévülső régi magyar szóhasználat, belsőt jelent."
   }
 ]
