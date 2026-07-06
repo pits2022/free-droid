@@ -10,7 +10,11 @@ Usage:
     python merge_and_split.py            # dry-run: report what would change
     python merge_and_split.py --write    # merge + rewrite full/train/val
 
-Staging files merged (if present): tool_calls_expansion.json
+Staging lifecycle: a staging file lives at one of the STAGING paths (below) WHILE it
+is being built/reviewed. Once merged into freedroid_full.json and committed, archive it
+to dataset/old/ — merge skips missing staging files, and its content already lives in
+full. To add a new batch: drop a file at a STAGING path, run --write, then archive it.
+(The current staging slots are all archived; a fresh run is a no-op +0.)
 """
 from __future__ import annotations
 
@@ -46,6 +50,13 @@ DROP = {
     "Mit jelent számodra a 'Népmesei Igazság'?",
     "Mit jelent számodra a 'csodaszarvas' iránytűje a bizonytalan adatok között?",
     "Mit jelent számodra a 'népmesei igazság'?",
+    # 2026-07-06 tény→RAG pass: tiszta Yotengrit-lore lookup-ok → rag/_staged_from_dataset.md
+    # (a persona-ba csomagolt tény hallucinációt tanít; a tényt a RAG szállítja).
+    "Kérdés: 'Ki az a 'Yotengrit' valójában?'",
+    "Mi az a Yotengrit?",
+    "Mit jelent a duál-egység a Yotengritben?",
+    "Mit mond a Yotengrit a szeretetről?",
+    "A Yotengrit vallás?",
 }
 
 

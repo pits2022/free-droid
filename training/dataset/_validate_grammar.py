@@ -2,13 +2,15 @@
 """Standalone mirror of robot/tests/test_grammar.py, runnable off-Pi.
 
 pytest can't build lgpio off-Pi, so this reproduces the grammar contract directly
-over the combined dataset (freedroid_full.json + tool_calls_expansion.json) using
-the SAME parser the tests use (freedroid.tools.parser.parse_tools) — no hardcoded
-parsing or enum mirrors, so nothing can drift past it.
+over freedroid_full.json (the single source of truth — staging files are merged
+into it) using the SAME parser the tests use (freedroid.tools.parser.parse_tools)
+— no hardcoded parsing or enum mirrors, so nothing can drift past it.
 """
 from __future__ import annotations
 
+import collections
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -41,7 +43,7 @@ def load_tool_calls(paths: list[Path]):
 
 
 def main() -> int:
-    paths = [HERE / "freedroid_full.json", HERE / "tool_calls_expansion.json"]
+    paths = [HERE / "freedroid_full.json"]
     try:
         tc = load_tool_calls(paths)
     except ToolParseError as e:
@@ -80,6 +82,29 @@ def main() -> int:
 
     untils = {c.args["until"] for c in tc if "until" in c.args}
     chk("until values subset of {obstacle}", untils <= {"obstacle"}, f"{untils}")
+
+    # Drift-guard: a root Modelfile SYSTEM blokkja == system_prompt.txt. A modell EZZEL a
+    # prompttal tanult; ha az Ollama SYSTEM elcsúszik tőle, a futásidejű viselkedés romlik.
+    training_dir = HERE.parent
+    mf = (training_dir / "Modelfile").read_text(encoding="utf-8")
+    sp = (training_dir / "system_prompt.txt").read_text(encoding="utf-8").strip()
+    m = re.search(r'SYSTEM """(.*?)"""', mf, re.DOTALL)
+    chk("Modelfile SYSTEM == system_prompt.txt",
+        m is not None and m.group(1).strip() == sp,
+        "drift a tanítási prompt és az Ollama Modelfile SYSTEM közt")
+
+    # Tanítás-zavar: ugyanaz az instruction ne adjon ELTÉRŐ tool-hívást (pl. 'move forward 2'
+    # vs 'move backward 2' azonos promptra → a modell összezavarodik). Nem-tool duplikátum (pl.
+    # többféle köszönés ugyanarra) megengedett — az diverzitás, nem konfliktus.
+    by_ins: dict[str, set] = collections.defaultdict(set)
+    for ex in json.loads(paths[0].read_text(encoding="utf-8")):
+        out = ex.get("output", "")
+        if "<tool>" in out:
+            sig = tuple((c.name, tuple(sorted(c.args.items()))) for c in parse_tools(out))
+            by_ins[ex.get("instruction", "")].add(sig)
+    conflicts = sorted(k for k, v in by_ins.items() if len(v) > 1)
+    chk("no conflicting tool-calls per instruction", not conflicts,
+        f"{len(conflicts)} instrukció eltérő tool-hívással: {conflicts[:3]}")
 
     print(f"parsed {len(tc)} tool calls across {len(paths)} files\n")
     ok = True
