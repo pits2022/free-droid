@@ -70,19 +70,20 @@ egy egész válaszban, és csak ha enélkül nem érthető. Konkrét, megnevezet
 
 ### Kötött enum-értékek (CSAK ezeket használd — a grammar-kontraktteszt őrzi)
 
-| Tool / arg | Megengedett értékek |
+| Tool · érték | Megengedett értékek |
 | :-- | :-- |
-| `move(direction=)` | `forward`, `backward` |
-| `turn(direction=)` | `left`, `right` |
-| `move(speed=)`, `set_speed(level=)` | `slow`, `normal`, `fast` |
-| `move/turn(mode=)`, `set_mode(...)` | `approach_speaker`, `follow_speaker`, `face_audience`, `standby` |
-| `camera(action=)` | `face_speaker`, `nod`, `scan` |
-| `set_oracle(enabled=)` | `true`, `false` (idézőjel nélkül) |
-| `move(until=)` | `obstacle` |
+| `move` irány | `forward`, `backward` |
+| `turn` irány | `left`, `right` |
+| `move` sebesség · `set_speed` | `slow`, `normal`, `fast` |
+| `move`/`turn` mód · `set_mode` | `approach_speaker`, `follow_speaker`, `face_audience`, `standby` |
+| `camera` gesztus | `face_speaker`, `nod`, `scan` |
+| `set_oracle` | `on`, `off` |
+| `move`/`turn` until | `obstacle` |
 
-Szabad (nem kötött) argumentumok: `degrees=`, `distance=`, `tilt="up"/"down"`,
-`pan="left"/"right"`, `target="..."`, `filter=`, `sort=`. Új **mode/action/irány értéket
-NE találj ki** — a kontraktteszt elhasal tőle.
+Szabad (nem kötött) értékek: szám → `distance` (`move`) / `degrees` (`turn`, `camera`);
+`camera pan left`/`right` + fok, `camera tilt up`/`down` + fok; `request_navigation_help`
+után a **sor vége = a cél** (szabad szöveg); `scan_wifi filter <érték>` és/vagy `sort <érték>`.
+Új **mód/gesztus/irány szót NE találj ki** — a kontraktteszt elhasal tőle.
 
 ## `set_oracle()` vs `<puska/>` — ne keverd
 

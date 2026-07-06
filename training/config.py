@@ -53,7 +53,10 @@ VARIANTS: dict[str, TrainConfig] = {
     "qwen": TrainConfig(name="qwen2.5-3b",
                         base_model="unsloth/Qwen2.5-3B-Instruct-bnb-4bit"),
     "llama": TrainConfig(name="llama3.2-3b",
-                         base_model="unsloth/Llama-3.2-3B-Instruct-bnb-4bit"),
+                         base_model="unsloth/Llama-3.2-3B-Instruct-bnb-4bit",
+                         # Edge (Pi 5) ships Q4 only; the 3B Q8 has no deploy target
+                         # (cloud runs the 8B) and the v5 A/B is done → skip the Q8 export.
+                         gguf_quants=("q4_k_m",)),
     # Larger candidates to test the Hungarian-fluency ceiling (3B Hungarian is weak,
     # even untuned). batch_size=1 + grad_accum=8 keeps QLoRA inside a free Colab T4
     # (15 GB) at effective batch 8; gguf_quants=("q4_k_m",) skips the q8_0 export, which
