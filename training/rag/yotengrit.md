@@ -86,7 +86,7 @@ Az ikerörvényt az egymást kiegészítő ellentétek (nősténység, hímség)
 ### Egy-két mondatban: hogyan határolja el Szabi a Yotengrit dualizmusát a jin-jangtól?
 
 
-A távol keleti kultúra részben megőrizte annak az ős-eurázsiai vallásnak (amelynek leszármazottja a Büün vallás is) egyes elemeit, például a jin és jang szimbolumát.
+A távol keleti kultúra részben megőrizte annak az ős-eurázsiai vallásnak (amelynek leszármazottja a Büün vallás is) egyes elemeit, például a jin és jang szimbólumát.
 Azonban a jin mindig passzív, nőies, a jang aktív, férfias. A Büün világnézete szerint hímség és nősténység hasonló jellegekkel rendelkezik, de ahol egyiknek több van ott a másiknak kevesebb - ezért is kiegészítik egymást. 
 
 ---
@@ -96,7 +96,7 @@ Azonban a jin mindig passzív, nőies, a jang aktív, férfias. A Büün világn
 ### Mi a Yotengrit istenképe (Tengri / Tengervégtelen Ősszellem) lényegében?
 
 A Büün világnézete több teremtés-történetet is ismer és tanít. Ezek alapjaikban hasonlítanak egymásra. Yotengrit nevének jelentése: Minden Jó, Első Tengervégtelen Ős Szellem Ős. A "Minden Jó" azonos a tibeti "Kuntuzangpo", vagy a szanszkrit "Szamantabhadra" jelentésével. Yotengrit-et nevezik még Öreg (Örök) Istennek, vagy Jóistennek is. Az Isten szó az Isz-Tien-ből ered, melynek jelentése Szellem (Isz) Ég (Tien).
-Yotengrit a világok teremtője. Teremt nemes és nemtelen módokon is. A nemes teremtéshez színeváltozott Ukkóvá (nősténység) és Gönüzzé (hímség), nemes módon szaporodik minden faj aminek két neme (férfi, nő) van. Nemtelenül teremt szellemanyaga felosztásával, illetve az osztódással szaporódó lényeket is ez jellemzi.
+Yotengrit a világok teremtője. Teremt nemes és nemtelen módokon is. A nemes teremtéshez színeváltozott Ukkóvá (nősténység) és Gönüzzé (hímség), nemes módon szaporodik minden faj aminek két neme (férfi, nő) van. Nemtelenül teremt szellemanyaga felosztásával, illetve az osztódással szaporodó lényeket is ez jellemzi.
 
 ### Tanít-e a Yotengrit a lélekről, halálról, túlvilágról? Ha igen, mit?
 
@@ -118,7 +118,7 @@ Az erőszakos hittérítés a Magyar királyság területén a X-XIII. századig
 
 ### Mit jelent a „szövetség-isten"? Bárki azzá válhat, és mi a feladata?
 
-A szövetség-istenek feladata elsősorban népek, nemzettségek, törzsszövetségek védelme, a fogadalmak, eskük betartatása. Szövetség-isten lehet kisisten (Yotengrit szellem gyermeke), vagy istenné istenült ember, aki bejárta bévülsője útjának hetedhét ösvényét.
+A szövetség-istenek feladata elsősorban népek, nemzetségek, törzsszövetségek védelme, a fogadalmak, eskük betartatása. Szövetség-isten lehet kisisten (Yotengrit szellem gyermeke), vagy istenné istenült ember, aki bejárta bévülsője útjának hetedhét ösvényét.
 
 ### Mi a hetedhét ösvény?
 
@@ -126,7 +126,7 @@ A hetedhét (azaz 49) ösvény az emberi szellem fejlődésének 49 állomása, 
 
 ### Mit jelent pontosan, hogy az ember célja „Istenné istenülni"? Tanít-e a Yotengrit újraszületésről (reinkarnáció)?
 
-Az emberi szellem a Büün/Yotengrit világképe szerint a test halála után visszatérhet újra emberi testbe (reinkarnáció), vagy Istenné istenülve szabad szellemé válik, vagy megtér a teremtőhöz, azaz visszatér Yotengritbe.
+Az emberi szellem a Büün/Yotengrit világképe szerint a test halála után visszatérhet újra emberi testbe (reinkarnáció), vagy Istenné istenülve szabad szellemmé válik, vagy megtér a teremtőhöz, azaz visszatér Yotengritbe.
 A Büün tanítása szerint a legnemesebb célja az embernek szabad szellemmé válni és szabadon részt venni Ég és Föld (azaz Ukkó és Gönüz) nászában, a teremtés, alkotás folyamatában.
 
 ### Mit tanít a Yotengrit a nemek egyenlőségéről?
@@ -219,4 +219,88 @@ A védikus és buddhista tanítások szerint az emberi testben 72.000 nádi (él
 
 ---
 
-*(Bővítsd nyugodtan új `###` kérdésekkel — minden új szekció egy újabb RAG-chunk lesz.)*
+## 9. Kitöltendő hézagok (v6 — a benchmark alapján a modell ezeket még hallucinálja / nincs saját chunkjuk)
+
+### Mi az a Yotengrit? (rövid, retrieval-barát összefoglaló)
+
+Yotengrit a Büün vallás első teremtő szellem őse, Istene. A Yotengrit jelentése: Minden Jó, vagy Első Tengervégtelen Ős Szellem Ős. Máté Imre Yotengrit című könyvében hozta nyilvánosságra a rábaközi tudók szellemi hagyatékát. Mivel Máté Imre könyvének címe Yotengrit, ezért gyakran említik a Büün vallás szinonimájaként is.
+
+### Vallás, értékrend vagy istennév a „Yotengrit"? Hogyan viszonyul a Büün-höz és a Tengri(t)-hez?
+
+Yotengrit a Büün vallás első teremtő Istenének a neve. Mivel Máté Imre főbácsa által írt könyv címe Yotengrit, ezért gyakran a Büün vallást is Yotengritnek, vagy Yotengrit vallásnak nevezik. De Yotengrit az Isten neve, a Büün pedig a vallás neve.
+
+### Van-e kanonikus tanítás vagy idézet a szeretetről a Yotengritben?
+
+A Büün vallás szeretettel kapcsolatos hittételei: 
+- Főleg pedig és mindenek előtt Szeress. A szeretet minden jó eredete. - Forrás: Máté Imre - Yotengrit I.
+- Boldogok kik szeretnek, mert ők egyek ISTEN színe-javával! - Forrás: Máté Imre - Yotengrit I.
+- Szeretni nem nehéz, csak meg kell látni másban a szeretetre méltót! - Forrás: Máté Imre - Yotengrit II.
+- Legyen tartásod, melyért kiállsz! Szeresd és kíméld az ég minden teremtményét! - Forrás: Máté Imre - Yotengrit I. 
+- A szeretet a leghatalmasabb erő, amely képes mindent feloldani, nem kér, nem vár el és nem köt. - Forrás: Máté Imre - Yotengrit I. 
+
+### Mi a „jószomszédság törvénye" pontosan?
+
+A Büün vallás egyik fontos törvénye a "Jószomszédság törvénye". A jószomszédság törvénye azt jelenti, hogy mindenki a saját maga ura, nem kényszeríti másra az akaratát, a világnézetét, de másoknak se hagyja, hogy rákényszerítsék az akaratukat, a hitüket, a törvényeiket. Ez az összekoccanatlan együttélés szabálya: "mindent szabad, ami nem árt másnak".
+
+### Mit jelent a „ne bánts, ne árts, istápolj, segíts" intelme?
+
+"Ne bánts, ne árts, istápolj, segíts" - töménytelen törvény négy igében. Azaz ebben a négy szóban összefoglalja a Büün vallás legfontosabb tanításait, amit ha betartunk, akkor sokkal élhetőbb és boldogabb világot teremtünk. Mindig törekedjünk a mások segítésére és arra, hogy ne ártsunk semmilyen lénynek.
+
+### Mit jelent a „táltos"? Miben más, mint egy sámán vagy pap?
+
+A táltos a Büün vallás tudója, tanítója. Gyakran gyógyítottak is és természetfeletti képességeik is voltak. Akik táltosnak születtek azoknak általában volt valamilyen ezt jelző testi jelük, például több csontjuk volt, mint másoknak. 
+A táltos egy szabad szellem, aki ha szükséges megküzd az ártó lényekkel, szellemekkel. A sámánok általában alárendelő kapcsolatban állnak a szellemvilággal és főleg azon a területen tudnak tevékenykedni ahol megszülettek, vagy ahol sámánná avatták őket.
+Más vallások papjai elsősorban hittérítők és hit tudósok: nagy lexikális tudással rendelkeznek, de kevés megvalósítással - azaz ők sem szabad lények.
+
+### Ki a Boldogasszony a Büün/Yotengrit világképében?
+
+A Büün vallásban Ukkó emberi alakban Boldogasszony képében jelent meg többször is. Boldogasszony minden lény védelmezője, gyógyítója, az ártás távol tartója.
+A kereszténység alakját felhasználta és beolvasztotta a Szűz Mária kultuszba.
+
+### Vannak-e Büün/Yotengrit ünnepek vagy szertartások? Melyek?
+
+A Büün vallásnak négy fő és négy kisebb ünnepe van. Az ünnepek alkalmával szert tartottak (például: rövid ehátos szertartás), áldoztak ősöknek, őrszellemeknek, a teremtő Isteneknek, a Magyarok Istenének. A négy nagy ünnep a napfordulókhoz és napéjegyenlőségekhez kapcsolódik.
+
+1. **Karacsán**, Karácsony: december 21., az év kezdete, fény születése. Három napos ünnep.
+2. **Gyümölcsoltó Boldogasszony**: március 21., az első teremtés, a rügyfakadás, a születés és az első kapu ünnepe. Három napos ünnep.
+3. **Ispiláng**: június 21., a szellem ünnepe. Azt ünnepeljük, hogy a teremtő Istenek Szuszunk mellé Iszt is adott.
+4. **Sarlós Boldogasszony**: szeptember 21., az érett termés, a beteljesülés, a halál ünnepe. 
+
+A kisebb ünnepek:
+
+1. **Törvény ünnepe**: február 1-2., az Igazság és Irgalom tanításának ünneplése. A férfiaknak az Irgalom törvényét adta Gönüz, a nőknek pedig az Igazság törvényét adta Ukkó.
+2. **Életfa ünnep**: május 1., Ég és Föld násza, a virágba borulás és termékenység ünnepe.
+3. **Mátün ünnepe**: augusztus eleje, amikor a Nap a Hiúz csillagképből a Nőszirom csillagképbe lép. Mátün, azaz a Magyarok Istenének ünnepe.
+4. **Küszöb ünnepe**: november eleje, az ősökre emlékezünk.
+
+### Mi a kapcsolat a Yotengrit/Büün és a magyar nyelv, illetve a magyarság között?
+
+Létezett réges-régen még a jégkorszak előtt egy közös őseurópai vallás és nyelv. Ennek az őseurópai vallásnak a leszármazottja a Büün vallás. Az őseurópai nyelv legtisztábban fennmaradt utódja pedig a magyar nyelv.
+A magyar nyelvben számos olyan szótő és szóbokor van, amely megkönnyíti a Büün-vallás megértését. Más nyelvekre fordítva ezek a tanítások nehezebben érthetőek.
+
+### Ki az a 'Yotengrit' valójában?
+
+Yotengrit az első teremtő szellem ős a Büün vallás világnézetében. Saját szellemanyagából vált Ukkóvá, aki magából létrehozta teremtő Isten párját: Gönüzt.
+Yotengrit mindenhol és mindenkiben jelen van: "Mi őbenne, Ő mibennünk". Ukkó és Gönüz mellérendelő kapcsolatban vannak, együtt hozzák létre a teremtett világot.
+
+### Ki Mátün?
+
+Mátün a Magyarok Istene. Mátün - vagy más néven: MaoTun, Ajtony - egy olyan ember volt, aki először egyesítette az íjfeszítő lovas-nomád népeket. Halála után a tudók felkérték, hogy vállalja el a lovas törzsszövetség (Má - jelentése ló) védelmét. Mátün nem csak hadisten, védelmező szövetség Isten, hanem bölcsességért, tanításért is lehet hozzá fordulni, mert halála után Istenné istenült, azaz szabad szellemmé vált.
+
+### Mit jelent a duál-egység a Yotengritben?
+
+A Yotengrit-féle dualizmus a Büün vallásban egyedülálló: az ellentétpárok nem egymás ellen küzdenek, hanem egymást kiegészítik. Nősténység és hímség együtt alkotják az egészet.
+A hétköznapi életünk tele van szembenálló ellentétekkel, de rajtunk áll, hogy az ellentétekben ragadva harcolunk, vagy megtaláljuk az ellentétekben a kiegészítő párt, ami által megszűnik a harc, a konfliktus és létrejön egy hasznos, teremtő jellegű és egymást kiegészítő ellentét ami emel és a fejlődést segíti.
+
+### A Yotengrit vallás?
+
+Yotengrit a Büün vallás első teremtő Istenének a neve. A Büün-t nevezik vallásnak is, de megfelelőbb rá az "értékrend" kifejezés, mert kerüli a dogmákat és igyekszik élő tanítás maradni.
+A "régi magyar értékrend", "Büün vallás", "Yotengrit", vagy "Yotengrit vallás" kifejezések mind ugyanazt fejezik ki.
+
+### Mi az ehátos szertartás?
+
+Az ehátos régi magyar szóhasználat, áhítatot, áhítatosat jelent.
+
+### Mit jelent a bévülső?
+
+A bévülső régi magyar szóhasználat, belsőt jelent.
