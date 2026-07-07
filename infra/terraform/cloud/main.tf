@@ -110,14 +110,17 @@ resource "null_resource" "trigger_ansible" {
     connection {
       type        = "ssh"
       user        = "root"
-      private_key = file(pathexpand(replace(var.ssh_public_key_path, ".pub", "")))
+      private_key = file(pathexpand(trimsuffix(var.ssh_public_key_path, ".pub")))
       host        = hcloud_server.mother.ipv4_address
     }
   }
 
   provisioner "local-exec" {
     # Provision the cloud node. The edge (child-001) is provisioned separately so
-    # `terraform apply` doesn't block on the Pi being online.
-    command = "cd ${path.root}/../ansible && ansible-playbook -i inventory.ini --limit cloud site.yml"
+    # `terraform apply` doesn't block on the Pi being online. Pass --private-key
+    # explicitly (derived from the same var as the remote-exec key) so Terraform is
+    # self-consistent even if ssh_public_key_path is overridden; ansible.cfg's
+    # private_key_file is only the convenience default for manual runs.
+    command = "cd ${path.root}/../ansible && ansible-playbook -i inventory.ini --private-key '${pathexpand(trimsuffix(var.ssh_public_key_path, ".pub"))}' --limit cloud site.yml"
   }
 }

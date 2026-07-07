@@ -39,11 +39,26 @@
     wg_public_key: "{{ wg_public_key_result.stdout | trim }}"
   no_log: true   # wg_private_key is secret
 
+- name: Check for an existing wg0.conf
+  stat:
+    path: /etc/wireguard/wg0.conf
+  register: wg0_conf
+
 - name: Configure WireGuard Interface
   template:
     src: wg0.conf.j2
     dest: /etc/wireguard/wg0.conf
     mode: '0600'
+  # Write on first provision (we need SOME conf to bring the interface up, even
+  # peerless), or whenever the peer's key IS known (a full run). But NEVER overwrite
+  # an existing conf with a peerless render on a later `--limit cloud` run — that
+  # would strip an already-configured peer and bounce the tunnel silently.
+  when: >-
+    not wg0_conf.stat.exists
+    or ('cloud' in group_names and (groups['edge'] | default([])) | length > 0
+        and hostvars[groups['edge'][0]].wg_public_key is defined)
+    or ('edge' in group_names and (groups['cloud'] | default([])) | length > 0
+        and hostvars[groups['cloud'][0]].wg_public_key is defined)
   notify: Restart WireGuard
 
 - name: Enable and start WireGuard
