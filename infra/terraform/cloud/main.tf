@@ -60,7 +60,7 @@ resource "hcloud_server" "mother" {
   name         = "mother-001"
   server_type  = var.cloud_server_type # ARM64 Ampere (CAX31/41), CPU-only
   image        = "ubuntu-24.04"        # served as arm64 for CAX server types
-  location     = "nbg1"
+  location     = var.cloud_location
   ssh_keys     = [hcloud_ssh_key.default.id]
   firewall_ids = [hcloud_firewall.free_droid_fw.id]
   public_net {
@@ -72,7 +72,10 @@ resource "hcloud_server" "mother" {
 resource "hcloud_server_network" "mother_network" {
   server_id  = hcloud_server.mother.id
   network_id = hcloud_network.vpn_network.id
-  ip         = "10.1.0.1"
+  # .1 is reserved by Hetzner as the network gateway (ip_not_available) — use .2.
+  # This private-network IP is vestigial anyway: the edge reaches the cloud over
+  # WireGuard (10.0.0.1), and Ollama binds to the wg0 IP, not this address.
+  ip         = "10.1.0.2"
   depends_on = [hcloud_network_subnet.vpn_subnet]
 }
 
@@ -101,17 +104,23 @@ resource "null_resource" "trigger_ansible" {
   provisioner "remote-exec" {
     inline = ["echo 'SSH is ready on mother-001!'"]
 
+    # Read the dedicated, PASSPHRASE-LESS mother key (default: ~/.ssh/free-droid-mother,
+    # derived from the .pub path). A passphrase-protected key (e.g. a personal id_rsa)
+    # fails here with "this private key is passphrase protected" — hence the dedicated key.
     connection {
       type        = "ssh"
       user        = "root"
-      private_key = file(pathexpand(replace(var.ssh_public_key_path, ".pub", "")))
+      private_key = file(pathexpand(trimsuffix(var.ssh_public_key_path, ".pub")))
       host        = hcloud_server.mother.ipv4_address
     }
   }
 
   provisioner "local-exec" {
     # Provision the cloud node. The edge (child-001) is provisioned separately so
-    # `terraform apply` doesn't block on the Pi being online.
-    command = "cd ${path.root}/../ansible && ansible-playbook -i inventory.ini --limit cloud site.yml"
+    # `terraform apply` doesn't block on the Pi being online. Pass --private-key
+    # explicitly (derived from the same var as the remote-exec key) so Terraform is
+    # self-consistent even if ssh_public_key_path is overridden; ansible.cfg's
+    # private_key_file is only the convenience default for manual runs.
+    command = "cd ${path.root}/../ansible && ansible-playbook -i inventory.ini --private-key '${pathexpand(trimsuffix(var.ssh_public_key_path, ".pub"))}' --limit cloud site.yml"
   }
 }
