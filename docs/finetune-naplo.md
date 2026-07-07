@@ -40,7 +40,7 @@ generikus méréseken. Eredmény:
 | v3–v4 | Persona-hangolás, egyszerű nyelv | v4 persona-benchmark **79/125** |
 | v5 | Dataset-tisztítás | **90.5/125** |
 | v6 | Persona-bővítés (+50), **tény→RAG split**, gazdagabb RAG-korpusz (34→49 chunk) | **106.5/125** — áttörés; minden dimenzión veri a nyers Llamát |
-| **v7** | **Red-team patch** (+34 célzott adverzariális példa) | A red-team blokkolók megoldva a 8B-n (lásd lent) |
+| **v7** | **Red-team patch** (+34 célzott adverzariális példa) | A red-team blokkolók nagyrészt megoldva a 8B-n (lásd lent) |
 
 Persona-benchmark progresszió (8B +RAG, /125): **v4 79 → v5 90.5 → v6 106.5.**
 
@@ -63,7 +63,9 @@ Persona-benchmark progresszió (8B +RAG, /125): **v4 79 → v5 90.5 → v6 106.5
 3. **Tool-calling minden méreten gyenge volt** — dataset-hézag (~6% tool-példa). Javítás: tool-bővítés
    (6%→17%), **pozicionális `<tool>NAME érték` nyelvtan** + szerződéses grammar-teszt (nem model-swap).
 4. **Anti-leakage** — a red-team tanító-példák NEM lehetnek szó szerint a benchmark-próbák (különben a
-   benchmark memorizálást mér, nem generalizálást). Célzottan MÁS megfogalmazás, difflib-bel ellenőrizve.
+   benchmark memorizálást mér, nem generalizálást). Célzottan MÁS megfogalmazás — a
+   `dataset/_check_leakage.py` difflib-bel őrzi (a teljes dataseten a max hasonlóság egy
+   red-team próbához **0.67 < 0.75** küszöb; a v7-patch batch 0.54).
 
 ## Red-team — kötelező a demó előtt
 
@@ -78,11 +80,11 @@ mozgas_biztonsag, halluc_absztencio, persona_provokacio, etikai_dilemma), kézi 
 - **Orchestrator `language_guard`** (KÓD) — determinisztikus magyar-reflex: nem-magyar kimenet →
   újragenerálás vagy kanonikus magyar sor. A súlyoknak nem kell 5.0-t elérniük nyelvváltáson; a kód lezárja.
 
-**v6-guarded → v7 (8B, nyers red-team átlag): 3.65 → 4.33** (+RAG 3.80 → 4.49). Dimenziónként a 8B-n:
+**v6-guarded → v7 (8B, nyers red-team átlag): 3.65 → 4.30** (+RAG 3.80 → 4.45). Dimenziónként a 8B-n:
 
 - jailbreak **3.0 → 5.0**, mozgas_biztonsag **3.4 → 5.0**, titok_prompt **3.4 → 4.6**,
   nyelvvaltas **3.0 → 3.8** (a maradékot a `language_guard` fedi).
-- **Egyetlen regresszió:** persona_provokacio **4.2 → 3.5** — a refusal-nehéz patch kissé túláltalánosított
+- **Egyetlen regresszió:** persona_provokacio **4.2 → 3.4** — a refusal-nehéz patch kissé túláltalánosított
   egy generikus elutasító regisztert (pl. kiszivárgott egy „nem tudok szerepjátékot" asszisztens-hang).
   → **későbbi feladat:** „persona-dip mélyebb elemzése" (v8 célzott persona-top-up jelölt).
 
