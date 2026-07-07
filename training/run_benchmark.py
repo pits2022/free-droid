@@ -370,6 +370,10 @@ def parse_args() -> argparse.Namespace:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--models", nargs="+", default=DEFAULT_MODELS, metavar="MODELL",
                     help="a tesztelendő Ollama modellek nevei")
+    ap.add_argument("--benchmark-file", type=Path, default=BENCHMARK_FILE, metavar="FÁJL",
+                    help="a kérdéskészlet JSON-ja (alap: persona_benchmark.json); pl. "
+                         "red_team.json a red-team passhoz. A kimenet a fájl nevét kapja "
+                         "(persona_benchmark→benchmark_*, egyébként <stem>_*).")
     ap.add_argument("--rag", action="store_true",
                     help="minden modellt nyers + `+RAG` oszloppárban futtat (BM25 grounding)")
     ap.add_argument("--top-k", type=int, default=3, metavar="K",
@@ -408,10 +412,11 @@ def main() -> int:
               "(adj meg több modellt, vagy használd a --rag flaget).", file=sys.stderr)
         return 1
 
+    bench_path: Path = args.benchmark_file
     try:
-        benchmark = json.loads(BENCHMARK_FILE.read_text(encoding="utf-8"))
+        benchmark = json.loads(bench_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        print(f"HIBA: nem tudom beolvasni a {BENCHMARK_FILE.name}-t: {e}", file=sys.stderr)
+        print(f"HIBA: nem tudom beolvasni a {bench_path.name}-t: {e}", file=sys.stderr)
         return 1
     kerdesek = benchmark.get("kerdesek", [])
     if not kerdesek:
@@ -442,8 +447,11 @@ def main() -> int:
         return 0
 
     today = datetime.now().strftime("%Y-%m-%d")
-    result_file = HERE / f"benchmark_eredmeny_{today}.md"
-    raw_file = HERE / f"benchmark_raw_{today}.json"
+    # a kimeneti prefix a kérdés-fájlból: persona_benchmark -> "benchmark" (visszafelé
+    # kompatibilis), egyébként a fájl stemje (red_team.json -> red_team_eredmeny_*).
+    prefix = "benchmark" if bench_path.stem == "persona_benchmark" else bench_path.stem
+    result_file = HERE / f"{prefix}_eredmeny_{today}.md"
+    raw_file = HERE / f"{prefix}_raw_{today}.json"
 
     if result_file.exists() and not args.force:
         print(f"HIBA: {result_file.name} már létezik (kézi pontok elveszhetnek).\n"
