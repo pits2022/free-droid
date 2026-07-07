@@ -4,15 +4,27 @@ ListenPort = 51820
 PrivateKey = {{ wg_private_key }}
 
 {% if 'cloud' in group_names %}
+{% set peer = (groups['edge'][0] if groups.get('edge') else None) %}
+{% if peer is not none and hostvars[peer].wg_public_key is defined %}
 # I am the cloud server, peer is the edge device
 [Peer]
-PublicKey = {{ hostvars[groups['edge'][0]]['wg_public_key'] }}
-AllowedIPs = {{ hostvars[groups['edge'][0]]['vpn_ip'] }}/32
+PublicKey = {{ hostvars[peer]['wg_public_key'] }}
+AllowedIPs = {{ hostvars[peer]['vpn_ip'] }}/32
 {% else %}
+# Peer (edge) public key not known in this run (e.g. `--limit cloud`): the interface
+# comes up peerless so 10.0.0.1 is available for the AI stack. Re-run wireguard_setup
+# with the edge in the play — or add the [Peer] block once the Pi's key is known.
+{% endif %}
+{% else %}
+{% set peer = (groups['cloud'][0] if groups.get('cloud') else None) %}
+{% if peer is not none and hostvars[peer].wg_public_key is defined %}
 # I am the edge device, peer is the cloud server
 [Peer]
-PublicKey = {{ hostvars[groups['cloud'][0]]['wg_public_key'] }}
-Endpoint = {{ hostvars[groups['cloud'][0]]['ansible_host'] }}:51820
-AllowedIPs = {{ hostvars[groups['cloud'][0]]['vpn_ip'] }}/32
+PublicKey = {{ hostvars[peer]['wg_public_key'] }}
+Endpoint = {{ hostvars[peer]['ansible_host'] }}:51820
+AllowedIPs = {{ hostvars[peer]['vpn_ip'] }}/32
 PersistentKeepalive = 25
+{% else %}
+# Peer (cloud) public key not known in this run: interface comes up peerless.
+{% endif %}
 {% endif %}

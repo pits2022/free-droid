@@ -16,6 +16,12 @@
 
     # CAX31/41 are ARM64, CPU-only — no GPU/NVIDIA runtime. Ollama runs the 3B
     # model on CPU here (still well ahead of the Pi).
+    - name: Ensure the Docker systemd drop-in directory exists
+      file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        mode: '0755'
+
     - name: Ensure Docker starts after WireGuard (so it can bind the VPN IP on boot)
       copy:
         dest: /etc/systemd/system/docker.service.d/10-after-wireguard.conf
