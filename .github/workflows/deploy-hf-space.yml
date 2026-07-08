@@ -1,0 +1,49 @@
+name: Deploy hf-space to Hugging Face
+
+# Sync the hf-space/ folder to the live HF Space (jabba77/Szabi-Chat) whenever it
+# changes on main. Runs only on push to this repo's own main branch — NOT on
+# pull_request, so fork PRs can never trigger a deploy or reach the HF_TOKEN secret
+# (GitHub withholds secrets from fork-triggered workflows). Repo secrets are encrypted
+# and never exposed in a public repo or in workflow logs.
+#
+# Requires a repo secret HF_TOKEN = a Hugging Face token with WRITE scope
+# (Settings → Secrets and variables → Actions → New repository secret).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'hf-space/**'
+      - '.github/workflows/deploy-hf-space.yml'
+  workflow_dispatch: {}
+
+# Never run two deploys at once; a newer push supersedes an in-flight one.
+concurrency:
+  group: hf-space-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the Hugging Face CLI
+        run: pip install --upgrade "huggingface_hub[cli]"
+
+      - name: Upload hf-space/ to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          # Passed via env (not inlined into run:) — the injection-safe pattern. Both are
+          # non-attacker-controlled (fixed repo slug + hex sha), but env keeps it clean.
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          hf upload jabba77/Szabi-Chat hf-space . \
+            --repo-type space \
+            --exclude "**/__pycache__/**" \
+            --commit-message "Sync from ${REPO}@${SHA}"
