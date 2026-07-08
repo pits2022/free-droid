@@ -1,8 +1,9 @@
 """Szabi (Free-Droid) chat — Llama 3.1 8B v7 + offline RAG + Hungarian-only guard.
 
-ZeroGPU: the base model + PEFT adapter are placed on CUDA at module level; generation
-runs inside a @spaces.GPU function. Facts come from an offline BM25 retriever over the
-Yotengrit corpus (bundled), and every reply is passed through the deterministic
+ZeroGPU exposes a real CUDA device ONLY inside a @spaces.GPU function, so the base model +
+PEFT adapter load lazily there (via _ensure_model), NOT at module level — only the
+tokenizer and the retriever are module-level. Facts come from an offline BM25 retriever
+over the Yotengrit corpus (bundled), and every reply is passed through the deterministic
 language_guard so Szabi answers in Hungarian even if the model tries to drift.
 """
 import json
@@ -43,13 +44,15 @@ tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
 if tokenizer.pad_token_id is None:
     tokenizer.pad_token = tokenizer.eos_token
 model = None
+_model_lock = Lock()
 
 
 def _ensure_model():
     global model
-    if model is None:
-        base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, device_map="cuda")
-        model = PeftModel.from_pretrained(base, ADAPTER_REPO, subfolder=ADAPTER_SUBFOLDER).eval()
+    with _model_lock:  # serialize the cold load so two racing requests don't double-load (OOM)
+        if model is None:
+            base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, device_map="cuda")
+            model = PeftModel.from_pretrained(base, ADAPTER_REPO, subfolder=ADAPTER_SUBFOLDER).eval()
     return model
 
 # --- Optional chat logging → private HF Dataset (only if HF_TOKEN secret is set) ---
