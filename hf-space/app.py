@@ -9,6 +9,7 @@ language_guard so Szabi answers in Hungarian even if the model tries to drift.
 import json
 import os
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
@@ -58,7 +59,12 @@ def _ensure_model():
 # --- Optional chat logging → private HF Dataset (only if HF_TOKEN secret is set) ---
 LOG_DIR = Path("chatlog")
 LOG_DIR.mkdir(exist_ok=True)
-LOG_FILE = LOG_DIR / "log.jsonl"
+# Unique per-container filename: HF Space storage is ephemeral, so on every restart
+# (ZeroGPU sleeps after inactivity) the local file resets. With a single shared name the
+# CommitScheduler would overwrite the dataset file with just this session's lines, losing
+# history. A per-container name makes each session accumulate as its own file, so
+# `hf download` reconstructs the full all-time history.
+LOG_FILE = LOG_DIR / f"log-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}.jsonl"
 _log_lock = Lock()
 _scheduler = None
 if os.environ.get("HF_TOKEN"):
