@@ -10,9 +10,14 @@ from collections.abc import Sequence
 
 from freedroid.rag.retriever import Hit
 
+# The old wording ("Az alábbi forrás alapján válaszolj. Ha a válasz nincs benne, …") was
+# itself the source of the meta-leak: the model paraphrased it straight back as "a válasz
+# a forrásban van/nincs" in 6.7% of the logged demo replies. The source block is framed as
+# her own knowledge, and naming it is explicitly forbidden.
 _INSTRUCTION = (
-    "Az alábbi forrás alapján válaszolj. Ha a válasz nincs benne, "
-    "mondd ki őszintén, hogy erről nincs biztos tudásod."
+    "A fenti a te saját tudásod – abból válaszolj, a magad szavaival. "
+    "Sose említsd, hogy forrásból, szövegből vagy adatból dolgozol. "
+    "Amiről nincs benne semmi, arra csak ennyit mondj: „Ezt nem tudom.”"
 )
 
 
