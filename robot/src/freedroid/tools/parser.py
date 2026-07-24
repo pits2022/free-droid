@@ -42,6 +42,17 @@ from typing import Any
 
 from ..motion.types import Direction, Mode, Speed, TurnDir
 
+# The names this parser can actually dispatch (see `_parse_one`). Exported for callers
+# that must judge whether a model invented a tool name — the parser itself is tolerant and
+# keeps an unknown name so the caller can see what was attempted. `tests/test_grammar.py`
+# keeps its OWN literal copy on purpose: that one mirrors the spec, so the pair catches
+# code-vs-spec drift. Don't collapse them into one.
+KNOWN_TOOLS = frozenset({
+    "move", "turn", "stop", "camera",
+    "set_speed", "set_mode", "request_navigation_help", "scan_wifi",
+    "set_oracle",
+})
+
 _BLOCK = re.compile(r"<tool>\s*(.*?)\s*</tool>", re.DOTALL)
 _MOVE_DIRS = {d.value for d in Direction}
 _TURN_DIRS = {d.value for d in TurnDir}

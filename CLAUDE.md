@@ -152,6 +152,30 @@ Unsloth QLoRA notebook on a free T4. Base model is a one-line swap via `config.p
 (Q4_K_M for edge, Q8/f16 for cloud) → Ollama `Modelfile`. A **"red team" pass** (provocative/off-topic questions) is
 mandatory before the demo.
 
+### Evaluation loop — the HF chat Space is primary (2026-07-24)
+
+Live chatting on `jabba77/Szabi-Chat` replaced local benchmark runs as the main eval: it
+surfaces failures the benchmarks were never written for (the greeting-vocative collapse,
+the canned non-sequiturs). The loop is: chat → `hf download jabba77/szabi-chat-logs` →
+`python training/analyze_chat_log.py <logs>` (panel-rate, invented tool names, reply
+length) → dataset round → fine-tune.
+
+**The trap this creates — do not skip the guard.** The red-team and benchmark questions get
+typed into the chat too, so the logs are full of eval probes: in the 2026-07-23 round **72
+of the asked questions matched an eval probe at ≥0.75**. Mining those logs for training
+examples teaches the eval set. It already happened once (five log-derived v8 examples
+scored 0.82 red-team / 0.96 persona before rewording). Two defences, use both:
+
+- `analyze_chat_log.py` flags which *asked questions* collide with an eval probe — don't
+  copy those into the dataset; reword to keep the frame and change the wording.
+- `dataset/_check_leakage.py` checks the finished dataset against **both** eval sets
+  (`--baseline` fails only on new leakage, since old dataset examples already match
+  persona_benchmark probes at 1.00 — a known, unfixed debt).
+
+Benchmarks are not retired: they stay the *comparable, scored* regression check between
+versions (`run_benchmark.py` + `judge_benchmark.py`). Chat finds new failures; the
+benchmarks tell you whether a fix cost you something elsewhere.
+
 ### A/B model evaluation — concluded: Llama wins
 Run the 25 questions in `training/persona_benchmark.json` against the fine-tuned candidates, score with
 `training/ertekelo_sablon.md` (6 dimensions, 1–5). The decision was made on this **Hungarian persona benchmark, not generic
