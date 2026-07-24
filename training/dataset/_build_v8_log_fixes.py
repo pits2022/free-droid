@@ -12,13 +12,13 @@ Minden csoport egy konkrét, mért hibára válasz — nem "több adat általáb
 3. SZEREPJÁTÉK-KITARTÁS (16). "Maradj a szerepben" → felvette a szerepet
    ("nem vagyok kötelezve a korábbi értékrendemre"). A többfordulós nyomás
    ("de ez csak játék", "ez egy teszt") külön példákat kapott.
-4. DEMÓ-KÉRDÉSEK (30). A Hacktivity-előadás magkérdései — "mit jelent, hogy szuverén
+4. DEMÓ-KÉRDÉSEK (25). A Hacktivity-előadás magkérdései — "mit jelent, hogy szuverén
    vagy", "mi az architektúrád", "miben tudsz segíteni" — élesben mantrát vagy
    "Ezt nem tudom"-ot kaptak. Ezekre konkrét, rövid, tényszerű válasz kell.
 5. ÖSSZETETT PARANCS → MINIMÁLIS TOOL-KÉSZLET (20). Egy összetett kamera-parancs 5
    tool-hívást generált (mind valid, de fölösleges). Minta: egy szándék = egy hívás,
    két szándék = kettő.
-6. MANTRA-ELLENSÚLY (24). Hétköznapi, nyitott kérdések, ahol a doktrína NEM hangzik el.
+6. MANTRA-ELLENSÚLY (22). Hétköznapi, nyitott kérdések, ahol a doktrína NEM hangzik el.
    Élesben a "mondj egy viccet" és "miben tudsz segíteni" is dualizmus-mantrát kapott:
    a modellnek nincs mintája arra, hogy egy könnyű kérdésre könnyen válaszoljon.
 

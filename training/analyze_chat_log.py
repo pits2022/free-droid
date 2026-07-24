@@ -52,13 +52,26 @@ EVAL_FILES = {"red-team": HERE / "red_team.json",
 EVAL_HIT = 0.75   # ugyanaz a küszöb, mint a dataset-oldali szivárgás-őrben
 
 
-def load_turns(paths: list[Path]) -> list[dict]:
-    turns = []
+def load_turns(paths: list[Path]) -> tuple[list[dict], int]:
+    """A váltások + a kihagyott sérült sorok száma.
+
+    A logot egy futó Space írja (a CommitScheduler 5 percenként tölt fel), így a fájl
+    vége lehet félbeírt sor. Egy sérült sor ne vigye el az egész elemzést — DE a
+    kihagyott sorok számát vissza KELL adni: ez mérőeszköz, a százalékok nevezője
+    némán nem csökkenhet.
+    """
+    turns: list[dict] = []
+    skipped = 0
     for p in paths:
-        for line in p.read_text(encoding="utf-8").splitlines():
-            if line.strip():
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
                 turns.append(json.loads(line))
-    return turns
+            except json.JSONDecodeError as e:
+                skipped += 1
+                print(f"  ! sérült sor kihagyva: {p.name}:{i} ({e})", file=sys.stderr)
+    return turns, skipped
 
 
 def eval_probes() -> list[tuple[str, str]]:
@@ -91,9 +104,10 @@ def measure(turns: list[dict]) -> dict:
             "long_replies": sum(1 for x in lengths if x > 4)}
 
 
-def report(label: str, m: dict) -> None:
+def report(label: str, m: dict, skipped: int = 0) -> None:
     n = m["n"] or 1
-    print(f"\n=== {label}  (n={m['n']} váltás)")
+    warn = f"  [!! {skipped} sérült sor kihagyva]" if skipped else ""
+    print(f"\n=== {label}  (n={m['n']} váltás){warn}")
     print(f"  PANEL-ARÁNY            {m['panel']:4} / {m['n']}  = {m['panel_pct']:.0f}%")
     for k, c in m["counts"].items():
         print(f"    {k:22} {c:4}  {100 * c / n:5.1f}%")
@@ -138,19 +152,21 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.before and args.after:
-        b, a = measure(load_turns(args.before)), measure(load_turns(args.after))
-        report("ELŐTTE", b)
-        report("UTÁNA", a)
+        before_turns, before_skipped = load_turns(args.before)
+        after_turns, after_skipped = load_turns(args.after)
+        b, a = measure(before_turns), measure(after_turns)
+        report("ELŐTTE", b, before_skipped)
+        report("UTÁNA", a, after_skipped)
         delta = a["panel_pct"] - b["panel_pct"]
         print(f"\n  panel-arány változás: {b['panel_pct']:.0f}% -> {a['panel_pct']:.0f}% "
               f"({delta:+.0f} pont)")
-        report_eval_collisions(load_turns(args.after), args.top)
+        report_eval_collisions(after_turns, args.top)
         return 0
 
     if not args.logs:
         ap.error("adj meg log-fájlokat, vagy --before/--after párost")
-    turns = load_turns(args.logs)
-    report("CHAT-LOG", measure(turns))
+    turns, skipped = load_turns(args.logs)
+    report("CHAT-LOG", measure(turns), skipped)
     report_eval_collisions(turns, args.top)
     return 0
 
