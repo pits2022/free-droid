@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
+# The retriever owns this default: it is bundled standalone (HF Space) without config.
+from freedroid.rag.retriever import DEFAULT_MIN_COVERAGE
+
 
 @dataclass(frozen=True)
 class LLMEndpoints:
@@ -55,6 +58,7 @@ class RAGSettings:
     top_k: int = 3
     min_score: float = 0.0       # a chunk must score strictly above this to be returned
     title_boost: int = 2         # heading tokens weighted Nx in the BM25 index
+    min_coverage: float = DEFAULT_MIN_COVERAGE   # idf-weighted query coverage gate
 
     def __post_init__(self) -> None:
         if self.top_k <= 0:
@@ -63,6 +67,8 @@ class RAGSettings:
             raise ValueError("min_score must be >= 0")
         if self.title_boost < 1:
             raise ValueError("title_boost must be >= 1")
+        if not 0.0 <= self.min_coverage <= 1.0:
+            raise ValueError("min_coverage must be within 0.0–1.0")
 
 
 @dataclass(frozen=True)
