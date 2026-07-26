@@ -1,5 +1,7 @@
 name: Gemini Code Review
+
 on: [pull_request]
+
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -11,4 +13,9 @@ jobs:
       - uses: sshnaidm/gemini-code-review-action@v2
         with:
           gemini-key: ${{ secrets.GEMINI_API_KEY }}
+          prompt: |
+            Please review this code with focus on:
+            - Security issues
+            - Performance optimizations
+            - Best practices
 
