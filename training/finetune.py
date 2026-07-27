@@ -7,9 +7,12 @@ notebook (colab_finetune.ipynb) installs Unsloth and calls this.
     python finetune.py --variant llama     # the chosen 3B base (or: --variant qwen)
     python finetune.py --variant llama --epochs 3 --lr 1e-4
 
-Trains WITH the inference-time system prompt (system_prompt.txt) so the model
-learns to answer in persona given that system message — keep it in sync with the
-Ollama Modelfile. Exports GGUF (q4_k_m for edge, q8_0 for cloud) + the LoRA adapter.
+Trains WITH the inference-time system prompt so the model learns to answer in persona
+given that system message. The prompt file is PER-VARIANT (TrainConfig.system_prompt):
+the 8B uses system_prompt.txt, the 3B the shortened system_prompt_3b.txt. Keep each in
+sync with the Ollama Modelfile SYSTEM you serve that variant with — a mismatch means the
+model meets a different system message at inference than it trained on.
+Exports GGUF (q4_k_m for edge, q8_0 for cloud) + the LoRA adapter.
 """
 
 from __future__ import annotations
@@ -21,7 +24,6 @@ from pathlib import Path
 from config import LORA_TARGET_MODULES, PRESETS, VARIANTS, TrainConfig
 
 HERE = Path(__file__).resolve().parent
-SYSTEM_PROMPT = (HERE / "system_prompt.txt").read_text(encoding="utf-8").strip()
 
 
 # Hyperparameters the CLI can override (TrainConfig field -> argparse type). Adding a
@@ -68,12 +70,17 @@ def build_dataset(tokenizer, cfg: TrainConfig):
     """Load the Alpaca-format JSONL and render each row with the chat template."""
     from datasets import load_dataset
 
+    # Per-variant (cfg.system_prompt): the 3B trains on the shortened prompt. Whatever
+    # is baked in here MUST end up in the Ollama Modelfile SYSTEM for that variant.
+    system_prompt = cfg.path(cfg.system_prompt).read_text(encoding="utf-8").strip()
+    print(f"system prompt: {cfg.system_prompt} ({len(system_prompt)} karakter)")
+
     def to_text(example: dict) -> dict:
         user = example["instruction"]
         if example.get("input"):
             user = f"{user}\n\n{example['input']}"
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user},
             {"role": "assistant", "content": example["output"]},
         ]
