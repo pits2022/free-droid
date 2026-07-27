@@ -32,3 +32,5 @@ training/tests/
 
 # Dataset rewrite audit artifacts (one-shot before/after records from the build scripts)
 training/dataset/persona_rewrites*.json
+
+szabi-logs/
