@@ -16,8 +16,15 @@ from pathlib import Path
 
 from freedroid.rag.chunker import Chunk, parse_chunks
 
-# robot/src/freedroid/rag/corpus.py -> parents[4] = repo root
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+# In the repo this file is robot/src/freedroid/rag/corpus.py, so parents[4] is the root.
+# The hf-space/ bundle vendors this package at the app root, where that depth may not
+# exist — and this runs at IMPORT time, so a bad index would break Space startup rather
+# than fail where it is used. The Space always calls load_corpus() with an explicit path
+# (the corpus JSON is bundled next to app.py), so the defaults below are repo-only: fall
+# back to something harmless instead of raising. Anything that actually BUILDS the corpus
+# runs from the repo, where the real root resolves.
+_HERE = Path(__file__).resolve()
+_REPO_ROOT = _HERE.parents[4] if len(_HERE.parents) > 4 else _HERE.parent
 _RAG_DIR = _REPO_ROOT / "training" / "rag"
 
 # (markdown source, id prefix). One corpus, several sources — the retriever ranks across

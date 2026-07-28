@@ -10,16 +10,16 @@ pinned: false
 hardware: zero-a10g
 models:
   - unsloth/Meta-Llama-3.1-8B-Instruct
-  - jabba77/Szabi-Llama-v7
-short_description: Csevegj Szabival — szuverén magyar AI-robot (Llama 8B v7)
+  - jabba77/Szabi-Llama-v8
+short_description: Csevegj Szabival — szuverén magyar AI-robot (Llama 8B v8)
 ---
 
-# 🤖 Szabi — Free-Droid chat (Llama 3.1 8B v7)
+# 🤖 Szabi — Free-Droid chat (Llama 3.1 8B v8)
 
 Chat with **Szabi**, a sovereign, open-source, **Hungarian-only** AI robot persona, fine-tuned from
 **Llama 3.1 8B** (Built with Llama). This Space runs the demo-faithful stack:
 
-- **Persona** from the v7 LoRA adapter ([`jabba77/Szabi-Llama-v7`](https://huggingface.co/jabba77/Szabi-Llama-v7)).
+- **Persona** from the v8 LoRA adapter ([`jabba77/Szabi-Llama-v8`](https://huggingface.co/jabba77/Szabi-Llama-v8)).
 - **Facts** from an offline **BM25 RAG** over the Yotengrit corpus (bundled) — not baked into the weights.
 - **Hungarian-only** enforced in code by a deterministic `language_guard` (Szabi replies in Hungarian even
   if you ask for another language — try it).
