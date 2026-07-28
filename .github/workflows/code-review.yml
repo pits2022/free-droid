@@ -13,6 +13,7 @@ jobs:
       - uses: sshnaidm/gemini-code-review-action@v2
         with:
           gemini-key: ${{ secrets.GEMINI_API_KEY }}
+          model: "gemini-3.6-flash"
           prompt: |
             Please review this code with focus on:
             - Security issues
