@@ -149,8 +149,16 @@ def verify_masking(label_batches) -> float:
     Split out from _mask_prompt_tokens so it is testable without a GPU or Unsloth
     (see test_finetune_masking.py) — the guard is the whole point, so it needs a test.
     """
-    total = sum(len(b) for b in label_batches)
-    trained = sum(1 for b in label_batches for t in b if t != -100)
+    # A `datasets.Dataset` ma sima listát ad vissza, de torch-formátumú dataseten tenzort
+    # kapnánk — ott az elemenkénti összehasonlítás GPU-szinkronokat vált ki, és ami
+    # rosszabb, egy némán félreszámoló guard pont az a hibamód, ami ellen ez véd.
+    total = trained = 0
+    for b in label_batches:
+        total += len(b)
+        if hasattr(b, "sum") and hasattr(b, "__ne__") and not isinstance(b, (list, tuple)):
+            trained += int((b != -100).sum())      # torch.Tensor / numpy.ndarray
+        else:
+            trained += sum(1 for t in b if t != -100)
     share = trained / total if total else 0.0
     print(f"response masking: {trained}/{total} token tanul ({100 * share:.1f}%) "
           f"— {len(label_batches)} minta alapján")

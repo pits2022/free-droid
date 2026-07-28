@@ -53,3 +53,20 @@ def test_reszleges_maszkolas_is_elhasal_ha_tul_sok_marad():
 def test_a_kuszob_alatt_atmegy():
     """A küszöb alatt viszont nem hasal el — nem akarunk fals riasztást rövid promptnál."""
     assert verify_masking([_example(700, 300)]) == pytest.approx(0.3)
+
+
+def test_tomb_alaku_labels_ugyanazt_adja():
+    """Tömb-alakú `labels` (torch/numpy) esetén ugyanaz jöjjön ki, mint listával.
+
+    A `datasets.Dataset` ma listát ad, de torch-formátumú dataseten tenzor jönne. A
+    veszély nem a lassulás (mérve: 0.08 ms), hanem hogy egy némán FÉLRESZÁMOLÓ guard
+    pont azt a hibát engedné át, ami ellen véd.
+    """
+    np = pytest.importorskip("numpy")
+    listaval = verify_masking([_example(600, 26), _example(400, 26)])
+    tombbel = verify_masking([np.array(_example(600, 26)), np.array(_example(400, 26))])
+    assert tombbel == pytest.approx(listaval)
+
+    # És a hibás esetet is ugyanúgy el kell kapnia tömbön.
+    with pytest.raises(RuntimeError, match="NEM történt maszkolás"):
+        verify_masking([np.arange(1, 627)])
