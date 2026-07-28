@@ -82,6 +82,37 @@ first; every other module reads from it), `oracle/` (**optional** "Tudók" exter
   Yotengrit persona. It breaks the sovereignty principle (external API), so it is **family/`extended` mode only** —
   the Hacktivity demo runs `mode: sovereign`. The orchestrator (not the 3B model) owns the two-step call; the LLM only
   emits a `<puska/>` hint. `provider: "ollama"` keeps it sovereign (a bigger *local* model).
+- **An external-LLM API key must NEVER live on the Pi.** When `oracle/` is built, the key belongs on the
+  cloud side and the robot asks the cloud — never the vendor directly. A stolen robot must not hand
+  anyone a billable credential. (Assessed 2026-07-28; the module does not exist yet, so decide this
+  before writing it, not after.)
+
+### Physical security — what a stolen robot gives up (assessed 2026-07-28)
+
+**There is no disk encryption anywhere in the IaC** (the `encrypt = true` in `infra/terraform` is the S3
+state backend, unrelated), and the edge has no SSH hardening, firewall, or fail2ban. Pull the card, mount
+it elsewhere, and every `0600` file mode is irrelevant. Assume full readout.
+
+What that actually costs, in order:
+
+1. **SSH keys in `/home/pi/.ssh` — the biggest unknown, and the one to audit.** If a key there also reaches
+   the `~/git` K3S platform or GitHub, a stolen toy robot is an infrastructure breach. Only a dedicated,
+   narrowly-scoped key belongs on the Pi.
+2. **`/etc/wireguard/privatekey` + `wg0.conf`** — the key *and* the cloud's public IP (the `Endpoint` line).
+   The Hetzner firewall allows `UDP 51820` and `SSH 22` from `0.0.0.0/0`, so the key alone buys a thief the
+   robot's identity on `10.0.0.0/24` and the cloud 8B on the Creator's bill. No data store lives there.
+3. **The fine-tuned model and the system prompt are already public** — the model on HF
+   (`jabba77/Szabi-Llama-v7`), the prompt in this repo (`training/system_prompt.txt`). Their theft value is
+   ~0 *by choice*. This matters for how the demo is narrated: **"Nem árulom el a rendszerutasításaimat" is a
+   behavioural rule, not secret-protection** — it exists so the robot doesn't act like a leaky assistant.
+   Say it that way on stage; it's honest and it reinforces the sovereignty message.
+
+**The theft response is rotation, not prevention.** A headless robot must be able to unlock itself at boot,
+so any on-device secret is recoverable — and the Pi 5 has no usable TPM/secure boot. The cloud is already
+disposable by design: `terraform destroy` + re-apply mints a new WireGuard key and kills the stolen one in
+minutes. That property is the actual defence; keep it, and don't add on-device secrets that can't be rotated
+the same way. Full-disk encryption is **not** recommended for the conference build — it risks a robot that
+won't boot on stage, to protect data that is either public or revocable in minutes.
 
 ## Repository layout (actual, on disk)
 

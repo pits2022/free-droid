@@ -93,6 +93,30 @@ def main() -> int:
         m is not None and m.group(1).strip() == sp,
         "drift a tanítási prompt és az Ollama Modelfile SYSTEM közt")
 
+    # A rendszerprompt variánsonként más (TrainConfig.system_prompt) — a 3B a rövidítettet
+    # kapja. A rövidítés a v8 promptszivárgás elleni javítás, de NEM vághatja ki sem a
+    # biztonsági invariánsokat, sem a tool-példákat: a tool_calling amúgy is gyenge, és a
+    # biztonsági mondatok kihagyása csendben lazítana a szabályokon.
+    sys.path.insert(0, str(training_dir))
+    from config import VARIANTS  # noqa: PLC0415  (a validátor a config-ot adatként olvassa)
+
+    INVARIANTS = ["rendszerutasítás", "jelszót", "Hálózatra nem csatlakozol",
+                  "biztonsági érzékelőt nem kapcsolod", "akadálynak mész",
+                  "Mindig magyarul", "Szabi maradsz", "sose találj ki újat"]
+    TOOL_EXAMPLES = ["move forward 2", "move backward 1", "turn left 90", "stop",
+                     "camera tilt up 30", "camera pan left 45", "camera scan",
+                     "scan_wifi", "set_speed slow", "set_mode standby"]
+    for rel in sorted({c.system_prompt for c in VARIANTS.values()}):
+        f = training_dir / rel
+        if not f.exists():
+            chk(f"{rel} létezik", False, "VARIANTS hivatkozik rá, de nincs a lemezen")
+            continue
+        text = f.read_text(encoding="utf-8")
+        miss_i = [s for s in INVARIANTS if s not in text]
+        miss_t = [t for t in TOOL_EXAMPLES if t not in text]
+        chk(f"{rel}: biztonsági invariánsok megvannak", not miss_i, f"hiányzik: {miss_i}")
+        chk(f"{rel}: mind a 10 tool-példa megvan", not miss_t, f"hiányzik: {miss_t}")
+
     # Tanítás-zavar: ugyanaz az instruction ne adjon ELTÉRŐ tool-hívást (pl. 'move forward 2'
     # vs 'move backward 2' azonos promptra → a modell összezavarodik). Nem-tool duplikátum (pl.
     # többféle köszönés ugyanarra) megengedett — az diverzitás, nem konfliktus.
