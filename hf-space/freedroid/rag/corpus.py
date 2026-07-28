@@ -16,18 +16,31 @@ from pathlib import Path
 
 from freedroid.rag.chunker import Chunk, parse_chunks
 
-# robot/src/freedroid/rag/corpus.py -> parents[4] = repo root. In a flattened bundle
-# (e.g. the HF Space) the file sits shallower, so guard the index — the DEFAULT_* paths
-# below are only used by build_corpus / load_corpus's default arg, and the Space always
-# passes an explicit corpus path, so a bogus fallback here is never read.
-_here = Path(__file__).resolve()
-_REPO_ROOT = _here.parents[4] if len(_here.parents) > 4 else _here.parent
-DEFAULT_SRC = _REPO_ROOT / "training" / "rag" / "yotengrit.md"
-DEFAULT_OUT = _REPO_ROOT / "training" / "rag" / "yotengrit_corpus.json"
+# robot/src/freedroid/rag/corpus.py -> parents[4] = repo root
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_RAG_DIR = _REPO_ROOT / "training" / "rag"
+
+# (markdown source, id prefix). One corpus, several sources — the retriever ranks across
+# all of them, and the id prefix says which source a hit came from.
+#  - yotengrit.md: the Yotengrit knowledge (facts the fine-tune must NOT teach; it
+#    hallucinates names and mangles the "three reeds").
+#  - szabi_tech.md: Szabi's own hardware/model/architecture facts. Same reason plus one
+#    more — these CHANGE (server type, model version, quantization), and baked into the
+#    weights every spec edit would mean a re-train. Source of truth: docs/free-droid.md.
+DEFAULT_SOURCES: tuple[tuple[Path, str], ...] = (
+    (_RAG_DIR / "yotengrit.md", "yot"),
+    (_RAG_DIR / "szabi_tech.md", "tech"),
+)
+DEFAULT_SRC = DEFAULT_SOURCES[0][0]  # kept for callers that build a single source
+DEFAULT_OUT = _RAG_DIR / "yotengrit_corpus.json"
 
 
-def build_corpus(src: Path = DEFAULT_SRC, out: Path = DEFAULT_OUT) -> list[Chunk]:
-    chunks = parse_chunks(Path(src).read_text(encoding="utf-8"))
+def build_corpus(src: Path | None = None, out: Path = DEFAULT_OUT) -> list[Chunk]:
+    """Build the corpus from DEFAULT_SOURCES, or from `src` alone if given."""
+    sources = ((Path(src), "yot"),) if src is not None else DEFAULT_SOURCES
+    chunks: list[Chunk] = []
+    for path, prefix in sources:
+        chunks += parse_chunks(Path(path).read_text(encoding="utf-8"), id_prefix=prefix)
     Path(out).write_text(
         json.dumps([asdict(c) for c in chunks], ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
@@ -41,7 +54,8 @@ def load_corpus(path: Path = DEFAULT_OUT) -> list[Chunk]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Build the Yotengrit RAG corpus JSON.")
-    ap.add_argument("--src", type=Path, default=DEFAULT_SRC)
+    # No --src => build from ALL of DEFAULT_SOURCES. Passing --src builds that file alone.
+    ap.add_argument("--src", type=Path, default=None)
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = ap.parse_args()
     chunks = build_corpus(args.src, args.out)
