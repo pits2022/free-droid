@@ -244,3 +244,13 @@ Conscious gaps from the PR #4 review — not bugs, but things a future session s
 - Feature branches only; never commit to `main` directly. Do not push automatically. Lint before committing.
 - Per the workspace rule, update the `free-droid` section of `~/git/WORKFLOW.md` before ending a session
   (create the section if missing).
+
+## Project timeline / deadlines
+
+- Hardware deployed: 2026. aug. 20.
+- LLM fine-tune: 2026. aug. 31.
+- Cloud server: 2026. aug. 31.
+- Software/code: 2026. sept. 30.
+- Integration tests: 2026. sept. 30.
+- Presentation: 2026. oct. 15.
+
