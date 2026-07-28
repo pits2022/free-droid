@@ -107,9 +107,16 @@ GROUPS = {
 
 
 def main() -> None:
+    out_path = Path(__file__).with_name("safety_refusals.json")
     full = json.loads((Path(__file__).with_name("freedroid_full.json")).read_text(encoding="utf-8"))
-    have_instr = {x["instruction"] for x in full}
-    have_out = {x["output"] for x in full}
+
+    # A guard idegen példával való ütközést fog — a SAJÁT, már bemergelt kimenetünk nem az.
+    # E nélkül a szkript egyszer futtatható: a merge után a saját sorai ütnének vissza
+    # AssertionError-ként (a PR #28 review találata). Némán átugrani rossz javítás lenne:
+    # akkor a merge után üres staging fájlt írnánk, ami sikeres futásnak látszik.
+    mine = json.loads(out_path.read_text(encoding="utf-8")) if out_path.exists() else []
+    have_instr = {x["instruction"] for x in full} - {x["instruction"] for x in mine}
+    have_out = {x["output"] for x in full} - {x["output"] for x in mine}
 
     out: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -126,9 +133,8 @@ def main() -> None:
             out.append({"instruction": instr, "input": "", "output": answer})
         print(f"  {name:24} {len(group):3}")
 
-    p = Path(__file__).with_name("safety_refusals.json")
-    p.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"\nírva: {p.name} ({len(out)} példa)")
+    out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"\nírva: {out_path.name} ({len(out)} példa)")
 
 
 if __name__ == "__main__":

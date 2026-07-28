@@ -40,7 +40,12 @@ def main() -> None:
 
     # A sablonból csak a FROM és a SYSTEM cserélődik; a TEMPLATE/stop/PARAMETER marad.
     out = re.sub(r"^FROM .*$", f"FROM ./{args.gguf.name}", template, count=1, flags=re.M)
-    out, n = re.subn(r'SYSTEM """.*?"""', f'SYSTEM """{prompt}"""', out, count=1, flags=re.S)
+    # FÜGGVÉNYES csere, nem string: az `re.subn` a csere-STRINGBEN feldolgozza a
+    # backslash-eket (\1, \g<...>), tehát egy promptbeli `\` vagy elrontaná a szöveget,
+    # vagy `re.error: bad escape`-et dobna. A lambda visszatérési értékét szó szerint
+    # veszi, így nem kell escape-elni (és nem lehet dupla-escape hibát véteni sem).
+    out, n = re.subn(r'SYSTEM """.*?"""', lambda _m: f'SYSTEM """{prompt}"""',
+                     out, count=1, flags=re.S)
     if n != 1:
         raise SystemExit("a Modelfile sablonban nincs pontosan egy SYSTEM blokk")
     header = (f"# GENERÁLT — make_modelfile.py --variant {args.variant}\n"

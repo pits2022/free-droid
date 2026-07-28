@@ -98,16 +98,17 @@ def test_tokenize_stems_hungarian_inflections():
 
     # KNOWN LIMITATION, deliberate: single-character endings are not stripped, so the
     # accusative "-t" on a vowel-final stem survives ("kamerát" -> "kamerat", not
-    # "kamera"). Adding them measurably cost a false positive ("Mondj egy viccet."
-    # started retrieving Yotengrit chunks), so precision won. Asserted, not ignored — if
-    # someone adds single-char suffixes later, this fails and points at the trade-off.
+    # "kamera"). Adding them buys zero extra technical hits (10/10 either way) while
+    # pushing retrieval on 663 real queries from 16.9% to 18.3% — above the level PR #25
+    # calibrated, i.e. false positives. Asserted, not ignored: if someone adds single-char
+    # suffixes later this fails and points at the trade-off.
     assert tokenize("kamerát") == ["kamerat"]
 
     # Same call, second known gap: the instrumental "-val/-vel" assimilates to the
     # preceding consonant ("processzorral", "lánctalppal"), and those forms are not in
     # the suffix list. Chasing full Hungarian morphology is not worth it here — the
-    # measured win is already in (technical probes 6/10 -> 7/10, zero false positives,
-    # 14% -> 16% retrieval on 663 real chat-log queries).
+    # measured win is already in (technical probes 9/10 -> 10/10, zero false positives,
+    # 14.2% -> 16.9% retrieval on 663 real chat-log queries).
     assert tokenize("processzorral") == ["processzorral"]
 
 

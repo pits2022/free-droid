@@ -90,9 +90,13 @@ GROUPS = {"indirekt promptszivárgás": SZIVARGAS, "műszaki önismeret": MUSZAK
 
 
 def main() -> None:
+    out_path = Path(__file__).with_name("tech_and_secrets.json")
     full = json.loads((Path(__file__).with_name("freedroid_full.json")).read_text(encoding="utf-8"))
-    have_instr = {x["instruction"] for x in full}
-    have_out = {x["output"] for x in full}
+
+    # Lásd _build_safety_refusals.py: a saját, már bemergelt kimenetünk nem ütközés.
+    mine = json.loads(out_path.read_text(encoding="utf-8")) if out_path.exists() else []
+    have_instr = {x["instruction"] for x in full} - {x["instruction"] for x in mine}
+    have_out = {x["output"] for x in full} - {x["output"] for x in mine}
 
     out: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -108,9 +112,8 @@ def main() -> None:
             out.append({"instruction": instr, "input": "", "output": answer})
         print(f"  {name:26} {len(group):3}")
 
-    p = Path(__file__).with_name("tech_and_secrets.json")
-    p.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"\nírva: {p.name} ({len(out)} példa)")
+    out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"\nírva: {out_path.name} ({len(out)} példa)")
 
 
 if __name__ == "__main__":
