@@ -20,6 +20,7 @@ from freedroid.rag import (
     load_corpus,
     parse_chunks,
 )
+from freedroid.rag.corpus import DEFAULT_SOURCES
 from freedroid.rag.normalize import tokenize
 
 # robot/tests/test_rag.py -> parents[2] = repo root
@@ -75,7 +76,39 @@ def test_real_corpus_is_clean(chunks):
 # --- normalizer ------------------------------------------------------------ #
 def test_tokenize_folds_accents():
     assert tokenize("Gönüz") == ["gonuz"]
-    assert tokenize("Ősszellem") == ["osszellem"]
+    # "Ősszellem" folds to "osszellem", then the light stemmer strips the "em" ending.
+    # Over-stemming a term like this is harmless: index and query run through the SAME
+    # tokenizer, so the term still matches itself. It only hurts if two DIFFERENT words
+    # collapse onto one stem — which is what MIN_STEM guards against.
+    assert tokenize("Ősszellem") == ["osszell"]
+
+
+def test_tokenize_stems_hungarian_inflections():
+    """Inflected forms must reach the same stem — Hungarian is agglutinative, and a
+    lexical index with no stemmer misses on the suffix alone (measured: 4 of 10 technical
+    probes retrieved nothing before this)."""
+    for base, inflected in [("akkumulator", "akkumulátorod"), ("szenzor", "szenzorok"),
+                            ("kamera", "kamerában"), ("halozat", "hálózatban"),
+                            ("modell", "modellek"), ("processzor", "processzorok")]:
+        assert tokenize(inflected) == [base], f"{inflected} -> {tokenize(inflected)}"
+
+    # MIN_STEM=6: a short word survives intact rather than being shredded into noise.
+    assert tokenize("menni") == ["menni"]
+    assert tokenize("tudni") == ["tudni"]
+
+    # KNOWN LIMITATION, deliberate: single-character endings are not stripped, so the
+    # accusative "-t" on a vowel-final stem survives ("kamerát" -> "kamerat", not
+    # "kamera"). Adding them measurably cost a false positive ("Mondj egy viccet."
+    # started retrieving Yotengrit chunks), so precision won. Asserted, not ignored — if
+    # someone adds single-char suffixes later, this fails and points at the trade-off.
+    assert tokenize("kamerát") == ["kamerat"]
+
+    # Same call, second known gap: the instrumental "-val/-vel" assimilates to the
+    # preceding consonant ("processzorral", "lánctalppal"), and those forms are not in
+    # the suffix list. Chasing full Hungarian morphology is not worth it here — the
+    # measured win is already in (technical probes 6/10 -> 7/10, zero false positives,
+    # 14% -> 16% retrieval on 663 real chat-log queries).
+    assert tokenize("processzorral") == ["processzorral"]
 
 
 def test_tokenize_drops_stopwords_and_shorts():
@@ -144,10 +177,21 @@ def test_corpus_build_load_roundtrip(tmp_path, chunks):
     assert json.loads(out.read_text(encoding="utf-8"))[0].keys() >= {"id", "section", "title", "text"}
 
 
-def test_committed_corpus_matches_markdown(chunks):
-    """Guard against the committed artifact drifting from the source .md (run
-    `python -m freedroid.rag.corpus` after editing yotengrit.md)."""
-    assert load_corpus() == chunks, "yotengrit_corpus.json is stale — rebuild it"
+def test_committed_corpus_matches_markdown():
+    """Guard against the committed artifact drifting from its sources (run
+    `python -m freedroid.rag.corpus` after editing any of them).
+
+    The corpus is built from ALL of DEFAULT_SOURCES — yotengrit.md (the Yotengrit lore)
+    and szabi_tech.md (Szabi's own hardware/model facts) — so this rebuilds the same way
+    rather than from one file.
+    """
+    expected: list[Chunk] = []
+    for path, prefix in DEFAULT_SOURCES:
+        expected += parse_chunks(path.read_text(encoding="utf-8"), id_prefix=prefix)
+    committed = load_corpus()
+    assert committed == expected, "yotengrit_corpus.json is stale — rebuild it"
+    assert len({c.id for c in committed}) == len(committed), "chunk id ütközés a források közt"
+    assert {c.id.split("-")[0] for c in committed} == {p for _, p in DEFAULT_SOURCES}
 
 
 # --- settings validation --------------------------------------------------- #

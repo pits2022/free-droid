@@ -24,7 +24,12 @@ class Chunk:
     text: str      # the answer body
 
 
-def parse_chunks(md_text: str) -> list[Chunk]:
+def parse_chunks(md_text: str, id_prefix: str = "yot") -> list[Chunk]:
+    """Parse one knowledge-base markdown into chunks.
+
+    `id_prefix` namespaces the ids per source file, so a corpus built from several
+    markdowns keeps every id unique and says which source a hit came from.
+    """
     chunks: list[Chunk] = []
     section = ""
     title: str | None = None
@@ -35,7 +40,7 @@ def parse_chunks(md_text: str) -> list[Chunk]:
         if title is not None:
             text = "\n".join(body).strip()
             if text:  # skip an unanswered heading
-                chunks.append(Chunk(id=f"yot-{len(chunks):03d}",
+                chunks.append(Chunk(id=f"{id_prefix}-{len(chunks):03d}",
                                     section=section, title=title, text=text))
         title, body = None, []
 
