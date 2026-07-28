@@ -106,6 +106,67 @@ def _pick_kwarg(target, names: tuple[str, ...]) -> str | None:
     return next((n for n in names if n in params), None)
 
 
+# Llama-3 chat-template markers — must match what tokenizer.apply_chat_template renders
+# (and the TEMPLATE block in training/Modelfile). Both variants are Llama-3.x.
+_INSTRUCTION_PART = "<|start_header_id|>user<|end_header_id|>\n\n"
+_RESPONSE_PART = "<|start_header_id|>assistant<|end_header_id|>\n\n"
+
+# A correctly masked example trains on the answer only. Measured on the 915-example set,
+# the answer is 4.1% of the sequence with the canonical prompt and 6.1% with the 3B's
+# shortened one, so anything above this is masking that did not take effect.
+_MAX_TRAINED_SHARE = 0.5
+
+
+def _mask_prompt_tokens(trainer, tokenizer):
+    """Compute the loss on the ANSWER only — mask the system prompt and the question.
+
+    Until v9 this was missing, so the loss ran over the whole rendered sequence. Since the
+    system prompt sits in EVERY example, the answer was only ~4-6% of the tokens: the run
+    spent ~95% of its capacity learning to reproduce the system prompt. That is not a
+    subtle inefficiency — it is the direct cause of the prompt recitation (the v8 3B quoted
+    the prompt verbatim in 8 of 40 red-team answers), of the second-person slips ("Fiú
+    vagy." — continuing the input instead of answering it), and of the implausibly low eval
+    loss (8B: 0.147, i.e. mostly predicting a constant prefix).
+
+    The dangerous failure mode is a SILENT no-op: if the marker strings stop matching the
+    chat template, masking does nothing and we are back to the old behaviour with no
+    signal at all — which is exactly how this went unnoticed for four versions. So the
+    result is verified and the run aborts rather than training a lie.
+    """
+    from unsloth.chat_templates import train_on_responses_only
+
+    trainer = train_on_responses_only(trainer, instruction_part=_INSTRUCTION_PART,
+                                      response_part=_RESPONSE_PART)
+
+    n = min(8, len(trainer.train_dataset))
+    verify_masking([trainer.train_dataset[i]["labels"] for i in range(n)])
+    return trainer
+
+
+def verify_masking(label_batches) -> float:
+    """Share of tokens that carry loss; raise if masking clearly did not take effect.
+
+    Split out from _mask_prompt_tokens so it is testable without a GPU or Unsloth
+    (see test_finetune_masking.py) — the guard is the whole point, so it needs a test.
+    """
+    total = sum(len(b) for b in label_batches)
+    trained = sum(1 for b in label_batches for t in b if t != -100)
+    share = trained / total if total else 0.0
+    print(f"response masking: {trained}/{total} token tanul ({100 * share:.1f}%) "
+          f"— {len(label_batches)} minta alapján")
+
+    if trained == 0:
+        raise SystemExit(
+            "response masking: MINDEN token maszkolva — a válasz-marker nem illeszkedik "
+            f"a chat-templatehez ({_RESPONSE_PART!r}). A futás így semmit nem tanulna.")
+    if share > _MAX_TRAINED_SHARE:
+        raise SystemExit(
+            f"response masking: NEM történt maszkolás (a tokenek {100 * share:.1f}%-ára "
+            "van loss). A marker-stringek nem illeszkednek a chat-templatehez — javítsd "
+            "őket, ne futtasd így: ez a v9-ig tartó hibás állapot.")
+    return share
+
+
 def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
     from unsloth import FastLanguageModel  # must precede trl/transformers/peft so patches apply
 
@@ -172,6 +233,7 @@ def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
         args=SFTConfig(**sft_kwargs),
         **{tok_kw: tokenizer},
     )
+    trainer = _mask_prompt_tokens(trainer, tokenizer)
     trainer.train()
 
     adapter_dir = out / "lora-adapter"
