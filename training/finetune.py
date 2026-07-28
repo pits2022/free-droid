@@ -156,11 +156,11 @@ def verify_masking(label_batches) -> float:
           f"— {len(label_batches)} minta alapján")
 
     if trained == 0:
-        raise SystemExit(
+        raise RuntimeError(
             "response masking: MINDEN token maszkolva — a válasz-marker nem illeszkedik "
             f"a chat-templatehez ({_RESPONSE_PART!r}). A futás így semmit nem tanulna.")
     if share > _MAX_TRAINED_SHARE:
-        raise SystemExit(
+        raise RuntimeError(
             f"response masking: NEM történt maszkolás (a tokenek {100 * share:.1f}%-ára "
             "van loss). A marker-stringek nem illeszkednek a chat-templatehez — javítsd "
             "őket, ne futtasd így: ez a v9-ig tartó hibás állapot.")

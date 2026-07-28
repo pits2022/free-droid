@@ -31,7 +31,7 @@ def test_helyes_maszkolas_atmegy():
 
 def test_minden_maszkolva_elhasal():
     """Ha a VÁLASZ-marker nem illeszkedik, nem marad tanulható token."""
-    with pytest.raises(SystemExit, match="MINDEN token maszkolva"):
+    with pytest.raises(RuntimeError, match="MINDEN token maszkolva"):
         verify_masking([[MASK] * 600, [MASK] * 400])
 
 
@@ -40,13 +40,13 @@ def test_maszkolas_elmaradasa_elhasal():
 
     Ez a v9-ig tartó állapot — a tesztnek pont ezt kell elkapnia.
     """
-    with pytest.raises(SystemExit, match="NEM történt maszkolás"):
+    with pytest.raises(RuntimeError, match="NEM történt maszkolás"):
         verify_masking([list(range(1, 627)), list(range(1, 427))])
 
 
 def test_reszleges_maszkolas_is_elhasal_ha_tul_sok_marad():
     """Határeset: ha a marker csak részben illeszkedik, a küszöb fölött el kell hasalnia."""
-    with pytest.raises(SystemExit, match="NEM történt maszkolás"):
+    with pytest.raises(RuntimeError, match="NEM történt maszkolás"):
         verify_masking([_example(100, 900)])
 
 
