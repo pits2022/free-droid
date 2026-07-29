@@ -24,7 +24,7 @@ Használat:
     export CLAUDE_CODE_OAUTH_TOKEN=...        # a Pro-előfizetés terhére
     python run_benchmark.py --models szabi-8b-v3 llama3.1:8b puli-llumix racka-4b --json-out
     python judge_benchmark.py                 # a legfrissebb benchmark_raw_*.json-t pontozza
-    python judge_benchmark.py --raw benchmark_raw_2026-07-01.json --judge-model sonnet
+    python judge_benchmark.py --raw benchmark_raw_2026-07-01.json --judge-model claude-opus-5
     python judge_benchmark.py --dry-run       # tool-score + a judge-promptok, claude-hívás nélkül
 """
 
@@ -398,8 +398,12 @@ def parse_args() -> argparse.Namespace:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw", type=Path, default=None, metavar="FÁJL",
                     help="a run_benchmark.py --json-out kimenete (alap: a legfrissebb benchmark_raw_*.json)")
-    ap.add_argument("--judge-model", default="sonnet", metavar="MODELL",
-                    help="a claude judge modellje (alap: sonnet — gyors, olcsó triage)")
+    # PONTOS modell-ID, NEM alias. A `sonnet`/`opus` alias csendben átcsúszik a következő
+    # generációra, és a judge pont attól használható DRIFT-VONALZÓNAK, hogy nem mozdul.
+    # Ha a judge magától lecserélődik, a régi pontszámokhoz mért eltérés értelmét veszti.
+    ap.add_argument("--judge-model", default="claude-opus-5", metavar="MODELL",
+                    help="a claude judge modellje (alap: claude-opus-5 — pontos ID, "
+                         "hogy a pontozás verziók között összevethető maradjon)")
     ap.add_argument("--max-workers", type=int, default=4, metavar="N",
                     help="párhuzamos judge-hívások száma (alap: 4)")
     ap.add_argument("--timeout", type=float, default=180.0, metavar="MP",
