@@ -1,0 +1,5 @@
+A role cloud-aga: docker run ... ollama/ollama  (NINCS --gpus all)
+-> GPU-s dropleten a konteneres ut CPU-n futna. Ellenorzes:
+   NVIDIA container runtime NEM mukodik -> nvidia-container-toolkit is kell
+
+A role -p {{ vpn_ip }}:11434 kotest hasznal -> wg0 megletet feltetelezi (fent letrehozva).

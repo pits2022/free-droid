@@ -1,0 +1,13 @@
+## wg show
+interface: wg0
+  public key: FlvYi3eA+NKoZfXesDalRueb21slOWEZPvoGX94wemc=
+  private key: (hidden)
+  listening port: 51820
+## ip addr wg0
+wg0              UNKNOWN        10.0.0.1/24 
+## UDP 51820 figyel?
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                   
+UNCONN 0      0            0.0.0.0:51820      0.0.0.0:*                                             
+UNCONN 0      0               [::]:51820         [::]:*                                             
+## publikus IP
+167.99.183.169

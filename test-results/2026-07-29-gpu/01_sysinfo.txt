@@ -1,0 +1,38 @@
+## nvidia-smi
+Wed Jul 29 10:27:18 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA RTX 6000 Ada Gene...    On  |   00000000:01:00.0 Off |                  Off |
+| 30%   34C    P8              9W /  300W |       2MiB /  49140MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+## CPU
+CPU(s):                                  8
+Model name:                              INTEL(R) XEON(R) GOLD 6548Y+
+Thread(s) per core:                      1
+Core(s) per socket:                      8
+## RAM
+               total        used        free      shared  buff/cache   available
+Mem:              62           0          61           0           0          61
+## Disk
+/dev/vda1       485G   16G  469G   4% /
+## OS
+Ubuntu 22.04.5 LTS  kernel=5.15.0-185-generic
+## Ollama elotelepitve?
+nincs
+## Docker/NVIDIA runtime?
+ Runtimes: io.containerd.runc.v2 runc
+ Default Runtime: runc
