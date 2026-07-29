@@ -252,5 +252,9 @@ Conscious gaps from the PR #4 review — not bugs, but things a future session s
 - Cloud server: 2026. aug. 31.
 - Software/code: 2026. sept. 30.
 - Integration tests: 2026. sept. 30.
+- **Talk preparation: 2026. sept. 1. → sept. 30. — owner: the Creator.** Slides + **3 timed
+  run-throughs** by sept. 30; ideally the rehearsals run *with* a live Szabi, which makes them
+  integration tests too. Note the collision: this window fully overlaps the software crunch
+  (also sept. 30), so a fallback script is required. See `docs/free-droid.md` §5.1.
 - Presentation: 2026. oct. 15.
 
