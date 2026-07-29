@@ -667,6 +667,31 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] Cloud-kiesés szimuláció: WireGuard leállítása menet közben → edge fallback működik-e
 - [ ] Biztonsági watchdog éles teszt: akadály a robot elé → azonnali megállás
 - [ ] Demó-forgatókönyv begyakorlása (a Teremtő kérdez magyarul, tolmácsol angolra)
+
+#### 5.1 Előadás elkészítése — 2026. szept. 1. → szept. 30. · **felelős: a Teremtő**
+
+Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se a specben, se a
+`WORKFLOW.md`-ben. Ez volt az egyetlen tétel felelős és határidő nélkül.
+
+- [ ] **Szept. 1.: az előadás elkezdése.** Nem a diák — előbb a *váz*: mi az egyetlen gondolat,
+      amit a közönség elvisz. (Javaslat: a szuverenitás nem elmélet, hanem `root`.)
+- [ ] Diák / vizuális anyag elkészítése
+- [ ] **3× végigmondás stopperrel**, szept. 30-ig. A stopper nem formalitás: a demó élő
+      részei (LLM-válaszok, mozgás) kiszámíthatatlan hosszúak, és a próbák adják meg a
+      valódi szórást.
+- [ ] **Ideális eset: szept. 30-ra Szabi is él, és a próbák VELE együtt mennek.** Ekkor a
+      három végigmondás egyben integrációs teszt is.
+- [ ] Tartalék forgatókönyv a próbákból: mi marad el, ha a demó valamelyik része elhasal
+      (net, hang, mozgás) — és mit mond a Teremtő helyette
+
+> 📌 **Narratíva-pont, amit a próbákon rögzíteni kell:** a *„Nem árulom el a
+> rendszerutasításaimat"* **viselkedési szabály, nem titokvédelem** — a modell (HF) és a
+> prompt (repo) szándékosan publikus. Színpadon így kell mondani: őszinte, és erősíti az
+> üzenetet ahelyett, hogy egy könnyen leleplezhető állítást tenne.
+
+> ⚠️ **Ütközés a szoftver-határidővel:** a szoftver + integrációs tesztek szintén szept. 30.
+> Az előadás-ablak tehát TELJESEN átfedi a szoftver hajráját. Ha Szabi nem él szeptember
+> közepére, a próbák Szabi nélkül indulnak — ezért kell a tartalék forgatókönyv.
 - [ ] Hangerő/akusztika teszt konferencia-környezetre (zajos terem)
 - [ ] Akku-üzemidő mérése teljes terhelésen (LLM + mozgás + hang)
 - [ ] Tartalék terv: ha a WiFi megbízhatatlan a helyszínen → tiszta offline demó

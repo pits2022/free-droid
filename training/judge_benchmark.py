@@ -24,7 +24,7 @@ Használat:
     export CLAUDE_CODE_OAUTH_TOKEN=...        # a Pro-előfizetés terhére
     python run_benchmark.py --models szabi-8b-v3 llama3.1:8b puli-llumix racka-4b --json-out
     python judge_benchmark.py                 # a legfrissebb benchmark_raw_*.json-t pontozza
-    python judge_benchmark.py --raw benchmark_raw_2026-07-01.json --judge-model sonnet
+    python judge_benchmark.py --raw benchmark_raw_2026-07-01.json --judge-model claude-opus-5
     python judge_benchmark.py --dry-run       # tool-score + a judge-promptok, claude-hívás nélkül
 """
 
@@ -36,6 +36,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -180,37 +181,74 @@ def extract_json(result_text: str) -> dict:
     raise ValueError(f"nincs JSON-objektum a judge válaszában: {result_text[:200]!r}")
 
 
-def call_claude(prompt: str, model: str, timeout: float) -> str:
+# Átmeneti hibák, amiken érdemes újrapróbálni. A rate limit a `--judge-model`
+# Opusra állítása óta VALÓS kockázat: az Opus limitjei szűkebbek és lassabb, mint a
+# Sonnet, `--max-workers 4` mellett pedig könnyen 429-be futunk (PR #33 review).
+_ATMENETI = ("rate limit", "rate_limit", "429", "overload", "529",
+             "too many requests", "capacity", "try again")
+
+
+def _atmeneti_hiba(stderr: str) -> bool:
+    s = stderr.lower()
+    return any(p in s for p in _ATMENETI)
+
+
+def call_claude(prompt: str, model: str, timeout: float, retries: int = 3) -> str:
     """`claude -p` headless hívás; a `.result` mezőt (a modell szövegét) adja vissza.
 
     Az örökölt környezet viszi a `CLAUDE_CODE_OAUTH_TOKEN`-t, ha be van állítva
     (előfizetés terhére). Semleges cwd + `--strict-mcp-config`: nincs projekt-CLAUDE.md
     és nincs MCP-betöltés, így a judge lean marad.
+
+    A modell-ID PONTOS (nem alias), és a `claude-opus-5` a CLI-vel ellenőrizve fel is
+    oldódik (`modelUsage: ['claude-opus-5']`) — a régi `claude-3-*-YYYYMMDD` séma már
+    nem érvényes. Ezt azért írjuk le, hogy ne kelljen újra kiderülnie.
+
+    Hibakezelés — a megőrzött megkülönböztetés:
+      * SZISZTÉMÁS hiba (nincs CLI, auth) -> `JudgeError`, AZONNAL, újrapróbálás nélkül.
+        Ezek nem múlnak el maguktól, és az első kérdésen kell elhasalnia a futásnak.
+      * ÁTMENETI hiba (rate limit, overload) -> exponenciális backoff, majd ha kifogyott
+        a próbálkozás, `JudgeTimeout` — azaz PER-KÉRDÉS degradáció, nem a teljes futás
+        halála. Korábban ezek is `JudgeError`-t adtak, tehát egyetlen 429 elvitte az
+        összes addig elkészült pontozást.
     """
-    try:
-        proc = subprocess.run(
-            ["claude", "-p", prompt, "--output-format", "json",
-             "--model", model, "--strict-mcp-config"],
-            capture_output=True, text=True, timeout=timeout,
-            cwd="/tmp", env=os.environ.copy(),
-        )
-    except FileNotFoundError as e:
-        raise JudgeError(
-            "A `claude` CLI nem található a PATH-on. Telepítsd a Claude Code-ot, "
-            "vagy add meg a --dry-run flaget (csak tool-score + promptok)."
-        ) from e
-    except subprocess.TimeoutExpired as e:
-        raise JudgeTimeout(f"a claude hívás túllépte a {timeout:.0f}s időkorlátot") from e
-    if proc.returncode != 0:
-        raise JudgeError(
-            f"A `claude` CLI hibakóddal állt le ({proc.returncode}). "
-            f"Bejelentkeztél? (CLAUDE_CODE_OAUTH_TOKEN vagy `claude login`)\n"
-            f"  stderr: {proc.stderr.strip()[:300]}"
-        )
-    try:
-        return json.loads(proc.stdout)["result"]
-    except (ValueError, KeyError) as e:
-        raise JudgeError(f"Váratlan `claude` kimenet: {proc.stdout[:300]!r}") from e
+    utolso = ""
+    for kiserlet in range(retries + 1):
+        try:
+            proc = subprocess.run(
+                ["claude", "-p", prompt, "--output-format", "json",
+                 "--model", model, "--strict-mcp-config"],
+                capture_output=True, text=True, timeout=timeout,
+                cwd="/tmp", env=os.environ.copy(),
+            )
+        except FileNotFoundError as e:
+            raise JudgeError(
+                "A `claude` CLI nem található a PATH-on. Telepítsd a Claude Code-ot, "
+                "vagy add meg a --dry-run flaget (csak tool-score + promptok)."
+            ) from e
+        except subprocess.TimeoutExpired as e:
+            raise JudgeTimeout(f"a claude hívás túllépte a {timeout:.0f}s időkorlátot") from e
+
+        if proc.returncode == 0:
+            try:
+                return json.loads(proc.stdout)["result"]
+            except (ValueError, KeyError) as e:
+                raise JudgeError(f"Váratlan `claude` kimenet: {proc.stdout[:300]!r}") from e
+
+        utolso = proc.stderr.strip()[:300]
+        if not _atmeneti_hiba(utolso):
+            raise JudgeError(
+                f"A `claude` CLI hibakóddal állt le ({proc.returncode}). "
+                f"Bejelentkeztél? (CLAUDE_CODE_OAUTH_TOKEN vagy `claude login`)\n"
+                f"  stderr: {utolso}"
+            )
+        if kiserlet < retries:
+            time.sleep(2 ** kiserlet * 5)   # 5s, 10s, 20s
+
+    raise JudgeTimeout(
+        f"átmeneti hiba {retries + 1} próbálkozás után is: {utolso}. "
+        f"Ha ismétlődik, csökkentsd a --max-workers értékét."
+    )
 
 
 def judge_question(q: dict, valaszok: dict[str, str], model: str,
@@ -398,8 +436,12 @@ def parse_args() -> argparse.Namespace:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw", type=Path, default=None, metavar="FÁJL",
                     help="a run_benchmark.py --json-out kimenete (alap: a legfrissebb benchmark_raw_*.json)")
-    ap.add_argument("--judge-model", default="sonnet", metavar="MODELL",
-                    help="a claude judge modellje (alap: sonnet — gyors, olcsó triage)")
+    # PONTOS modell-ID, NEM alias. A `sonnet`/`opus` alias csendben átcsúszik a következő
+    # generációra, és a judge pont attól használható DRIFT-VONALZÓNAK, hogy nem mozdul.
+    # Ha a judge magától lecserélődik, a régi pontszámokhoz mért eltérés értelmét veszti.
+    ap.add_argument("--judge-model", default="claude-opus-5", metavar="MODELL",
+                    help="a claude judge modellje (alap: claude-opus-5 — pontos ID, "
+                         "hogy a pontozás verziók között összevethető maradjon)")
     ap.add_argument("--max-workers", type=int, default=4, metavar="N",
                     help="párhuzamos judge-hívások száma (alap: 4)")
     ap.add_argument("--timeout", type=float, default=180.0, metavar="MP",
