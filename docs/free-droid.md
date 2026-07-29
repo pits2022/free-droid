@@ -300,6 +300,27 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 
 > ⚠️ **Erőforrás:** STT + LLM + TTS együtt ~5.5 GB RAM a 8 GB-ból. Ezért a nehéz LLM-inferencia elsősorban a cloud-ra megy (ha van net), és csak offline fut a teljes stack az RPi-n.
 
+#### 4.1 Alap hangüzenetek (előre renderelt, NEM futásidejű TTS)
+
+Néhány megszólalás **nem mehet át sem az LLM-en, sem a futásidejű Piperen**:
+
+| Esemény | Szöveg | Miért nem futásidejű? |
+| :--- | :--- | :--- |
+| **Boot kész** | „Üdvözöllek." | A rendszerindításkor az orchestrator és a Piper még nem feltétlenül fut. |
+| **Wake word** („Szabi") | „Igen, Teremtő?" | Azonnal kell jönnie — a visszaigazolás nem várhat az STT-re és az LLM-re. |
+
+**Megvalósítás:** build-időben renderelt **WAV fájlok** (`config/sounds/`), lejátszás közvetlenül
+(`aplay`), a hang-pipeline megkerülésével. Ez nem optimalizálás, hanem működési feltétel:
+
+* A **boot-üdvözlés** definíció szerint azelőtt szólal meg, hogy a stack készen állna.
+* A **wake-word válasz** a reakcióidőt adja el. A mérés szerint (2026-07-29) a felhős 8B ~0,2 s
+  alatt kezd válaszolni, de a lánc eleje (wake → STT → hálózat) ennél lassabb; a nyugtázásnak
+  a wake word **detektálásakor** kell jönnie, nem a válasz elkészültekor.
+* Egy olyan üzenet, ami a TTS-motortól függ, **pont abban a hibaállapotban néma**, amiért létezik.
+
+A WAV-ok a Piperrel készülnek (ugyanaz a hang, `hu_HU-anonymous-medium`, azonos pitch-hangolás),
+csak nem futásidőben — így a karakter egységes marad.
+
 ### 5. Mozgásvezérlés – Réteges architektúra (tool-calling)
 
 **Alapelv:** Az LLM SOHA nem vezérli közvetlenül a motorokat. Három réteg:
@@ -611,6 +632,8 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] `voice/`: Whisper.cpp STT (magyar) integráció *(független)*
 - [ ] `voice/`: Piper TTS (`hu_HU-anonymous-medium`) integráció, pitch/sebesség hangolás fiatalosabbra *(független)*
 - [ ] `voice/`: VAD (mikor fejezte be a beszédet) *(független)*
+- [ ] `config/sounds/`: előre renderelt WAV-ok — boot („Üdvözöllek.") és wake-word nyugtázás („Igen, Teremtő?"); lejátszás `aplay`-jel, a TTS-pipeline megkerülésével *(független — Piper kell hozzá, de csak build-időben)*
+- [ ] systemd unit a boot-üdvözléshez, ami NEM függ az orchestratortól *(függ: config/sounds)*
 
 **4.3 Orchestrator & integráció** *(IGÉNYLI: 4.1 + 4.2 minden modul kész)*
 - [ ] `orchestrator/`: fő async loop (wake→STT→LLM→TTS + tool végrehajtás párhuzamosan) *(függ: minden 4.1 + 4.2 modul)*
