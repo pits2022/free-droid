@@ -114,12 +114,19 @@
       register: ollama_sockets
       changed_when: false
 
+    # A minta három wildcard-alakot fog meg, mert az `ss` mindhármat írhatja:
+    #   0.0.0.0  — IPv4 wildcard
+    #   [::]     — IPv6 wildcard (egyes kimenetekben)
+    #   *        — IPv6 wildcard, ahogy az iproute2 6.15 ténylegesen írja (MÉRVE)
+    # A `*` alak a PR #32 review találata volt; nélküle az őr némán átengedte volna.
+    # A két oldali horgony (^|\s) ... (\s|$) kell, különben a `0.0.0.0` részstringként
+    # illeszkedne egy legitim címre is (pl. 100.0.0.0) -> téves riasztás.
+    # A mintát a test_bind_guard.py próbálja ki 8 esettel — ha ITT változik, OTT is.
     - name: Fail if Ollama listens on a wildcard address
       assert:
         that: >-
           ollama_sockets.stdout_lines
-          | select('search', ':11434\\s')
-          | select('search', '(0\\.0\\.0\\.0|\\[::\\]):11434')
+          | select('search', '(^|\\s)(\\*|0\\.0\\.0\\.0|\\[::\\]):11434(\\s|$)')
           | list | length == 0
         fail_msg: >-
           Az Ollama wildcard címen (0.0.0.0 vagy [::]) hallgat a 11434-en — a felhő
