@@ -5,11 +5,6 @@
   systemd:
     daemon_reload: yes
 
-- name: Restart Docker
-  systemd:
-    name: docker
-    state: restarted
-
 - name: Restart Ollama
   systemd:
     name: ollama
