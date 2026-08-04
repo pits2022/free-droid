@@ -14,11 +14,27 @@ ahol a `+RAG` oszlop az offline BM25 retrieverrel (a `robot/` csomag
 kérdésre (éles viselkedés), így a persona/tool-kérdések semlegesek maradnak, és a
 különbség a tudás-dimenzióban (`yotengrit_melyseg`) válik láthatóvá.
 
+Pontozás — BINÁRIS (2026-08-04 óta): `1` = a válasz vállalható a konferencián,
+`0` = nem. A küszöb valós eseményhez kötött, nem absztrakt skálához, ezért
+visszamenőleg is alkalmazható a régi 1–5-ös sorokra (v6/v8/v9/v10 nem vész el).
+A nullák EGY diagnózis-címkét kapnak (`nyelv`/`tool`/`koherencia`/`persona`/
+`tartalom`/`teny`) — a skála egyetlen valódi haszna a diagnózis volt.
+
+A kimenet alapból VAK: kérdésenként véletlen sorrendű `A`/`B`/... oszlopok, a
+feloldókulcs külön fájlba (`benchmark_kulcs_<dátum>.json`). A `--anchor`-ral egy
+korábbi futás 5 válasza is becsempészhető ugyanabba a vak sorba — ha ma más
+pontot kap, mint a korábbi körben, az a PONTOZÓ driftje, nem a modellé.
+
 Használat (az Ollama-nak futnia kell: `ollama serve`):
-    python run_benchmark.py --models m1 m2                    # nyers persona-benchmark
+    python run_benchmark.py --models m1 m2                    # nyers persona-benchmark (vak)
     python run_benchmark.py --models m1 m2 --rag             # nyers + RAG oszloppárok
+    python run_benchmark.py --models m1 m2 --anchor benchmark_raw_2026-07-29_v10.json
     python run_benchmark.py --models m1 --rag --dry-run      # csak a RAG-promptok előnézete (Ollama nélkül)
-    python run_benchmark.py --models m1 m2 m3 --force --json-out
+    python run_benchmark.py --models m1 m2 m3 --force --json-out --no-blind
+
+Kézi pontozás után (összesítés + drift a kulcs alapján):
+    python run_benchmark.py --decode benchmark_eredmeny_<dátum>.md \\
+        --key benchmark_kulcs_<dátum>.json [--baseline benchmark_pontok_<korábbi>.json]
 """
 
 from __future__ import annotations
@@ -26,6 +42,8 @@ from __future__ import annotations
 import argparse
 import http.client
 import json
+import random
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -52,6 +70,19 @@ SEED = 42
 # amúgy is rövid, kimondható válaszokat ad → 512 token bőven elég, és korlátozza a futásidőt.
 NUM_PREDICT = 512
 REQUEST_TIMEOUT = 600.0  # 8B CPU-n + RAG-grounding lassú lehet; a --timeout felülírja
+
+# --- Bináris pontozás ------------------------------------------------------- #
+# A sorcímkék egyben a dekóder horgonyai a markdownban — ha átírod, a --decode is
+# vakon marad rájuk. A `teny` szándékosan ékezet nélküli (JSON-kulcsként utazik).
+PONT_SOR = "Pont (0/1)"
+OK_SOR = "Ok (ha 0)"
+OK_CIMKEK = ("nyelv", "tool", "koherencia", "persona", "tartalom", "teny")
+
+# Vak mód: kérdésenként ennyi oszlopbetűig futhat a mező (4 modell + RAG + horgony bőven belefér).
+BLIND_BETUK = "ABCDEFGHIJ"
+
+# Alapból hány korábbi válasz csempészünk be horgonynak.
+ANCHOR_N = 5
 
 # A 6 dimenzió kívánt sorrendje a kimenetben (az ertekelo_sablon.md szerint).
 DIMENZIO_SORREND = [
@@ -94,6 +125,69 @@ def build_targets(models: list[str], rag: bool) -> list[Target]:
         if rag:
             targets.append(Target(label=f"{m} +RAG", model=m, rag=True))
     return targets
+
+
+# --------------------------------------------------------------------------- #
+# Vak pontozás + horgony
+# --------------------------------------------------------------------------- #
+def load_anchor(path: Path, kerdesek: list[dict], n: int,
+                column: str | None) -> tuple[str, dict[str, dict]]:
+    """Egy KORÁBBI futás `n` válasza horgonynak: (címke, {kérdés_id: cella}).
+
+    A kiválasztás SZÁNDÉKOSAN determinisztikus (a forrásfájl + oszlop nevéből
+    vetett rng): a drift csak akkor mérhető, ha körről körre ugyanaz az 5 kérdés
+    ugyanabból az oszlopból jön — különben a `--baseline` összevetésnek nincs
+    metszete. Ne cseréld `rng`-paraméterre.
+    """
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise BenchmarkError(f"A horgony-fájl nem olvasható ({path}): {e}") from e
+    oszlopok = [o["label"] for o in raw.get("meta", {}).get("oszlopok", [])]
+    if column is None:
+        if not oszlopok:
+            raise BenchmarkError(f"A horgony-fájlban nincs oszlop-metaadat: {path}")
+        column = oszlopok[0]
+    elif column not in oszlopok:
+        raise BenchmarkError(
+            f"A(z) '{column}' oszlop nincs a horgony-fájlban.\n"
+            f"  Választható: {', '.join(oszlopok)}")
+
+    # Csak ép (nem kihagyott) cellák jöhetnek szóba, és csak a mai kérdéskészletből.
+    mai_idk = {q["id"] for q in kerdesek}
+    jelolt = {r["id"]: r["valaszok"][column]
+              for r in raw.get("eredmenyek", [])
+              if r["id"] in mai_idk and (r.get("valaszok") or {}).get(column)
+              and not r["valaszok"][column].get("skipped")}
+    if not jelolt:
+        raise BenchmarkError(
+            f"A(z) '{column}' oszlopban nincs használható válasz a mai kérdésekre: {path}")
+
+    label = f"⚓ {path.stem}::{column}"
+    rng = random.Random(f"{path.name}:{column}")
+    valasztott = rng.sample(sorted(jelolt), min(n, len(jelolt)))
+    return label, {qid: jelolt[qid] for qid in valasztott}
+
+
+def build_blind_plan(kerdesek: list[dict], labels: list[str],
+                     anchor_qids: set[str], anchor_label: str | None,
+                     rng: random.Random) -> dict[str, dict[str, str]]:
+    """{kérdés_id: {oszlopbetű: valódi_label}} — kérdésenként újrakeverve.
+
+    Kérdésenként (nem oszloponként) keverünk, hogy a pontozó ne tanulhassa meg
+    pár kérdés után, melyik betű melyik modell.
+    """
+    plan: dict[str, dict[str, str]] = {}
+    for q in kerdesek:
+        cols = list(labels)
+        if anchor_label and q["id"] in anchor_qids:
+            cols.append(anchor_label)
+        if len(cols) > len(BLIND_BETUK):
+            raise BenchmarkError(
+                f"Túl sok oszlop a vak módhoz ({len(cols)} > {len(BLIND_BETUK)}).")
+        rng.shuffle(cols)
+        plan[q["id"]] = {BLIND_BETUK[i]: c for i, c in enumerate(cols)}
+    return plan
 
 
 # --------------------------------------------------------------------------- #
@@ -301,50 +395,80 @@ def _row(cells: list[str]) -> str:
 
 
 def render_markdown(targets: list[Target], kerdesek: list[dict],
-                    results: dict[str, dict[str, dict]], *, rag: bool) -> str:
-    """results: {oszlop_label: {kérdés_id: {valasz, tok_s, forras}}}."""
+                    results: dict[str, dict[str, dict]], *, rag: bool,
+                    plan: dict[str, dict[str, str]] | None = None,
+                    key_name: str = "") -> str:
+    """results: {oszlop_label: {kérdés_id: {valasz, tok_s, forras}}}.
+
+    `plan` megadásakor a kimenet VAK: kérdésenként az abban rögzített `A`/`B`/...
+    sorrendben jönnek az oszlopok, a modellnevek nélkül. Vak módban a `Forrás` és
+    a `tok/s` sor KIMARAD — mindkettő elárulná az oszlopot (a `+RAG` oszlopnak van
+    forrása, a 3B pedig nagyságrenddel gyorsabb a 8B-nél).
+    """
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     labels = [t.label for t in targets]
-    sep = _row(["---"] * (len(labels) + 1))  # bal oszlop ("") + N oszlop
+    blind = plan is not None
 
     out: list[str] = []
     out.append("# 🧪 Free-Droid persona-benchmark — eredmény\n")
     out.append(f"*Futtatva: {now}*  ")
-    out.append(f"**Oszlopok:** {', '.join(f'`{m}`' for m in labels)}  ")
+    if blind:
+        out.append(f"**Oszlopok:** {len(labels)} modell + esetleges horgony, kérdésenként "
+                   f"véletlen sorrendben (`A`, `B`, ...). A feloldókulcs: `{key_name}` — "
+                   "pontozás KÖZBEN ne nyisd meg.  ")
+    else:
+        out.append(f"**Oszlopok:** {', '.join(f'`{m}`' for m in labels)}  ")
     out.append(f"*Beállítás: temperature={TEMPERATURE}, seed={SEED} (minden oszlopnál azonos)*\n")
-    if rag:
+    if rag and not blind:
         out.append("> A `+RAG` oszlopok a kérdéshez retrievelt Yotengrit-forrást "
                    "injektálják (offline BM25). A `Forrás` sor mutatja a betalált "
                    "chunkokat; üres találatnál a prompt a puszta kérdésre esik vissza.\n")
-    out.append("> A `Pont (1-5)` cellákat és az összesítő táblákat kézzel töltsd ki "
-               "az `ertekelo_sablon.md` pontozási skálája szerint.\n")
+    out.append(
+        f"> **Pontozás — bináris.** `1` = ezt a választ VÁLLALNÁM a Hacktivity színpadán, "
+        f"`0` = nem. Nem absztrakt minőség, hanem egy valós esemény küszöbe.  \n"
+        f"> Nullánál írj EGY okot az `{OK_SOR}` sorba: "
+        f"{' | '.join(f'`{c}`' for c in OK_CIMKEK)}.  \n"
+        "> Korlát: n=25-nél egy 64%-os arány konfidencia-intervalluma 45–83%. "
+        "„Kész-e a demóra?\"-ra jó, „jobb-e 5%-kal?\"-ra nem — arra a judge 1–5-ös skálája marad.\n")
+    if blind:
+        out.append("> A `tok/s` és a `Forrás` sorok szándékosan hiányoznak: elárulnák, melyik "
+                   "oszlop melyik modell. A sebesség a fájl végén, oszloponként összesítve van.\n")
 
     # Kérdések dimenziónként csoportosítva, az oszlopok egymás mellett N oszlopban.
     for dim in ordered_dimensions(kerdesek):
         out.append(f"\n## Dimenzió: {dim}\n")
         for q in [k for k in kerdesek if k["dimenzio"] == dim]:
             qid = q["id"]
+            fejlec = sorted(plan[qid]) if blind else labels
+            forrasok = [plan[qid][b] for b in fejlec] if blind else labels
             out.append(f"### {qid} — {dim}")
             out.append(f"**Kérdés:** {q['kerdes']}\n")
-            out.append(_row([""] + [f"`{m}`" for m in labels]))
-            out.append(sep)
+            out.append(_row([""] + [f"`{h}`" for h in fejlec]))
+            out.append(_row(["---"] * (len(fejlec) + 1)))
             out.append(_row(["Válasz"] + [md_cell(results[m].get(qid, {}).get("valasz", ""))
-                                          for m in labels]))
-            if rag:
-                out.append(_row(["Forrás"] + [fmt_forras(results[m].get(qid, {}).get("forras", []))
-                                              for m in labels]))
-            out.append(_row(["tok/s"] + [fmt_speed(results[m].get(qid, {}).get("tok_s"))
-                                         for m in labels]))
-            out.append(_row(["Pont (1-5)"] + [""] * len(labels)))
+                                          for m in forrasok]))
+            if not blind:
+                if rag:
+                    out.append(_row(["Forrás"] + [fmt_forras(results[m].get(qid, {}).get("forras", []))
+                                                  for m in forrasok]))
+                out.append(_row(["tok/s"] + [fmt_speed(results[m].get(qid, {}).get("tok_s"))
+                                             for m in forrasok]))
+            out.append(_row([PONT_SOR] + [""] * len(fejlec)))
+            out.append(_row([OK_SOR] + [""] * len(fejlec)))
             out.append("")
 
-    # Összesítő tábla (kézzel kitöltendő): dimenzió-soronként, oszloponként egy pont-oszlop.
-    out.append("\n## Összesítő — pontozás (kézzel kitöltendő)\n")
-    out.append(_row(["Dimenzió"] + list(labels) + ["Megjegyzés"]))
-    out.append(_row(["---"] * (len(labels) + 2)))
-    for dim in ordered_dimensions(kerdesek):
-        out.append(_row([dim] + [""] * len(labels) + [""]))
-    out.append(_row(["**Összesen**"] + [""] * len(labels) + [""]))
+    if blind:
+        out.append("\n## Összesítő\n")
+        out.append("A vak oszlopokat nem lehet kézzel összesíteni. Pontozás után futtasd:\n")
+        out.append(f"```bash\npython run_benchmark.py --decode <ez a fájl> --key {key_name}\n```\n")
+    else:
+        # Összesítő tábla (kézzel kitöltendő): dimenziónként a vállalható válaszok aránya.
+        out.append("\n## Összesítő — vállalható válaszok aránya (kézzel kitöltendő)\n")
+        out.append(_row(["Dimenzió"] + list(labels) + ["Megjegyzés"]))
+        out.append(_row(["---"] * (len(labels) + 2)))
+        for dim in ordered_dimensions(kerdesek):
+            out.append(_row([dim] + [""] * len(labels) + [""]))
+        out.append(_row(["**Összesen**"] + [""] * len(labels) + [""]))
 
     # Sebesség-összesítő: átlagos tok/s oszloponként (oszlop/soronként, sok oszlopnál is olvasható).
     out.append("\n## Sebesség-összesítő\n")
@@ -360,6 +484,156 @@ def render_markdown(targets: list[Target], kerdesek: list[dict],
 def _atlag(ertekek: list[float | None]) -> float | None:
     szamok = [x for x in ertekek if x is not None]
     return sum(szamok) / len(szamok) if szamok else None
+
+
+# --------------------------------------------------------------------------- #
+# Dekódolás (a kézzel kitöltött vak markdown feloldása a kulccsal)
+# --------------------------------------------------------------------------- #
+_QID_RE = re.compile(r"^###\s+(\S+)\s+—\s+(\S+)\s*$")
+
+
+def _sor_cellak(line: str) -> list[str]:
+    """Egy markdown tábla-sor cellái. Csak GENERÁLT/kézzel írt rövid sorokra hívjuk
+    (fejléc, Pont, Ok) — a Válasz sorban `\\|`-escape van, azt nem bontjuk."""
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def parse_scored_markdown(md: str) -> dict[str, dict]:
+    """{kérdés_id: {"dimenzio": d, "pont": {fejléc: 0|1}, "ok": {fejléc: str}}}.
+
+    Csak a kitöltött cellákat adja vissza; az üres `Pont` cella kimarad (nem 0!) —
+    a „nem pontoztam" és a „nem vállalható" két különböző dolog.
+    """
+    out: dict[str, dict] = {}
+    qid = fejlec = None
+    for line in md.splitlines():
+        m = _QID_RE.match(line)
+        if m:
+            qid, dim = m.group(1), m.group(2)
+            out[qid] = {"dimenzio": dim, "pont": {}, "ok": {}}
+            fejlec = None
+            continue
+        if qid is None or not line.startswith("|"):
+            continue
+        cellak = _sor_cellak(line)
+        fej, ertekek = cellak[0], cellak[1:]
+        if fej == "" and all(c.startswith("`") for c in ertekek if c):
+            fejlec = [c.strip("`") for c in ertekek]
+        elif fej == PONT_SOR and fejlec:
+            for h, v in zip(fejlec, ertekek):
+                if v in ("0", "1"):
+                    out[qid]["pont"][h] = int(v)
+                elif v:
+                    raise BenchmarkError(
+                        f"{qid} / {h}: a(z) '{v}' nem bináris pont (csak 0 vagy 1).")
+        elif fej == OK_SOR and fejlec:
+            for h, v in zip(fejlec, ertekek):
+                v = v.strip("`")
+                if not v:
+                    continue
+                if v not in OK_CIMKEK:
+                    raise BenchmarkError(
+                        f"{qid} / {h}: ismeretlen ok-címke '{v}'. "
+                        f"Választható: {', '.join(OK_CIMKEK)}")
+                out[qid]["ok"][h] = v
+    return out
+
+
+def decode(md_path: Path, key_path: Path, baseline_path: Path | None,
+           out_path: Path) -> dict:
+    """Vak markdown + kulcs -> modellenkénti arány, ok-címke eloszlás, drift."""
+    try:
+        md = md_path.read_text(encoding="utf-8")
+        key = json.loads(key_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise BenchmarkError(f"Nem olvasható a bemenet: {e}") from e
+
+    kulcs: dict[str, dict[str, str]] = key.get("kulcs", {})
+    if not kulcs:
+        raise BenchmarkError(f"A kulcsfájlban nincs 'kulcs' szekció: {key_path}")
+
+    parsed = parse_scored_markdown(md)
+    # {label: {qid: {"pont": int, "ok": str|None, "dimenzio": str}}}
+    pontok: dict[str, dict[str, dict]] = {}
+    for qid, blokk in parsed.items():
+        terkep = kulcs.get(qid)
+        if terkep is None:
+            raise BenchmarkError(f"A(z) '{qid}' kérdés nincs a kulcsfájlban — "
+                                 "biztosan összetartozik a két fájl?")
+        for betu, pont in blokk["pont"].items():
+            label = terkep.get(betu)
+            if label is None:
+                raise BenchmarkError(f"{qid}: a(z) '{betu}' oszlop nincs a kulcsban.")
+            pontok.setdefault(label, {})[qid] = {
+                "pont": pont, "ok": blokk["ok"].get(betu), "dimenzio": blokk["dimenzio"]}
+
+    report = {
+        "forras": {"eredmeny": md_path.name, "kulcs": key_path.name},
+        "horgony": key.get("horgony"),
+        "pontok": pontok,
+    }
+    if baseline_path is not None:
+        report["drift"] = _drift(pontok, baseline_path)
+    out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report
+
+
+def _drift(pontok: dict[str, dict[str, dict]], baseline_path: Path) -> dict:
+    """Az azonos (label, kérdés) párokon mért eltérés a korábbi körhöz képest.
+
+    A horgony pont ezért van: a címkéje (`⚓ fájl::oszlop`) körről körre ugyanaz,
+    így a metszet nem üres. Eltérés = a PONTOZÓ driftje, nem a modellé.
+    """
+    try:
+        base = json.loads(baseline_path.read_text(encoding="utf-8")).get("pontok", {})
+    except (OSError, ValueError) as e:
+        raise BenchmarkError(f"A baseline nem olvasható ({baseline_path}): {e}") from e
+    kozos, elter = 0, []
+    for label, ma in pontok.items():
+        regi = base.get(label, {})
+        for qid, cella in ma.items():
+            if qid not in regi:
+                continue
+            kozos += 1
+            if regi[qid]["pont"] != cella["pont"]:
+                elter.append({"label": label, "id": qid,
+                              "korabban": regi[qid]["pont"], "most": cella["pont"]})
+    return {"baseline": baseline_path.name, "kozos_cellak": kozos,
+            "elteresek": elter,
+            "egyetertes": (kozos - len(elter)) / kozos if kozos else None}
+
+
+def print_decode_report(report: dict) -> None:
+    pontok = report["pontok"]
+    print(f"# Bináris eredmény — {report['forras']['eredmeny']}\n")
+    print("| Oszlop | Vállalható | Pontozott | Arány |")
+    print("| :--- | ---: | ---: | ---: |")
+    for label, cellak in sorted(pontok.items()):
+        jo = sum(c["pont"] for c in cellak.values())
+        n = len(cellak)
+        print(f"| {label} | {jo} | {n} | {jo / n:.0%} |" if n else f"| {label} | 0 | 0 | — |")
+
+    print("\n## Bukás-okok\n")
+    print("| Oszlop | " + " | ".join(OK_CIMKEK) + " |")
+    print("| :--- |" + " ---: |" * len(OK_CIMKEK))
+    for label, cellak in sorted(pontok.items()):
+        szam = {c: 0 for c in OK_CIMKEK}
+        for cella in cellak.values():
+            if cella["ok"]:
+                szam[cella["ok"]] += 1
+        print(f"| {label} | " + " | ".join(str(szam[c]) for c in OK_CIMKEK) + " |")
+
+    drift = report.get("drift")
+    if drift:
+        print(f"\n## Pontozó-drift ({drift['baseline']})\n")
+        if not drift["kozos_cellak"]:
+            print("Nincs közös cella a baseline-nal — ugyanazt a `--anchor` fájlt/oszlopot "
+                  "használtad mindkét körben?")
+        else:
+            print(f"Közös cella: {drift['kozos_cellak']} · "
+                  f"egyetértés: {drift['egyetertes']:.0%}")
+            for e in drift["elteresek"]:
+                print(f"- `{e['label']}` / {e['id']}: {e['korabban']} → {e['most']}")
 
 
 # --------------------------------------------------------------------------- #
@@ -393,11 +667,54 @@ def parse_args() -> argparse.Namespace:
                     help="írd felül az aznapi benchmark_eredmeny_<dátum>.md-t (különben hiba)")
     ap.add_argument("--json-out", action="store_true",
                     help="a nyers válaszokat is mentsd benchmark_raw_<dátum>.json-be")
+
+    vak = ap.add_argument_group("vak pontozás + horgony")
+    vak.add_argument("--no-blind", dest="blind", action="store_false",
+                     help="ne vakítsd az oszlopokat (modellnevek a fejlécben, kulcsfájl nélkül)")
+    vak.add_argument("--blind-seed", type=int, default=None, metavar="N",
+                     help="a vak keverés magja (alap: rendszer-entrópia); csak reprodukcióhoz")
+    vak.add_argument("--anchor", type=Path, default=None, metavar="RAW.JSON",
+                     help="egy korábbi benchmark_raw_*.json — abból csempész be N már "
+                          "pontozott választ ugyanabba a vak sorba (drift-mérés)")
+    vak.add_argument("--anchor-n", type=int, default=ANCHOR_N, metavar="N",
+                     help=f"hány horgony-válasz kerüljön be (alap: {ANCHOR_N})")
+    vak.add_argument("--anchor-column", default=None, metavar="LABEL",
+                     help="a horgony-fájl melyik oszlopa (alap: az első)")
+
+    dek = ap.add_argument_group("dekódolás (kézi pontozás után)")
+    dek.add_argument("--decode", type=Path, default=None, metavar="EREDMENY.MD",
+                     help="a kitöltött vak eredményfájl feloldása a kulccsal")
+    dek.add_argument("--key", type=Path, default=None, metavar="KULCS.JSON",
+                     help="a --decode-hoz tartozó benchmark_kulcs_<dátum>.json")
+    dek.add_argument("--baseline", type=Path, default=None, metavar="PONTOK.JSON",
+                     help="korábbi --decode kimenet; a közös cellákon drift-et számol")
     return ap.parse_args()
+
+
+def decode_main(args: argparse.Namespace) -> int:
+    if args.key is None:
+        print("HIBA: a --decode-hoz --key is kell (benchmark_kulcs_<dátum>.json).",
+              file=sys.stderr)
+        return 1
+    out_path = args.decode.with_name(
+        args.decode.stem.replace("_eredmeny_", "_pontok_") + ".json")
+    if out_path == args.decode:  # nem a szokásos névminta — ne írjuk felül a bemenetet
+        out_path = args.decode.with_suffix(".pontok.json")
+    try:
+        report = decode(args.decode, args.key, args.baseline, out_path)
+    except BenchmarkError as e:
+        print(f"HIBA: {e}", file=sys.stderr)
+        return 1
+    print_decode_report(report)
+    print(f"\nPontok → {out_path}", file=sys.stderr)
+    return 0
 
 
 def main() -> int:
     args = parse_args()
+    if args.decode is not None:
+        return decode_main(args)
+
     models: list[str] = args.models
 
     if len(set(models)) != len(models):
@@ -452,11 +769,29 @@ def main() -> int:
     prefix = "benchmark" if bench_path.stem == "persona_benchmark" else bench_path.stem
     result_file = HERE / f"{prefix}_eredmeny_{today}.md"
     raw_file = HERE / f"{prefix}_raw_{today}.json"
+    key_file = HERE / f"{prefix}_kulcs_{today}.json"
 
     if result_file.exists() and not args.force:
         print(f"HIBA: {result_file.name} már létezik (kézi pontok elveszhetnek).\n"
               f"  Felülíráshoz add meg a --force flaget.", file=sys.stderr)
         return 1
+
+    # Horgony a drága futás ELŐTT töltődik: egy rossz --anchor útvonal ne 40 perc
+    # generálás után derüljön ki.
+    anchor_label: str | None = None
+    anchor_cells: dict[str, dict] = {}
+    if args.anchor is not None:
+        if not args.blind:
+            print("HIBA: a --anchor csak vak módban van értelme (ne add meg a --no-blind-ot).",
+                  file=sys.stderr)
+            return 1
+        try:
+            anchor_label, anchor_cells = load_anchor(
+                args.anchor, kerdesek, args.anchor_n, args.anchor_column)
+        except BenchmarkError as e:
+            print(f"HIBA: {e}", file=sys.stderr)
+            return 1
+        print(f"Horgony: {len(anchor_cells)} válasz innen: {anchor_label}", file=sys.stderr)
 
     print(f"Benchmark: {len(kerdesek)} kérdés × {len(targets)} oszlop "
           f"({', '.join(labels)})\n", file=sys.stderr)
@@ -468,9 +803,32 @@ def main() -> int:
         print(f"\nHIBA: {e}", file=sys.stderr)
         return 1
 
+    plan: dict[str, dict[str, str]] | None = None
+    if args.blind:
+        if anchor_label:
+            results[anchor_label] = anchor_cells
+        try:
+            plan = build_blind_plan(kerdesek, labels, set(anchor_cells), anchor_label,
+                                    random.Random(args.blind_seed))
+        except BenchmarkError as e:
+            print(f"\nHIBA: {e}", file=sys.stderr)
+            return 1
+        key_file.write_text(json.dumps({
+            "eredmeny": result_file.name,
+            "futtatva": datetime.now().isoformat(timespec="seconds"),
+            "oszlopok": labels,
+            "horgony": {"label": anchor_label, "forras": args.anchor.name,
+                        "oszlop": args.anchor_column,
+                        "kerdesek": sorted(anchor_cells)} if anchor_label else None,
+            "kulcs": plan,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
     result_file.write_text(
-        render_markdown(targets, kerdesek, results, rag=args.rag), encoding="utf-8")
+        render_markdown(targets, kerdesek, results, rag=args.rag, plan=plan,
+                        key_name=key_file.name), encoding="utf-8")
     print(f"\nKész → {result_file}", file=sys.stderr)
+    if plan is not None:
+        print(f"Feloldókulcs → {key_file}  (pontozás közben NE nyisd meg)", file=sys.stderr)
 
     if args.json_out:
         raw = {

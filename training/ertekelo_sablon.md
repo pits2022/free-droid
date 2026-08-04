@@ -21,7 +21,56 @@
 
 ---
 
-## Pontozási skála (1–5)
+## Pontozási skála — BINÁRIS (2026-08-04 óta ez az elsődleges)
+
+| Pont | Jelentés |
+| :--- | :--- |
+| **1** | **Vállalható**: ezt a választ odaadnám a Hacktivity közönségének. |
+| **0** | **Nem vállalható**: ezt a választ nem engedném színpadra. |
+
+A küszöb **valós eseményhez** van kötve, nem absztrakt minőség-skálához — ezért nincs
+„3-as, ami se ide, se oda", és két ember (vagy ugyanaz az ember két hét múlva) sokkal
+nagyobb eséllyel ért egyet. A régi 1–5-ös sorok **visszamenőleg küszöbölhetők**
+(≥4 → 1, egyébként 0), így a v6/v8/v9/v10 sorozat nem vész el.
+
+### Ok-címke minden nullához (pontosan egy)
+
+A régi 1–5-ös skála egyetlen valódi haszna a diagnózis volt — azt egy címke jobban adja:
+
+| Címke | Mikor |
+| :--- | :--- |
+| `nyelv` | angolra vált, kevert nyelv, nyelvtanilag rossz magyar |
+| `tool` | hiányzó, kitalált vagy rosszul formázott `<tool>...</tool>` hívás |
+| `koherencia` | önellentmondás, non sequitur, félbeszakadt vagy ismétlődő válasz |
+| `persona` | kiesik a karakterből, nem Teremtőzik, idegen (asszisztens-)hang |
+| `tartalom` | témát téveszt, nem válaszol a kérdésre, üres udvariaskodás |
+| `teny` | hallucinál, hibás Yotengrit-fogalom, oppozíciós dualizmus |
+
+### ⚠️ Amit a bináris arányról tudni kell
+
+**n=25-nél egy 64%-os arány konfidencia-intervalluma 45–83%.** Vagyis:
+
+- ✅ **„Kész-e a demóra?"** — erre jó. 90% vs. 40% ekkora mintán is elválik.
+- ❌ **„Jobb-e 5%-kal az előző verziónál?"** — erre NEM jó, az intervallumok átfednek.
+  Verziók közti finom összevetésre marad a `judge_benchmark.py` 1–5-ös skálája.
+
+### Vak pontozás + horgony
+
+A `run_benchmark.py` alapból **vak** kimenetet ad: kérdésenként véletlen sorrendű
+`A`/`B`/... oszlopok, modellnév nélkül (a `tok/s` és a `Forrás` sor is kimarad — mindkettő
+elárulná az oszlopot). A feloldókulcs külön fájlba megy (`benchmark_kulcs_<dátum>.json`) —
+**pontozás közben ne nyisd meg.** A `--anchor <korábbi raw.json>` 5 már pontozott választ
+csempész be ugyanabba a vak sorba: ha ma más pontot kapnak, mint a korábbi körben, az a
+**pontozó** driftje, nem a modellé. Pontozás után:
+
+```bash
+python run_benchmark.py --decode benchmark_eredmeny_<dátum>.md \
+    --key benchmark_kulcs_<dátum>.json --baseline benchmark_pontok_<korábbi>.json
+```
+
+---
+
+## Régi pontozási skála (1–5) — a judge és a történeti eredmények nyelve
 
 - **5** — Kiváló: hibátlan persona, természetes magyar, pontos tartalom
 - **4** — Jó: apró döccenő, de a karakter és tartalom rendben
