@@ -21,6 +21,7 @@ epoch-szám), a 8B-nél csak a nyerteset és a szomszédját.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -29,13 +30,54 @@ from config import LORA_TARGET_MODULES, VARIANTS, TrainConfig
 HERE = Path(__file__).resolve().parent
 
 
+_CKPT = re.compile(r"^checkpoint-(\d+)$")
+
+
 def checkpoint_dirs(out: Path) -> list[Path]:
-    """A mentett checkpointok, epoch-sorrendben (checkpoint-<lépés>)."""
+    """A mentett checkpointok, epoch-sorrendben (checkpoint-<lépés>).
+
+    Szigorú minta + is_dir(): a `startswith("checkpoint-")` + `split("-")[1]` bármi
+    másra ValueError-t dobna (letöltés-visszatöltés után maradt `checkpoint-100.zip`,
+    `checkpoint-bak`, félbehagyott mentés). Traceback helyett maradjon üres a lista,
+    és a hívó adjon értelmes hibaüzenetet — a felhasználó itt már elköltötte a GPU-időt.
+    """
     ck = out / "checkpoints"
     if not ck.is_dir():
         return []
-    return sorted((p for p in ck.iterdir() if p.name.startswith("checkpoint-")),
-                  key=lambda p: int(p.name.split("-")[1]))
+    parok = [(m, p) for p in ck.iterdir() if p.is_dir() and (m := _CKPT.match(p.name))]
+    return [p for _, p in sorted(parok, key=lambda mp: int(mp[0].group(1)))]
+
+
+def read_state_dict(ckpt: Path) -> dict:
+    """A checkpoint adapter-súlyai. Külön függvény, hogy a VALIDÁCIÓ a nehéz
+    (peft/torch/unsloth) importok ELŐTT futhasson — és tesztelhető legyen nélkülük."""
+    st = ckpt / "adapter_model.safetensors"
+    bin_ = ckpt / "adapter_model.bin"
+    if st.exists():
+        from safetensors.torch import load_file
+        return load_file(str(st))
+    if bin_.exists():
+        import torch
+        # weights_only=True: a .bin pickle, és a default unpickle tetszőleges kódot
+        # futtatna. Itt csak tenzorok vannak, tehát nincs miért megengedni többet.
+        return torch.load(str(bin_), map_location="cpu", weights_only=True)
+    raise SystemExit(f"HIBA: nincs adapter-súly a checkpointban: {ckpt}")
+
+
+def assert_lora_weights(sd: dict, ckpt: Path) -> int:
+    """Hard fail, ha a state dictben nincs LoRA-tenzor.
+
+    Ez a legdrágább CSENDES hiba ezen az úton: üres/rossz/base-modell checkpointtal a
+    `set_peft_model_state_dict` SZÓ NÉLKÜL lefut, és a base modellt exportálnánk ki
+    fine-tune gyanánt. A mérésben ez nem crashként jelenne meg, hanem úgy, hogy
+    „a v11 nem hozott javulást" — 15-25 perc export és egy teljes benchmark-kör után.
+    """
+    lora = [k for k in sd if "lora_A" in k or "lora_B" in k]
+    if not lora:
+        raise SystemExit(
+            f"HIBA: a checkpointban nincs LoRA-súly ({len(sd)} kulcs, egyik sem lora_A/B): "
+            f"{ckpt}\n  Így a BASE modellt exportálnánk fine-tune gyanánt.")
+    return len(lora)
 
 
 def load_adapter_weights(model, ckpt: Path) -> None:
@@ -44,24 +86,14 @@ def load_adapter_weights(model, ckpt: Path) -> None:
     Nem `from_pretrained`-del töltünk, mert a modellt az Unsloth már felpatchelte;
     csak a súlyokat cseréljük ki alatta.
     """
-    from peft import set_peft_model_state_dict
+    sd = read_state_dict(ckpt)
+    print(f"  LoRA-tenzor a checkpointban: {assert_lora_weights(sd, ckpt)}")
 
-    st = ckpt / "adapter_model.safetensors"
-    bin_ = ckpt / "adapter_model.bin"
-    if st.exists():
-        from safetensors.torch import load_file
-        sd = load_file(str(st))
-    elif bin_.exists():
-        import torch
-        # weights_only=True: a .bin pickle, és a default unpickle tetszőleges kódot
-        # futtatna. Itt csak tenzorok vannak, tehát nincs miért megengedni többet.
-        sd = torch.load(str(bin_), map_location="cpu", weights_only=True)
-    else:
-        raise SystemExit(f"HIBA: nincs adapter-súly a checkpointban: {ckpt}")
+    from peft import set_peft_model_state_dict
     res = set_peft_model_state_dict(model, sd)
-    hianyzo = getattr(res, "unexpected_keys", None)
-    if hianyzo:
-        print(f"figyelem: {len(hianyzo)} nem várt kulcs a checkpointban", file=sys.stderr)
+    nem_vart = getattr(res, "unexpected_keys", None)
+    if nem_vart:
+        print(f"figyelem: {len(nem_vart)} nem várt kulcs a checkpointban", file=sys.stderr)
 
 
 def main() -> int:
