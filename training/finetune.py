@@ -214,6 +214,15 @@ def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
         warmup_ratio=cfg.warmup_ratio,
         weight_decay=cfg.weight_decay,
         logging_steps=10,
+        # Epochonként ments adaptert, ne csak a futás végén. Egy GPU-bérlésből így
+        # `epochs` darab jelölt lesz, és az epoch-szám kérdése egyetlen futásból
+        # dől el (vak arénával), nem `epochs` darab bérlésből.
+        # CAVEAT: az 1. epoch checkpointja NEM azonos egy önálló 1-epochos futással —
+        # a linear LR-schedule a TELJES futásra van kifeszítve, tehát itt az 1. epoch
+        # végén a tanulási ráta még magas, nem futott le nullába. Modellnek attól még
+        # érvényes (sőt, nincs a lecsengésbe szorítva); csak ne hívd „az 1-epochos run"-nak.
+        save_strategy="epoch",
+        save_total_limit=None,   # mindegyik epoch kell — ezek a jelöltek
         optim="adamw_8bit",
         seed=cfg.seed,
         fp16=not torch.cuda.is_bf16_supported(),
