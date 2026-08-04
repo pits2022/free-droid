@@ -145,6 +145,23 @@ won't boot on stage, to protect data that is either public or revocable in minut
     sentence teaches a tic). **Run order is enforced by the script**: merge → archive staging →
     pass → re-split. Skipping the archive step duplicates the corpus (976 → 1055), because the
     merge key is `(instruction, output)` and the pass changes outputs.
+
+  **v11 fine-tune flow — one rental, three epoch candidates** (`colab_finetune_szabi_v11.ipynb`).
+  The round moves two things at once (new dataset + `epochs` 1→3, `--preset gentle --epochs 3`),
+  which looks like it breaks the single-variable rule. It doesn't, for two reasons worth keeping:
+  at 1 epoch each of the 18 new long examples is seen **once**, so a null coherence result would be
+  uninterpretable ("data doesn't work" vs "1 epoch can't learn it"); and the two changes have
+  **disjoint instruments** — epochs read off the loss curve, the dataset off answer length. Decisive
+  detail: more epochs on a terse corpus makes answers *shorter*, so long answers can only come from
+  the data. `finetune.py` now sets `save_strategy="epoch"`, and `export_checkpoint.py` turns any
+  checkpoint into GGUF + adapter (the in-training export only ever covered the final epoch). **The
+  epoch-1 checkpoint is not identical to a standalone 1-epoch run** — the linear LR schedule spans
+  the whole run, so the rate is still high there. Selection is by `compare_epochs.py` (coherence
+  answer length, greeting reciprocation, vocative rate, plus invented-tool / bare-tool regression
+  guards), *not* by loss (a veto only) and *not* by the blind arena (n=25 can't resolve adjacent
+  epochs). v10 baseline to beat: coherence answers averaged **25 words on the 8B** (shorter than the
+  3B's 55), greeting reciprocated **0/2**, vocative **0%**. `lora_r` 8→16 is deferred to v12 — it
+  has no independent instrument and needs its own run.
 - `robot/` — RPi 5 Python control software (`freedroid` package, `src/freedroid/`). **Scaffold only** —
   interfaces + `NotImplementedError` stubs; `config/` carries the real pinout/tunables. Pi-only (direct `lgpio`,
   no off-Pi mock), managed with **uv**. Implementation is Phase 4 (needs hardware + fine-tuned model + cloud).
