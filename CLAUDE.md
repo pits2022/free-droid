@@ -119,12 +119,32 @@ won't boot on stage, to protect data that is either public or revocable in minut
 - `docs/free-droid.md` — **the spec** (authoritative).
 - `infra/terraform/` — Hetzner provisioning (`main.tf` + S3 state backend; `cloud/` module).
 - `infra/ansible/` — `site.yml` + roles `wireguard_setup`, `ai_stack`, `edge_robot`.
-- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (744 ex.), `train.jsonl` (670), `val.jsonl` (74),
+- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (976 ex.), `train.jsonl` (878), `val.jsonl` (98),
   `expansion_only.json` (92 new). Categories include `oracle_routing` (15) — so the dataset uses `set_oracle()` and the
   `<puska/>` hint (the grammar contract test guards this). `old/` is superseded per-category data. Also
   `persona_benchmark.json` (25 Q A/B test) + `ertekelo_sablon.md`, and the Unsloth scaffold (`finetune.py`, `config.py`,
   `colab_finetune.ipynb`, `colab_finetune_szabi.ipynb` (the v2 fine-tune on the 745-ex dataset), `Modelfile`, `system_prompt.txt`).
   The dataset since gained a terse-góbés persona voice (`persona_voice.md`), a tool-call expansion (`dataset/tool_calls_expansion.json` — tool examples 6%→17%), and a RAG-grounding category (`dataset/rag_category.json`, "válasz adott kontextusból"). `dataset/merge_and_split.py` merges the staged `tool_calls_expansion.json` + `rag_category.json` into `freedroid_full.json` and regenerates the split. RAG knowledge source: `rag/yotengrit.md` → `rag/yotengrit_corpus.json` (31 chunks, `python -m freedroid.rag.corpus`).
+
+  **v11 round (2026-08-04) — three measured fixes for the v10 regressions.** All three are
+  *ratio* problems, not missing categories, so the numbers matter more than the example count:
+  - **Long answers** (`_build_long_coherence.py`, 18+8 ex.): the corpus had **0 examples over 99
+    words, max 66** — the model had never seen a long answer, which is why `koherencia` scored 0/3
+    and no epoch count fixed it. The batch adds 100–106-word answers **built from ≤12-word
+    sentences** (the sentence rule does not relax — chained short sentences are what teaches
+    coherence). Long answers fire only on an explicit explanation cue; a short contrast group on
+    the same topics stops the model learning "topic → long".
+  - **Greetings** (`_build_greetings.py`, 35 ex.): greetings were **not** missing (16 existed) —
+    they were bare returns with no second sentence, so the terse voice had nothing to compress and
+    filled with ornament ("Jó reggelt" → "Reggeli árnyék."). Fix = greeting + **one concrete
+    situational sentence**. Audience-facing greetings deliberately carry no vocative.
+  - **Vocative** (`_build_vocative_pass.py`): the only script that **rewrites `freedroid_full.json`
+    in place** — 25 new examples cannot move a 900-example corpus's ratio. It (1) unified the form
+    (the corpus taught `Teremtő` over `Teremtőm` 4:1, contradicting `persona_voice.md`; the card
+    won — 218 rewrites) and (2) topped the rate up 24% → **50%**, not 100% (a vocative in every
+    sentence teaches a tic). **Run order is enforced by the script**: merge → archive staging →
+    pass → re-split. Skipping the archive step duplicates the corpus (976 → 1055), because the
+    merge key is `(instruction, output)` and the pass changes outputs.
 - `robot/` — RPi 5 Python control software (`freedroid` package, `src/freedroid/`). **Scaffold only** —
   interfaces + `NotImplementedError` stubs; `config/` carries the real pinout/tunables. Pi-only (direct `lgpio`,
   no off-Pi mock), managed with **uv**. Implementation is Phase 4 (needs hardware + fine-tuned model + cloud).
