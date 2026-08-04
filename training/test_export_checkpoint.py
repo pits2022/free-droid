@@ -91,16 +91,32 @@ def test_adapter_config_missing_is_a_clear_error() -> None:
     raise AssertionError("adapter_config.json nélkül nem szabad vaktában geometriát tippelni")
 
 
+class _T:
+    def __init__(self, *shape):
+        self.shape = shape
+
+
 def test_rank_mismatch_is_caught() -> None:
-    class _T:
-        shape = (8, 2048)
-    sd = {"base_model.model.layers.0.self_attn.q_proj.lora_A.weight": _T()}
+    sd = {"base_model.model.layers.0.self_attn.q_proj.lora_A.weight": _T(8, 2048)}
     try:
         ec.assert_rank(sd, expected_r=16, ckpt=Path("/tmp/checkpoint-1"))
     except SystemExit as e:
         assert "rangja 8" in str(e), str(e)
         return
     raise AssertionError("a rang-eltérésnek hard failt kell okoznia")
+
+
+def test_rank_match_reports_verified() -> None:
+    sd = {"base_model.model.layers.0.self_attn.q_proj.lora_A.weight": _T(8, 2048)}
+    assert ec.assert_rank(sd, expected_r=8, ckpt=Path("/tmp/checkpoint-1")) is True
+
+
+def test_unverifiable_rank_does_not_pass_silently() -> None:
+    """PR #37 review: ha nincs 2D lora_A, az őr korábban némán átengedett — ami
+    kívülről pontosan úgy néz ki, mint a sikeres ellenőrzés. Most False + figyelmeztetés."""
+    sd = {"base_model.model.layers.0.self_attn.q_proj.lora_B.weight": _T(2048, 8),
+          "valami.egyeb": object()}
+    assert ec.assert_rank(sd, expected_r=8, ckpt=Path("/tmp/checkpoint-1")) is False
 
 
 def test_lora_guard_accepts_real_adapter() -> None:
@@ -117,5 +133,7 @@ if __name__ == "__main__":
     test_geometry_comes_from_the_checkpoint_not_the_variant()
     test_adapter_config_missing_is_a_clear_error()
     test_rank_mismatch_is_caught()
+    test_rank_match_reports_verified()
+    test_unverifiable_rank_does_not_pass_silently()
     test_lora_guard_accepts_real_adapter()
     print("MIND ZÖLD")

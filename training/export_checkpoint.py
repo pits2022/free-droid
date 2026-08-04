@@ -105,9 +105,15 @@ def assert_lora_weights(sd: dict, ckpt: Path) -> int:
     return len(lora)
 
 
-def assert_rank(sd: dict, expected_r: int, ckpt: Path) -> None:
+def assert_rank(sd: dict, expected_r: int, ckpt: Path) -> bool:
     """A lora_A tenzor első dimenziója = a rang. Ha nem egyezik a felépített modellel,
-    a betöltés vagy elhasal, vagy — rosszabb — csendben félrement súlyokat hagy."""
+    a betöltés vagy elhasal, vagy — rosszabb — csendben félrement súlyokat hagy.
+
+    Visszaadja, hogy sikerült-e ELLENŐRIZNI. Ha egyetlen 2D `lora_A` tenzort sem talál
+    (szokatlan kulcsnév, nem-tenzor érték), akkor NEM hallgat: a néma átengedés
+    ugyanúgy néz ki, mint a sikeres ellenőrzés, és pont ez a hamis biztonság a baj.
+    (PR #37 review.)
+    """
     for k, t in sd.items():
         if "lora_A" in k and hasattr(t, "shape") and len(t.shape) == 2:
             if t.shape[0] != expected_r:
@@ -115,7 +121,11 @@ def assert_rank(sd: dict, expected_r: int, ckpt: Path) -> None:
                     f"HIBA: a checkpoint rangja {t.shape[0]}, a felépített modellé "
                     f"{expected_r} ({k}).\n  Ez alak-eltérés — az adapter_config.json és a "
                     f"súlyok nem tartoznak össze: {ckpt}")
-            return
+            return True
+    print(f"figyelem: a rang nem ellenőrizhető ({len(sd)} kulcs, nincs köztük 2D lora_A) — "
+          f"az adapter_config.json r={expected_r} értékét nem tudtam a súlyokkal egyeztetni",
+          file=sys.stderr)
+    return False
 
 
 def load_adapter_weights(model, ckpt: Path, expected_r: int | None = None) -> None:
