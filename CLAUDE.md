@@ -207,6 +207,24 @@ Benchmarks are not retired: they stay the *comparable, scored* regression check 
 versions (`run_benchmark.py` + `judge_benchmark.py`). Chat finds new failures; the
 benchmarks tell you whether a fix cost you something elsewhere.
 
+### Human scoring is binary + blind (2026-08-04)
+
+`run_benchmark.py` emits a **binary** template: `1` = this answer is conference-acceptable,
+`0` = it isn't — a threshold tied to a real event, not an abstract scale, so old 1–5 rounds
+stay usable by thresholding (≥4 → 1). Every `0` takes exactly **one** diagnosis label:
+`nyelv` / `tool` / `koherencia` / `persona` / `tartalom` / `teny`.
+
+Output is **blind by default**: per-question shuffled `A`/`B`/… columns, no model names, and
+the `tok/s` + `Forrás` rows suppressed (both would identify the column). The key goes to a
+separate `benchmark_kulcs_<date>.json`. `--anchor <older raw.json>` smuggles 5 already-scored
+answers into the same blind row — a changed score there is **scorer** drift, not model drift;
+the anchor pick is deterministic on purpose (source file + column), otherwise successive
+rounds share no cells to compare. Decode after scoring with
+`run_benchmark.py --decode <md> --key <key> [--baseline <earlier pontok.json>]`.
+
+**The limit, stated up front:** at n=25 a 64% rate has a 45–83% confidence interval. Good for
+"is it demo-ready?", useless for "is it 5% better?" — that stays the judge's 1–5 scale.
+
 ### A/B model evaluation — concluded: Llama wins
 Run the 25 questions in `training/persona_benchmark.json` against the fine-tuned candidates, score with
 `training/ertekelo_sablon.md` (6 dimensions, 1–5). The decision was made on this **Hungarian persona benchmark, not generic
