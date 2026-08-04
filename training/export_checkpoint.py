@@ -21,11 +21,12 @@ epoch-szám), a 8B-nél csak a nyerteset és a szomszédját.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
 
-from config import LORA_TARGET_MODULES, VARIANTS, TrainConfig
+from config import VARIANTS, TrainConfig
 
 HERE = Path(__file__).resolve().parent
 
@@ -46,6 +47,30 @@ def checkpoint_dirs(out: Path) -> list[Path]:
         return []
     parok = [(m, p) for p in ck.iterdir() if p.is_dir() and (m := _CKPT.match(p.name))]
     return [p for _, p in sorted(parok, key=lambda mp: int(mp[0].group(1)))]
+
+
+def read_adapter_config(ckpt: Path) -> dict:
+    """A checkpoint SAJÁT LoRA-geometriája (`adapter_config.json`).
+
+    MIÉRT INNEN, és nem a `VARIANTS`/`--preset`-ből: a v11 futás `--preset gentle`-lel
+    ment (r=8, alpha=8, dropout=0.05), a `VARIANTS["llama"]` viszont a TrainConfig
+    defaultjait hozza (r=16, alpha=16, dropout=0.0). Az első verzió az utóbbival épített
+    adaptert, és az r=8-as súlyokat próbálta r=16-os alakba tölteni — alak-eltérés.
+
+    A preset kézi átadása (`--preset gentle`) is megoldaná, de azt el lehet felejteni,
+    és a hiba csendes is lehet. A checkpoint mellett ott a saját configja: az soha nem
+    tud eltérni attól, amivel ténylegesen tanult.
+    """
+    cfg_path = ckpt / "adapter_config.json"
+    if not cfg_path.exists():
+        raise SystemExit(
+            f"HIBA: nincs adapter_config.json a checkpointban: {ckpt}\n"
+            "  Enélkül nem tudni, milyen LoRA-geometriával tanult (r/alpha/dropout).")
+    raw = json.loads(cfg_path.read_text(encoding="utf-8"))
+    hianyzo = [k for k in ("r", "lora_alpha", "target_modules") if k not in raw]
+    if hianyzo:
+        raise SystemExit(f"HIBA: hiányzó kulcs(ok) az adapter_config.json-ban: {hianyzo}")
+    return raw
 
 
 def read_state_dict(ckpt: Path) -> dict:
@@ -80,7 +105,30 @@ def assert_lora_weights(sd: dict, ckpt: Path) -> int:
     return len(lora)
 
 
-def load_adapter_weights(model, ckpt: Path) -> None:
+def assert_rank(sd: dict, expected_r: int, ckpt: Path) -> bool:
+    """A lora_A tenzor első dimenziója = a rang. Ha nem egyezik a felépített modellel,
+    a betöltés vagy elhasal, vagy — rosszabb — csendben félrement súlyokat hagy.
+
+    Visszaadja, hogy sikerült-e ELLENŐRIZNI. Ha egyetlen 2D `lora_A` tenzort sem talál
+    (szokatlan kulcsnév, nem-tenzor érték), akkor NEM hallgat: a néma átengedés
+    ugyanúgy néz ki, mint a sikeres ellenőrzés, és pont ez a hamis biztonság a baj.
+    (PR #37 review.)
+    """
+    for k, t in sd.items():
+        if "lora_A" in k and hasattr(t, "shape") and len(t.shape) == 2:
+            if t.shape[0] != expected_r:
+                raise SystemExit(
+                    f"HIBA: a checkpoint rangja {t.shape[0]}, a felépített modellé "
+                    f"{expected_r} ({k}).\n  Ez alak-eltérés — az adapter_config.json és a "
+                    f"súlyok nem tartoznak össze: {ckpt}")
+            return True
+    print(f"figyelem: a rang nem ellenőrizhető ({len(sd)} kulcs, nincs köztük 2D lora_A) — "
+          f"az adapter_config.json r={expected_r} értékét nem tudtam a súlyokkal egyeztetni",
+          file=sys.stderr)
+    return False
+
+
+def load_adapter_weights(model, ckpt: Path, expected_r: int | None = None) -> None:
     """A checkpoint LoRA-súlyainak beolvasása a már felépített PEFT-modellbe.
 
     Nem `from_pretrained`-del töltünk, mert a modellt az Unsloth már felpatchelte;
@@ -88,6 +136,8 @@ def load_adapter_weights(model, ckpt: Path) -> None:
     """
     sd = read_state_dict(ckpt)
     print(f"  LoRA-tenzor a checkpointban: {assert_lora_weights(sd, ckpt)}")
+    if expected_r is not None:
+        assert_rank(sd, expected_r, ckpt)
 
     from peft import set_peft_model_state_dict
     res = set_peft_model_state_dict(model, sd)
@@ -135,13 +185,22 @@ def main() -> int:
 
     from unsloth import FastLanguageModel  # must precede trl/transformers/peft
 
+    # A LoRA-geometria a CHECKPOINTBÓL jön, nem a VARIANTS-ból — lásd read_adapter_config().
+    ac = read_adapter_config(ckpt)
+    print(f"a checkpoint geometriája: r={ac['r']}, alpha={ac['lora_alpha']}, "
+          f"dropout={ac.get('lora_dropout', 0.0)}, "
+          f"target_modules={len(ac['target_modules'])} db")
+    if ac["r"] != cfg.lora_r:
+        print(f"  (a VARIANTS['{args.variant}'] r={cfg.lora_r} lenne — a checkpointé nyer)")
+
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=cfg.base_model, max_seq_length=cfg.max_seq_length, load_in_4bit=True)
     model = FastLanguageModel.get_peft_model(
-        model, r=cfg.lora_r, lora_alpha=cfg.lora_alpha, lora_dropout=cfg.lora_dropout,
-        target_modules=list(LORA_TARGET_MODULES),
+        model, r=ac["r"], lora_alpha=ac["lora_alpha"],
+        lora_dropout=ac.get("lora_dropout", 0.0),
+        target_modules=sorted(ac["target_modules"]),
         use_gradient_checkpointing="unsloth", random_state=cfg.seed)
-    load_adapter_weights(model, ckpt)
+    load_adapter_weights(model, ckpt, expected_r=ac["r"])
 
     # Az adaptert IS mentsük külön: a HF Space az adaptert tölti be, nem a GGUF-ot,
     # és egy epoch-jelöltet ott is meg kell tudni nézni.
