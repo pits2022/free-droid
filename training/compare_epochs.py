@@ -48,6 +48,13 @@ MEGSZOLITAS = re.compile(r"(,\s*Teremtőm[!?.…:;]|(?<![\wáéíóöőúüű])T
 # Köszönés-próba: a kérdés köszönést KÉR (nem a válasz dönti el, hogy annak kellett-e lennie).
 KOSZONES_PROBA = re.compile(r"(köszönj|üdvözöl|búcsúz|jó reggelt|jó napot|jó estét|szia)", re.I)
 TOOL_BLOKK = re.compile(r"<tool>.*?</tool>", re.S)
+# Tool-SZÁNDÉK: a modell nyilván hívni akart, de a szintaxis megcsonkult. A v11 3B-ben
+# ilyen volt a `*tool>camera tilt up 30</tool>` (csillag a `<` helyett) és a
+# `(camera tilt up 30)` zárójeles ál-tool. Ezek a parsernek NEM léteznek, tehát a
+# "kitalált tool-név" számláló sem látja őket — csendben elvesznek. Fallbacknél ez a
+# legrosszabb fajta hiba: a mozgásparancs nem hajtódik végre, és nyoma sincs.
+TOOL_SZANDEK = re.compile(r"(?:[*<]\s*tool\s*>|\(\s*(?:move|turn|stop|camera|set_speed|"
+                          r"set_mode|scan_wifi|set_oracle)\b[^)]*\))", re.I)
 
 
 def cellak(raw: dict, label: str) -> list[tuple[dict, str]]:
@@ -67,6 +74,10 @@ def meres(parok: list[tuple[dict, str]]) -> dict:
     kitalalt = [c.name for _, v in parok for c in _safe_parse(v) if c.name not in KNOWN_TOOLS]
     # Csupasz tool-hívás: a válaszban a tool-blokkon kívül nincs érdemi mondat.
     csupasz = sum(1 for v in toolos if len(TOOL_BLOKK.sub("", v).split()) < 3)
+    # Elveszett blokk: annyival több tool-SZÁNDÉK van a szövegben, mint ahány ép
+    # <tool>...</tool> blokk. A különbség az, ami a parserig el sem jut.
+    elveszett = sum(max(0, len(TOOL_SZANDEK.findall(v)) - len(TOOL_BLOKK.findall(v)))
+                    for _, v in parok)
     hosszak = [len(v.split()) for v in koherencia]
     return {
         "n": len(parok),
@@ -79,6 +90,7 @@ def meres(parok: list[tuple[dict, str]]) -> dict:
         "kitalalt_tool": len(kitalalt),
         "kitalalt_nevek": sorted(set(kitalalt)),
         "csupasz_tool": csupasz,
+        "elveszett_tool": elveszett,
         "toolos": len(toolos),
     }
 
@@ -119,6 +131,7 @@ def main() -> int:
         f"{m[lab]['megszolitas']}/{m[lab]['n']} = {100 * m[lab]['megszolitas'] / m[lab]['n']:.0f}%"
         if m[lab]["n"] else "—" for lab in labels) + " |")
     sor("KITALÁLT tool-név ⬇", "kitalalt_tool")
+    sor("ELVESZETT tool-blokk ⬇", "elveszett_tool")
     print("| csupasz tool-hívás ⬇ | " + " | ".join(
         f"{m[lab]['csupasz_tool']}/{m[lab]['toolos']}" for lab in labels) + " |")
 
