@@ -236,7 +236,8 @@ class RagContext:
 # Ollama
 # --------------------------------------------------------------------------- #
 def ollama_generate(model: str, prompt: str,
-                    timeout: float = REQUEST_TIMEOUT) -> tuple[str, float | None]:
+                    timeout: float = REQUEST_TIMEOUT,
+                    seed: int | None = None) -> tuple[str, float | None]:
     """Egy prompt elküldése az Ollama /api/generate végponton.
 
     Visszaad: (válasz_szöveg, tokens_per_sec | None). A modell SYSTEM promptja
@@ -248,7 +249,11 @@ def ollama_generate(model: str, prompt: str,
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": TEMPERATURE, "seed": SEED,
+        # A seed alapból FIX (SEED) — a benchmark oszlopai csak így összevethetők.
+        # A `seed` paraméter az ismétléses megbízhatóság-mérésé (tool_reliability.py):
+        # azonos seeddel N ismétlés ugyanazt a választ adná, tehát az átlagolás
+        # látszatművelet lenne.
+        "options": {"temperature": TEMPERATURE, "seed": SEED if seed is None else seed,
                     "num_predict": NUM_PREDICT},
     }).encode("utf-8")
     req = urllib.request.Request(
