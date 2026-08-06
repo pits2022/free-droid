@@ -119,12 +119,13 @@ def hossz_retegek(r: Retriever, n: int, kerdesek: list[str], alt: bool,
 def naplobol(mappa: Path) -> list[str]:
     qs = set()
     for f in sorted(mappa.rglob("*.jsonl")):
-        for sor in f.read_text(encoding="utf-8").splitlines():
-            if sor.strip():
-                try:
-                    qs.add(json.loads(sor)["user"].strip())
-                except (ValueError, KeyError):
-                    continue
+        with f.open(encoding="utf-8") as fp:      # soronként: a napló nő, a memória ne
+            for sor in fp:
+                if sor.strip():
+                    try:
+                        qs.add(json.loads(sor)["user"].strip())
+                    except (ValueError, KeyError):
+                        continue
     return sorted(q for q in qs if q)
 
 
