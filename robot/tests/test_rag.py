@@ -65,10 +65,30 @@ def test_chunker_drops_rules_and_trailing_note():
     assert all("---" not in c.text and "editor note" not in c.text for c in out)
 
 
+def test_chunker_drops_todo_bodies():
+    """A heading whose answer is still a TODO must produce NO chunk.
+
+    The note wraps over several lines, so a per-line filter is not enough: the
+    continuation lines would survive as the body and be served to the model as Szabi's
+    own knowledge. That happened on the first attempt (the corpus went 67 -> 75), hence
+    the multi-line case here.
+    """
+    md = (
+        "## S\n\n### Kész kérdés?\n\nKész válasz.\n\n"
+        "### Még nincs megválaszolva?\n\nTODO (Teremtő): ide jön a válasz,\n"
+        "és ez a sor a jegyzet folytatása, ami korábban átcsúszott.\n\n"
+        "### Harmadik?\n\nHarmadik válasz.\n"
+    )
+    out = parse_chunks(md)
+    assert [c.title for c in out] == ["Kész kérdés?", "Harmadik?"]
+    assert all("TODO" not in c.text and "folytatása" not in c.text for c in out)
+
+
 def test_real_corpus_is_clean(chunks):
     assert len(chunks) > 20
     assert all(c.text.strip() for c in chunks)            # no empty bodies
     assert all("_..._" not in c.text for c in chunks)     # no placeholder leak
+    assert all("TODO" not in c.text for c in chunks)      # no unanswered heading leak
     assert all(not c.title.startswith("#") for c in chunks)  # heading markers stripped
     assert len({c.id for c in chunks}) == len(chunks)     # ids unique
 

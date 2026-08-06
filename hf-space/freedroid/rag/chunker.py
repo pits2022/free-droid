@@ -14,6 +14,12 @@ _H2 = re.compile(r"^##\s+(.*?)\s*$")
 _H3 = re.compile(r"^###\s+(.*?)\s*$")
 _HR = re.compile(r"^-{3,}\s*$")  # horizontal rule: section boundary, never chunk body
 _PLACEHOLDER = re.compile(r"^\s*>?\s*_\.\.\._\s*$")
+# A body whose FIRST non-empty line starts with TODO is a deliberately unanswered heading:
+# the whole body is dropped, so it produces no chunk and can never reach the model on
+# stage. Matching per-line would not do — a TODO note wraps over several lines, and the
+# continuation would survive as the body and be served as Szabi's own knowledge. (It did,
+# on the first attempt: the corpus went 67 -> 75.)
+_TODO = re.compile(r"^\s*>?\s*\*{0,2}TODO\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -38,7 +44,8 @@ def parse_chunks(md_text: str, id_prefix: str = "yot") -> list[Chunk]:
     def flush() -> None:
         nonlocal title, body
         if title is not None:
-            text = "\n".join(body).strip()
+            elso = next((ln for ln in body if ln.strip()), "")
+            text = "" if _TODO.match(elso) else "\n".join(body).strip()
             if text:  # skip an unanswered heading
                 chunks.append(Chunk(id=f"{id_prefix}-{len(chunks):03d}",
                                     section=section, title=title, text=text))

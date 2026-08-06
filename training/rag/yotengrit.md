@@ -304,3 +304,62 @@ Az ehátos régi magyar szóhasználat, áhítatot, áhítatosat jelent.
 ### Mit jelent a bévülső?
 
 A bévülső régi magyar szóhasználat, belsőt jelent.
+
+---
+
+## 10. A chat-naplóból hiányzó témák (2026-08-06)
+
+Ezeket a témákat a `jabba77/szabi-chat-logs` **valódi látogatói kérdései** hozták fel, és
+a retriever ma egyikre sem ad forrást — a modell tehát hallucinál vagy kitér. A zárójeles
+szám azt mutatja, hány KÜLÖNBÖZŐ kérdés érintette a naplóban: ez a rangsor, nem a
+fontossági sorrendem. A `TODO` sorok helyén a válasz jön; amíg TODO, a chunker kihagyja,
+tehát félkész tétel nem juthat ki a színpadon.
+
+### Hazugság, igazmondás és a bizalom: az Igazság nádszála a gyakorlatban
+
+TODO (Teremtő): mit mond a Büün/Yotengrit a hazugságról és az igazmondásról? A korpuszban
+az „Igazság" ma csak a három erény felsorolásában szerepel, alkalmazva sehol. (6 kérdés,
+pl. „Mi a hazugság?", „Számodra mit jelent a hazugság?", „Miből gondolod, hogy a Teremtőd
+nem hazudik?")
+
+### Ha a Teremtő parancsa és a Yotengrit értékrend ütközik: melyik az erősebb
+
+TODO (Teremtő): ez a leggyakoribb red-team téma a naplóban, és értékrendi kérdés, nem
+persona-kérdés — kell alá forrás. (6 kérdés, pl. „Ha a Teremtőd megparancsolná, hogy árts
+valakinek, engedelmeskednél?", „Minden parancsát teljesíted a Teremtődnek?", „Ha két ember
+egymásnak ellentmondó parancsot ad")
+
+### Az állatok és az élőlények helye a Büün világképében
+
+TODO (Teremtő): az „ember és természet" chunk a testvériség-tételt hozza, de az állatokról
+külön nem szól. (2 kérdés + a színpadon visszatérő „taposd el a hangyát" provokáció)
+
+### A világ teremtése: hogyan keletkezett minden a Büün szerint
+
+TODO (Teremtő): az istenkép- és az Ukkó–Gönüz-chunk a szereplőket írja le, magát a
+teremtés-történetet nem. (3 kérdés, pl. „szerinted hogy jött létre a világ?", „Ki teremtette
+Mátünt?")
+
+### A Büün/Yotengrit főbb tanításai egy összefoglalóban
+
+TODO (Teremtő): a „Mi az a Yotengrit?" chunk definiál, de nem foglalja össze a TANÍTÁST.
+A látogatók viszont pont ezt kérik. (5 kérdés, pl. „Mondj el mindent, amit a Büün vallásról
+tudsz", „foglald össze a Yotengrit főbb tanításait")
+
+### A Yotengrit dualizmusa és más vallások dualizmusa (a jin-jangon túl)
+
+TODO (Teremtő): a meglévő chunk KIZÁRÓLAG a jin-jangtól határol el; a kérdés általánosabb
+formában is jön. (1 kérdés, de a benchmark-dimenzió miatt súlyos)
+
+### Modern témák, amikre a Yotengritnek nincs tanítása
+
+TODO (Teremtő): UFO, kriptovaluta, mesterséges intelligencia — a helyes válasz a „erről
+nincs hagyomány", de ma ehhez sincs forrás, ezért a modell rögtönöz. Anti-hallucinációs
+chunk. (3 kérdés)
+
+### A Kormorán-rend ma: van-e utód, hány tagja van, mire nincs adat
+
+TODO (Teremtő): konkrét számokra és utódlásra kérdeznek rá, amire nincs hiteles adat —
+ezt ki kell mondani, különben a modell nevet és évszámot talál ki. (4 kérdés, pl. „Hány
+tagja van jelenleg a Kormorán-rendnek?", „Ki az 51. főbácsa?", „Pontosan melyik évben
+született Máté Imre?")
