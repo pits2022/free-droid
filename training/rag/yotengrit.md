@@ -24,7 +24,7 @@ Ez a Free-Droid (Szabi) **RAG-korpuszának** forrása a Yotengrit-tudásról. A 
 
 ## 1. A rábaközi tudók (← itt hallucinál a legtöbbet)
 
-### Kik voltak a „rábaközi tudók"? Van-e konkrét, hiteles névsor?
+### A rábaközi tudók: kik őrizték meg a Büün tanításait, és a hiteles névsor
 
 A "rábaközi tudók" akik a Büün, Yotengrit tanításokat megőrizték. Többségük a Kormorán-rend tagja is volt. A Kormorán-rend 49. főbácsája Máté Imre, a 48. Bendes József, a 47. "Tudós" Nagy Ferenc volt. Ők valamennyien a Rába-közben éltek és tanítottak. Kortárs tanítók: Gergely Erzsébet, Cser Zoltán, Darnói Tibor. 
 
@@ -54,7 +54,7 @@ Cser Zoltán bácsa és Darnói Tibor bácsa Máté Imre tanítványai.
 
 ## 2. A három nádszál (mélyebben)
 
-### Miért épp „nádszál" a kép? Honnan ered a metafora?
+### A nádszál-kép eredete: miért nádszál a három erény jelképe
 
 A mondás így tartja: "a tudó megáll három nádszálon". Ennek a megfogalmazásnak több jelentése is van. A három vékony nádszál elbírja a tudót: ez jelent különleges képességeket is. A nádszál üreges: ez utalás a szanszkrit három nádi-ra, azaz energia csatornára - a tudó uralja az erőit. A három nádszál hétköznapi értelemben utal a szeretetre, bölcsességre és igazságra: a tudó minden tette szeretetből fakad, igaz és átjárja a bölcsesség.
 
@@ -98,7 +98,7 @@ Azonban a jin mindig passzív, nőies, a jang aktív, férfias. A Büün világn
 A Büün világnézete több teremtés-történetet is ismer és tanít. Ezek alapjaikban hasonlítanak egymásra. Yotengrit nevének jelentése: Minden Jó, Első Tengervégtelen Ős Szellem Ős. A "Minden Jó" azonos a tibeti "Kuntuzangpo", vagy a szanszkrit "Szamantabhadra" jelentésével. Yotengrit-et nevezik még Öreg (Örök) Istennek, vagy Jóistennek is. Az Isten szó az Isz-Tien-ből ered, melynek jelentése Szellem (Isz) Ég (Tien).
 Yotengrit a világok teremtője. Teremt nemes és nemtelen módokon is. A nemes teremtéshez színeváltozott Ukkóvá (nősténység) és Gönüzzé (hímség), nemes módon szaporodik minden faj aminek két neme (férfi, nő) van. Nemtelenül teremt szellemanyaga felosztásával, illetve az osztódással szaporodó lényeket is ez jellemzi.
 
-### Tanít-e a Yotengrit a lélekről, halálról, túlvilágról? Ha igen, mit?
+### Lélek, halál, túlvilág és lélekvándorlás: az Isze és a Szusza
 
 A Büün világképe szerint az embernek van Isze (szellem-lélek) és Szusza (test-lélek). A Szusz sose hagyja el a testet, a test halálakor azzal együtt felbomlik. Az Isz elhagyhatja a testet (álom, alvás, halál) és tovább vándorol.
 Az emberi élet végső célja, hogy az ember Istenné istenüljön és szabadon válassza meg mikor és hova születik, milyen feladatot vállal (például szövetség-isten), vagy visszatér Yotengritbe.
@@ -112,7 +112,7 @@ Az ember és minden lény a Földön Ukkó és Gönüz gyermeke, andák, testvé
 Ukkó és Gönüz a teremtő istenpáros. Ukkó a női minőség, ki emberi alakban Boldogasszonyként szokott megjelenni. Gönüz a férfi minőség.
 Yotengrit a töménytelen nyugalom. Miután Yotengrit önmagából Ukkóvá változott, majd Ukkó magából megszülte Gönüzt létrejött a nemesen teremtő istenpáros, akik teremtésükkel szaporítják a szellem-anyagot. Ukkó és Gönüz - az ikerörvény táplálói - mozgásban töménytelen erő.
 
-### Hogyan lett Gönüz nevéből a keresztény „Gonosz"? (a hittérítők torzítása)
+### A Gonosz szó eredete: Gönüz nevének torzítása a hittérítés során
 
 Az erőszakos hittérítés a Magyar királyság területén a X-XIII. századig tartott. A hittérítők módszerei voltak a név és szócsere (pl.: Gönüz-gonosz, Büün-bűn), a Büün-ünnepek keresztényesítése és a szent helyekre templomok építése.
 
@@ -129,7 +129,7 @@ A hetedhét (azaz 49) ösvény az emberi szellem fejlődésének 49 állomása, 
 Az emberi szellem a Büün/Yotengrit világképe szerint a test halála után visszatérhet újra emberi testbe (reinkarnáció), vagy Istenné istenülve szabad szellemmé válik, vagy megtér a teremtőhöz, azaz visszatér Yotengritbe.
 A Büün tanítása szerint a legnemesebb célja az embernek szabad szellemmé válni és szabadon részt venni Ég és Föld (azaz Ukkó és Gönüz) nászában, a teremtés, alkotás folyamatában.
 
-### Mit tanít a Yotengrit a nemek egyenlőségéről?
+### A nemek egyenlősége: férfi és nő egyenrangúsága a Yotengritben
 
 „Nincs föntebb való nem, nincs alább való nem." Az egyik az Ég nőstény fele, a másik a hím fele. Mindkettő egyenlő és jó. A Yotengrit nem rangsorol: kiegészítést tanít, nem alá-fölérendelést.
 
@@ -141,7 +141,7 @@ A női erények: a gyöngédség, a béketűrés és a bátorság. Ezek nem gyen
 
 ## 5. Szabadság és etika
 
-### „Mindent szabad, ami nem árt másnak" — eredet, pontos jelentés, és a HATÁRAI?
+### Szabadság és a jószomszédság törvénye: „Mindent szabad, ami nem árt másnak" — eredet, jelentés, határok
 
 A Büün egyik központi tétele a szabadság és mellérendelés: "Mindent szabad ami nem árt másnak". Minden ember és minden lény egyenlő, mindent szabad, de tiszteletben kell tartani a jószomszédság törvényét, az összekoccanatlan együttélés szabályát is: mindenki ura saját magának és a házának, ahol úgy él ahogy neki tetszik, de ezt ne akarja másra is rákényszeríteni.
 
@@ -166,7 +166,7 @@ Máté Imre a Kormorán-rend 49. főbácsája volt. Főbb művei:
 
 Weboldal: www.mateimre.hu
 
-### Mennyire „ősi" a Yotengrit, és mennyire 20. századi rekonstrukció/szintézis? (őszinte besorolás)
+### Ősi hagyomány vagy modern rekonstrukció: a Yotengrit kora és eredete
 
 
 A Büün-Yotengrit távoli kapcsolatban áll a tibeti Bön hagyománnyal. Ismeri Sakjamuni-Buddha történetét. A szájhagyomány a jégkorszak (i.e. 10000) előttre datálja. 
