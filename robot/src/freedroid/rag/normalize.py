@@ -26,7 +26,7 @@ _RAW_STOPWORDS = {
 }
 STOPWORDS = frozenset(_fold(w) for w in _RAW_STOPWORDS)
 
-_TOKEN = re.compile(r"[0-9a-z]+")
+_TOKEN = re.compile(r"[0-9a-z]+(?:-[0-9a-z]+)*")
 
 
 # Light Hungarian suffix stripping. Hungarian is agglutinative, so a lexical index with
@@ -82,6 +82,27 @@ def _stem(token: str) -> str:
     return token
 
 
+# A kötőjel után álló darab lehet TOLDALÉK, nem szó: "UFO-król" -> ufo + krol. A `krol`
+# sehol nincs a korpuszban, tehát max_idf-et kap, és egymaga leviszi a lefedettséget a
+# kapu alá — a kérdés NÉMÁN forrás nélkül marad, pedig van rá chunk (mérve: az „UFO-król"
+# és a „Hisztek az UFO-kban?" is üres találatot adott).
+#
+# A feltétel SZIGORÚ: a darab EGÉSZE legyen rag, legfeljebb egy többes „k"-val az élén
+# ("krol" = k + rol, "kban" = k + ban). A lazább „ragra VÉGZŐDIK és rövid" szabály a
+# „szabi-chat-logs" közepéből kidobta a „chat"-et (az `at` rag), ami valódi szó.
+def _kotojel_bont(szo: str) -> list[str]:
+    """Kötőjeles szó darabjai, a toldalék-jellegű farok nélkül."""
+    if "-" not in szo:
+        return [szo]
+    darabok = szo.split("-")
+    ki = [darabok[0]]
+    for d in darabok[1:]:
+        rag = d in _SUFFIXES or (d.startswith("k") and d[1:] in _SUFFIXES)
+        if not rag:
+            ki.append(d)
+    return ki
+
+
 def tokenize(text: str) -> list[str]:
     """Folded, stopword-stripped, lightly stemmed tokens (length > 1).
 
@@ -93,10 +114,11 @@ def tokenize(text: str) -> list[str]:
     skews every idf in the index.
     """
     out: list[str] = []
-    for raw in _TOKEN.findall(_fold(text)):
-        if len(raw) < 2 or raw in STOPWORDS:
-            continue
-        stemmed = _stem(raw)
-        if len(stemmed) > 1 and stemmed not in STOPWORDS:
-            out.append(stemmed)
+    for szo in _TOKEN.findall(_fold(text)):
+        for raw in _kotojel_bont(szo):
+            if len(raw) < 2 or raw in STOPWORDS:
+                continue
+            stemmed = _stem(raw)
+            if len(stemmed) > 1 and stemmed not in STOPWORDS:
+                out.append(stemmed)
     return out

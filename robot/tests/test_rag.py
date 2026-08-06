@@ -126,6 +126,17 @@ def test_tokenize_stems_hungarian_inflections():
     assert tokenize("menni") == ["menni"]
     assert tokenize("tudni") == ["tudni"]
 
+    # KNOWN LIMITATION of the second pass, measured not guessed: on a VOWEL-final stem the
+    # plural is a bare "k", but the suffix list only has "ak"/"ok"/"ek", so one character
+    # too many comes off. Two forms of the same word then land on different stems:
+    #   "kriptovalutáról"  -> kriptovaluta   (matches the corpus)
+    #   "kriptovalutákról" -> kriptovalut    (does NOT)
+    # Telling the two apart needs a lexicon ("szenzorok" IS szenzor+ok), so it is left.
+    # Net on 558 real queries the second pass still wins (151 -> 154 retrievals), which is
+    # why it stays; this assert keeps the cost visible instead of forgotten.
+    assert tokenize("kriptovalutákról") == ["kriptovalut"]
+    assert tokenize("szenzorokról") == ["szenzor"]        # consonant-final: correct
+
     # Still not reached, and it is the same single-char trade-off as "kamerát" below:
     # the 3rd-person possessive "-a" is one character, so "halála" keeps its ending and
     # misses the corpus's "halal". Asserted so the gap stays visible.
@@ -145,6 +156,27 @@ def test_tokenize_stems_hungarian_inflections():
     # measured win is already in (technical probes 9/10 -> 10/10, zero false positives,
     # 14.2% -> 16.9% retrieval on 663 real chat-log queries).
     assert tokenize("processzorral") == ["processzorral"]
+
+
+def test_tokenize_strips_hyphenated_suffixes():
+    """"UFO-król" must reduce to "ufo" — the suffix must not survive as its own token.
+
+    A corpus-absent fragment like "krol" is weighted with max_idf, so on its own it drags
+    the coverage under the gate and the question silently gets NO source, even though a
+    chunk answers it. Measured: "Mit mond a Yotengrit az UFO-król?" and "Hisztek az
+    UFO-kban?" both returned nothing before this; both hit the UFO chunk after.
+    """
+    assert tokenize("UFO-król") == ["ufo"]
+    assert tokenize("UFO-kban") == ["ufo"]      # plural "k" + case, still just a suffix
+    assert tokenize("LLM-et") == ["llm"]
+    assert tokenize("K3S-ben") == ["k3s"]
+
+    # A real word after the hyphen SURVIVES. The condition is that the whole fragment be a
+    # suffix (optionally with a leading plural "k") — not merely that it ends in one: the
+    # looser rule threw away "chat" from "szabi-chat-logs", because "at" is a case ending.
+    assert tokenize("szabi-chat-logs") == ["szabi", "chat", "logs"]
+    assert tokenize("Büün-vallásról") == ["buun", "vallas"]
+    assert tokenize("HAT-MDD10") == ["hat", "mdd10"]
 
 
 def test_tokenize_drops_stopwords_and_shorts():
