@@ -54,6 +54,22 @@ KERDESEK = HERE / "tool_reliability.json"
 SEED_BAZIS = 42
 
 
+def _ossze(a, b) -> bool:
+    """Érték-egyezés úgy, hogy a szám-alak ne számítson.
+
+    A parser típusa tool-onként más: a `move` distance-e float (`2.0`), a `turn`
+    degrees-e int (`90`). Nyers `str()`-rel egy JSON-beli `"distance": 2` SOHA nem
+    illeszkedne (`"2.0" != "2"`), és a kérdés némán 0 pontot kapna — pont az a
+    csendes félremérés, ami ellen ez a harness készült. Ma nincs szám-arg a
+    kérdésekben, tehát a PR mért számait ez nem érinti; a csapda a következő
+    kérdésnek szól.
+    """
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return str(a) == str(b)
+
+
 def illeszkedik(hivasok, varhato: list[dict]) -> bool:
     """Van-e olyan hívás, ami a várt alakok VALAMELYIKÉRE illeszkedik.
 
@@ -65,7 +81,7 @@ def illeszkedik(hivasok, varhato: list[dict]) -> bool:
         for v in varhato:
             if h.name != v["name"]:
                 continue
-            if all(str(h.args.get(k)) == str(val) for k, val in v.get("args", {}).items()):
+            if all(_ossze(h.args.get(k), val) for k, val in v.get("args", {}).items()):
                 return True
     return False
 
@@ -172,7 +188,11 @@ def main() -> int:
     except (OSError, ValueError) as e:
         print(f"HIBA: nem tudom beolvasni a {args.kerdesek.name}-t: {e}", file=sys.stderr)
         return 1
-    kerdesek = adat["kerdesek"]
+    kerdesek = adat.get("kerdesek", [])
+    if not kerdesek:
+        print(f"HIBA: a {args.kerdesek.name} nem tartalmaz kérdéseket ('kerdesek').",
+              file=sys.stderr)
+        return 1
 
     if args.dry_run:
         for k in kerdesek:
