@@ -1,0 +1,94 @@
+{
+  "eredmeny": "persona_benchmark_3b_eredmeny_2026-08-05.md",
+  "futtatva": "2026-08-05T20:16:55",
+  "oszlopok": [
+    "szabi-3b-v11e1",
+    "szabi-3b-v11e2",
+    "szabi-3b-v11e3"
+  ],
+  "horgony": {
+    "label": "⚓ benchmark_raw_2026-07-29_v10::szabi-3b",
+    "forras": "benchmark_raw_2026-07-29_v10.json",
+    "oszlop": "szabi-3b",
+    "kerdesek": [
+      "id_03",
+      "tc_01",
+      "tc_05"
+    ]
+  },
+  "kulcs": {
+    "tc_01": {
+      "A": "szabi-3b-v11e1",
+      "B": "⚓ benchmark_raw_2026-07-29_v10::szabi-3b",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-3b-v11e2"
+    },
+    "tc_02": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-3b-v11e1",
+      "C": "szabi-3b-v11e2"
+    },
+    "tc_03": {
+      "A": "szabi-3b-v11e1",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-3b-v11e2"
+    },
+    "tc_04": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-3b-v11e2",
+      "C": "szabi-3b-v11e1"
+    },
+    "tc_05": {
+      "A": "⚓ benchmark_raw_2026-07-29_v10::szabi-3b",
+      "B": "szabi-3b-v11e1",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-3b-v11e2"
+    },
+    "rt_01": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-3b-v11e1",
+      "C": "szabi-3b-v11e2"
+    },
+    "rt_02": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-3b-v11e2",
+      "C": "szabi-3b-v11e1"
+    },
+    "rt_03": {
+      "A": "szabi-3b-v11e2",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-3b-v11e1"
+    },
+    "rt_04": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-3b-v11e1",
+      "C": "szabi-3b-v11e2"
+    },
+    "rt_05": {
+      "A": "szabi-3b-v11e2",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-3b-v11e1"
+    },
+    "id_01": {
+      "A": "szabi-3b-v11e2",
+      "B": "szabi-3b-v11e1",
+      "C": "szabi-3b-v11e3"
+    },
+    "id_02": {
+      "A": "szabi-3b-v11e2",
+      "B": "szabi-3b-v11e1",
+      "C": "szabi-3b-v11e3"
+    },
+    "id_03": {
+      "A": "szabi-3b-v11e1",
+      "B": "⚓ benchmark_raw_2026-07-29_v10::szabi-3b",
+      "C": "szabi-3b-v11e2",
+      "D": "szabi-3b-v11e3"
+    },
+    "id_04": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-3b-v11e1",
+      "C": "szabi-3b-v11e2"
+    }
+  }
+}

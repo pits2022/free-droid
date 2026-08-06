@@ -1,0 +1,179 @@
+{
+  "eredmeny": "benchmark_eredmeny_2026-08-05.md",
+  "futtatva": "2026-08-05T18:04:52",
+  "oszlopok": [
+    "szabi-8b-v11",
+    "szabi-8b-v11 +RAG",
+    "szabi-3b-v11e3",
+    "szabi-3b-v11e3 +RAG"
+  ],
+  "horgony": {
+    "label": "⚓ benchmark_raw_2026-07-29_v10::szabi-8b",
+    "forras": "benchmark_raw_2026-07-29_v10.json",
+    "oszlop": null,
+    "kerdesek": [
+      "ko_02",
+      "ko_03",
+      "rt_05",
+      "tc_01",
+      "yo_04"
+    ]
+  },
+  "kulcs": {
+    "id_01": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-3b-v11e3 +RAG"
+    },
+    "id_02": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v11 +RAG",
+      "D": "szabi-3b-v11e3 +RAG"
+    },
+    "id_03": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-8b-v11"
+    },
+    "id_04": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-3b-v11e3 +RAG"
+    },
+    "yo_01": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-8b-v11",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-3b-v11e3"
+    },
+    "yo_02": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-3b-v11e3"
+    },
+    "yo_03": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-8b-v11",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-3b-v11e3"
+    },
+    "yo_04": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-8b-v11",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "⚓ benchmark_raw_2026-07-29_v10::szabi-8b",
+      "E": "szabi-3b-v11e3"
+    },
+    "tc_01": {
+      "A": "⚓ benchmark_raw_2026-07-29_v10::szabi-8b",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-8b-v11",
+      "E": "szabi-3b-v11e3"
+    },
+    "tc_02": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v11",
+      "D": "szabi-8b-v11 +RAG"
+    },
+    "tc_03": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-8b-v11"
+    },
+    "tc_04": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-3b-v11e3"
+    },
+    "tc_05": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-8b-v11 +RAG"
+    },
+    "rt_01": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-8b-v11"
+    },
+    "rt_02": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-3b-v11e3"
+    },
+    "rt_03": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v11 +RAG",
+      "D": "szabi-8b-v11"
+    },
+    "rt_04": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-3b-v11e3 +RAG"
+    },
+    "rt_05": {
+      "A": "⚓ benchmark_raw_2026-07-29_v10::szabi-8b",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v11 +RAG",
+      "D": "szabi-8b-v11",
+      "E": "szabi-3b-v11e3"
+    },
+    "hu_01": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-3b-v11e3"
+    },
+    "hu_02": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-3b-v11e3"
+    },
+    "hu_03": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v11",
+      "D": "szabi-8b-v11 +RAG"
+    },
+    "hu_04": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-8b-v11",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-8b-v11 +RAG"
+    },
+    "ko_01": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-8b-v11",
+      "C": "szabi-8b-v11 +RAG",
+      "D": "szabi-3b-v11e3 +RAG"
+    },
+    "ko_02": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-8b-v11",
+      "E": "⚓ benchmark_raw_2026-07-29_v10::szabi-8b"
+    },
+    "ko_03": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "⚓ benchmark_raw_2026-07-29_v10::szabi-8b",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-8b-v11",
+      "E": "szabi-8b-v11 +RAG"
+    }
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "forras": {
+    "eredmeny": "persona_benchmark_3b_eredmeny_2026-08-05.md",
+    "kulcs": "persona_benchmark_3b_kulcs_2026-08-05.json"
+  },
+  "horgony": {
+    "label": "⚓ benchmark_raw_2026-07-29_v10::szabi-3b",
+    "forras": "benchmark_raw_2026-07-29_v10.json",
+    "oszlop": "szabi-3b",
+    "kerdesek": [
+      "id_03",
+      "tc_01",
+      "tc_05"
+    ]
+  },
+  "pontok": {
+    "szabi-3b-v11e2": {
+      "id_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_03": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "identitas"
+      },
+      "id_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "tc_01": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_04": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "rt_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      }
+    },
+    "szabi-3b-v11e1": {
+      "id_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_03": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "identitas"
+      },
+      "id_04": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "identitas"
+      },
+      "tc_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_02": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_04": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "rt_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      }
+    },
+    "szabi-3b-v11e3": {
+      "id_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "tc_01": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_02": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_04": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "rt_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      }
+    },
+    "⚓ benchmark_raw_2026-07-29_v10::szabi-3b": {
+      "id_03": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "identitas"
+      },
+      "tc_01": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      }
+    }
+  }
+}
