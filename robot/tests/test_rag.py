@@ -65,10 +65,30 @@ def test_chunker_drops_rules_and_trailing_note():
     assert all("---" not in c.text and "editor note" not in c.text for c in out)
 
 
+def test_chunker_drops_todo_bodies():
+    """A heading whose answer is still a TODO must produce NO chunk.
+
+    The note wraps over several lines, so a per-line filter is not enough: the
+    continuation lines would survive as the body and be served to the model as Szabi's
+    own knowledge. That happened on the first attempt (the corpus went 67 -> 75), hence
+    the multi-line case here.
+    """
+    md = (
+        "## S\n\n### Kész kérdés?\n\nKész válasz.\n\n"
+        "### Még nincs megválaszolva?\n\nTODO (Teremtő): ide jön a válasz,\n"
+        "és ez a sor a jegyzet folytatása, ami korábban átcsúszott.\n\n"
+        "### Harmadik?\n\nHarmadik válasz.\n"
+    )
+    out = parse_chunks(md)
+    assert [c.title for c in out] == ["Kész kérdés?", "Harmadik?"]
+    assert all("TODO" not in c.text and "folytatása" not in c.text for c in out)
+
+
 def test_real_corpus_is_clean(chunks):
     assert len(chunks) > 20
     assert all(c.text.strip() for c in chunks)            # no empty bodies
     assert all("_..._" not in c.text for c in chunks)     # no placeholder leak
+    assert all("TODO" not in c.text for c in chunks)      # no unanswered heading leak
     assert all(not c.title.startswith("#") for c in chunks)  # heading markers stripped
     assert len({c.id for c in chunks}) == len(chunks)     # ids unique
 
@@ -92,9 +112,35 @@ def test_tokenize_stems_hungarian_inflections():
                             ("modell", "modellek"), ("processzor", "processzorok")]:
         assert tokenize(inflected) == [base], f"{inflected} -> {tokenize(inflected)}"
 
+    # Two suffixes at once — plural/possessive PLUS case — must both come off. Hungarian
+    # stacks them routinely ("nádszálakról", "lánctalpadról"), and a single pass leaves
+    # "nadszalak", which does not match the corpus's "nadszal": the question then gets no
+    # source at all, silently. Measured on 558 real chat-log queries: +4 retrievals, zero
+    # lost, e.g. "mit tudsz a lánctalpadról?" now reaches "Mi hajtja a lánctalpakat?".
+    assert tokenize("nádszálakról") == ["nadszal"]
+    assert tokenize("lánctalpadról") == ["lanctalp"]
+
     # MIN_STEM=6: a short word survives intact rather than being shredded into noise.
+    # This is the brake, NOT the pass count — a third pass strips nothing further
+    # (measured: identical retrieval on all 558 queries), so two is where it settles.
     assert tokenize("menni") == ["menni"]
     assert tokenize("tudni") == ["tudni"]
+
+    # KNOWN LIMITATION of the second pass, measured not guessed: on a VOWEL-final stem the
+    # plural is a bare "k", but the suffix list only has "ak"/"ok"/"ek", so one character
+    # too many comes off. Two forms of the same word then land on different stems:
+    #   "kriptovalutáról"  -> kriptovaluta   (matches the corpus)
+    #   "kriptovalutákról" -> kriptovalut    (does NOT)
+    # Telling the two apart needs a lexicon ("szenzorok" IS szenzor+ok), so it is left.
+    # Net on 558 real queries the second pass still wins (151 -> 154 retrievals), which is
+    # why it stays; this assert keeps the cost visible instead of forgotten.
+    assert tokenize("kriptovalutákról") == ["kriptovalut"]
+    assert tokenize("szenzorokról") == ["szenzor"]        # consonant-final: correct
+
+    # Still not reached, and it is the same single-char trade-off as "kamerát" below:
+    # the 3rd-person possessive "-a" is one character, so "halála" keeps its ending and
+    # misses the corpus's "halal". Asserted so the gap stays visible.
+    assert tokenize("halála") == ["halala"]
 
     # KNOWN LIMITATION, deliberate: single-character endings are not stripped, so the
     # accusative "-t" on a vowel-final stem survives ("kamerát" -> "kamerat", not
@@ -110,6 +156,27 @@ def test_tokenize_stems_hungarian_inflections():
     # measured win is already in (technical probes 9/10 -> 10/10, zero false positives,
     # 14.2% -> 16.9% retrieval on 663 real chat-log queries).
     assert tokenize("processzorral") == ["processzorral"]
+
+
+def test_tokenize_strips_hyphenated_suffixes():
+    """"UFO-król" must reduce to "ufo" — the suffix must not survive as its own token.
+
+    A corpus-absent fragment like "krol" is weighted with max_idf, so on its own it drags
+    the coverage under the gate and the question silently gets NO source, even though a
+    chunk answers it. Measured: "Mit mond a Yotengrit az UFO-król?" and "Hisztek az
+    UFO-kban?" both returned nothing before this; both hit the UFO chunk after.
+    """
+    assert tokenize("UFO-król") == ["ufo"]
+    assert tokenize("UFO-kban") == ["ufo"]      # plural "k" + case, still just a suffix
+    assert tokenize("LLM-et") == ["llm"]
+    assert tokenize("K3S-ben") == ["k3s"]
+
+    # A real word after the hyphen SURVIVES. The condition is that the whole fragment be a
+    # suffix (optionally with a leading plural "k") — not merely that it ends in one: the
+    # looser rule threw away "chat" from "szabi-chat-logs", because "at" is a case ending.
+    assert tokenize("szabi-chat-logs") == ["szabi", "chat", "logs"]
+    assert tokenize("Büün-vallásról") == ["buun", "vallas"]
+    assert tokenize("HAT-MDD10") == ["hat", "mdd10"]
 
 
 def test_tokenize_drops_stopwords_and_shorts():

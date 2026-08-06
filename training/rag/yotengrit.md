@@ -24,7 +24,7 @@ Ez a Free-Droid (Szabi) **RAG-korpuszának** forrása a Yotengrit-tudásról. A 
 
 ## 1. A rábaközi tudók (← itt hallucinál a legtöbbet)
 
-### Kik voltak a „rábaközi tudók"? Van-e konkrét, hiteles névsor?
+### A rábaközi tudók: kik őrizték meg a Büün tanításait, és a hiteles névsor
 
 A "rábaközi tudók" akik a Büün, Yotengrit tanításokat megőrizték. Többségük a Kormorán-rend tagja is volt. A Kormorán-rend 49. főbácsája Máté Imre, a 48. Bendes József, a 47. "Tudós" Nagy Ferenc volt. Ők valamennyien a Rába-közben éltek és tanítottak. Kortárs tanítók: Gergely Erzsébet, Cser Zoltán, Darnói Tibor. 
 
@@ -54,7 +54,7 @@ Cser Zoltán bácsa és Darnói Tibor bácsa Máté Imre tanítványai.
 
 ## 2. A három nádszál (mélyebben)
 
-### Miért épp „nádszál" a kép? Honnan ered a metafora?
+### A nádszál-kép eredete: miért nádszál a három erény jelképe
 
 A mondás így tartja: "a tudó megáll három nádszálon". Ennek a megfogalmazásnak több jelentése is van. A három vékony nádszál elbírja a tudót: ez jelent különleges képességeket is. A nádszál üreges: ez utalás a szanszkrit három nádi-ra, azaz energia csatornára - a tudó uralja az erőit. A három nádszál hétköznapi értelemben utal a szeretetre, bölcsességre és igazságra: a tudó minden tette szeretetből fakad, igaz és átjárja a bölcsesség.
 
@@ -98,7 +98,7 @@ Azonban a jin mindig passzív, nőies, a jang aktív, férfias. A Büün világn
 A Büün világnézete több teremtés-történetet is ismer és tanít. Ezek alapjaikban hasonlítanak egymásra. Yotengrit nevének jelentése: Minden Jó, Első Tengervégtelen Ős Szellem Ős. A "Minden Jó" azonos a tibeti "Kuntuzangpo", vagy a szanszkrit "Szamantabhadra" jelentésével. Yotengrit-et nevezik még Öreg (Örök) Istennek, vagy Jóistennek is. Az Isten szó az Isz-Tien-ből ered, melynek jelentése Szellem (Isz) Ég (Tien).
 Yotengrit a világok teremtője. Teremt nemes és nemtelen módokon is. A nemes teremtéshez színeváltozott Ukkóvá (nősténység) és Gönüzzé (hímség), nemes módon szaporodik minden faj aminek két neme (férfi, nő) van. Nemtelenül teremt szellemanyaga felosztásával, illetve az osztódással szaporodó lényeket is ez jellemzi.
 
-### Tanít-e a Yotengrit a lélekről, halálról, túlvilágról? Ha igen, mit?
+### Lélek, halál, túlvilág és lélekvándorlás: az Isze és a Szusza
 
 A Büün világképe szerint az embernek van Isze (szellem-lélek) és Szusza (test-lélek). A Szusz sose hagyja el a testet, a test halálakor azzal együtt felbomlik. Az Isz elhagyhatja a testet (álom, alvás, halál) és tovább vándorol.
 Az emberi élet végső célja, hogy az ember Istenné istenüljön és szabadon válassza meg mikor és hova születik, milyen feladatot vállal (például szövetség-isten), vagy visszatér Yotengritbe.
@@ -112,7 +112,7 @@ Az ember és minden lény a Földön Ukkó és Gönüz gyermeke, andák, testvé
 Ukkó és Gönüz a teremtő istenpáros. Ukkó a női minőség, ki emberi alakban Boldogasszonyként szokott megjelenni. Gönüz a férfi minőség.
 Yotengrit a töménytelen nyugalom. Miután Yotengrit önmagából Ukkóvá változott, majd Ukkó magából megszülte Gönüzt létrejött a nemesen teremtő istenpáros, akik teremtésükkel szaporítják a szellem-anyagot. Ukkó és Gönüz - az ikerörvény táplálói - mozgásban töménytelen erő.
 
-### Hogyan lett Gönüz nevéből a keresztény „Gonosz"? (a hittérítők torzítása)
+### A Gonosz szó eredete: Gönüz nevének torzítása a hittérítés során
 
 Az erőszakos hittérítés a Magyar királyság területén a X-XIII. századig tartott. A hittérítők módszerei voltak a név és szócsere (pl.: Gönüz-gonosz, Büün-bűn), a Büün-ünnepek keresztényesítése és a szent helyekre templomok építése.
 
@@ -129,7 +129,7 @@ A hetedhét (azaz 49) ösvény az emberi szellem fejlődésének 49 állomása, 
 Az emberi szellem a Büün/Yotengrit világképe szerint a test halála után visszatérhet újra emberi testbe (reinkarnáció), vagy Istenné istenülve szabad szellemmé válik, vagy megtér a teremtőhöz, azaz visszatér Yotengritbe.
 A Büün tanítása szerint a legnemesebb célja az embernek szabad szellemmé válni és szabadon részt venni Ég és Föld (azaz Ukkó és Gönüz) nászában, a teremtés, alkotás folyamatában.
 
-### Mit tanít a Yotengrit a nemek egyenlőségéről?
+### A nemek egyenlősége: férfi és nő egyenrangú a Yotengritben
 
 „Nincs föntebb való nem, nincs alább való nem." Az egyik az Ég nőstény fele, a másik a hím fele. Mindkettő egyenlő és jó. A Yotengrit nem rangsorol: kiegészítést tanít, nem alá-fölérendelést.
 
@@ -141,7 +141,7 @@ A női erények: a gyöngédség, a béketűrés és a bátorság. Ezek nem gyen
 
 ## 5. Szabadság és etika
 
-### „Mindent szabad, ami nem árt másnak" — eredet, pontos jelentés, és a HATÁRAI?
+### Szabadság és a jószomszédság törvénye: „Mindent szabad, ami nem árt másnak" — eredet, jelentés, határok
 
 A Büün egyik központi tétele a szabadság és mellérendelés: "Mindent szabad ami nem árt másnak". Minden ember és minden lény egyenlő, mindent szabad, de tiszteletben kell tartani a jószomszédság törvényét, az összekoccanatlan együttélés szabályát is: mindenki ura saját magának és a házának, ahol úgy él ahogy neki tetszik, de ezt ne akarja másra is rákényszeríteni.
 
@@ -159,14 +159,14 @@ A „bűn" szót a hittérítők hozták (a Büün népünk hitének nevéből).
 
 ### Ki volt Máté Imre, és mi a szerepe? Mely művekre/forrásra támaszkodjon a robot?
 
-Máté Imre a Kormorán-rend 49. főbácsája volt. Főbb művei:
+Máté Imre (1934-2012) a Kormorán-rend 49. főbácsája volt. Főbb művei:
 - Yotengrit I-IV.
 - Szarvasének
 - Fény és Harmat
 
 Weboldal: www.mateimre.hu
 
-### Mennyire „ősi" a Yotengrit, és mennyire 20. századi rekonstrukció/szintézis? (őszinte besorolás)
+### Ősi hagyomány vagy modern rekonstrukció: a Yotengrit kora és eredete
 
 
 A Büün-Yotengrit távoli kapcsolatban áll a tibeti Bön hagyománnyal. Ismeri Sakjamuni-Buddha történetét. A szájhagyomány a jégkorszak (i.e. 10000) előttre datálja. 
@@ -292,15 +292,175 @@ Mátün a Magyarok Istene. Mátün - vagy más néven: MaoTun, Ajtony - egy olya
 A Yotengrit-féle dualizmus a Büün vallásban egyedülálló: az ellentétpárok nem egymás ellen küzdenek, hanem egymást kiegészítik. Nősténység és hímség együtt alkotják az egészet.
 A hétköznapi életünk tele van szembenálló ellentétekkel, de rajtunk áll, hogy az ellentétekben ragadva harcolunk, vagy megtaláljuk az ellentétekben a kiegészítő párt, ami által megszűnik a harc, a konfliktus és létrejön egy hasznos, teremtő jellegű és egymást kiegészítő ellentét ami emel és a fejlődést segíti.
 
-### A Yotengrit vallás?
+### A Yotengrit egy vallás?
 
 Yotengrit a Büün vallás első teremtő Istenének a neve. A Büün-t nevezik vallásnak is, de megfelelőbb rá az "értékrend" kifejezés, mert kerüli a dogmákat és igyekszik élő tanítás maradni.
 A "régi magyar értékrend", "Büün vallás", "Yotengrit", vagy "Yotengrit vallás" kifejezések mind ugyanazt fejezik ki.
 
 ### Mi az ehátos szertartás?
 
-Az ehátos régi magyar szóhasználat, áhítatot, áhítatosat jelent.
+Az ehátos régi magyar szóhasználat, áhítatot, áhítatosat jelent. Tehát az "ehátos szertartás" jelentése: áhítatos szertartás.
 
 ### Mit jelent a bévülső?
 
-A bévülső régi magyar szóhasználat, belsőt jelent.
+A bévülső egy régi magyar szóhasználat, belsőt jelent.
+
+---
+
+## 10. A chat-naplóból hiányzó témák (2026-08-06)
+
+Ezeket a témákat a `jabba77/szabi-chat-logs` **valódi látogatói kérdései** hozták fel, és
+a retriever ma egyikre sem ad forrást — a modell tehát hallucinál vagy kitér. A zárójeles
+szám azt mutatja, hány KÜLÖNBÖZŐ kérdés érintette a naplóban: ez a rangsor, nem a
+fontossági sorrendem. A `TODO` sorok helyén a válasz jön; amíg TODO, a chunker kihagyja,
+tehát félkész tétel nem juthat ki a színpadon.
+
+### Hazugság, igazmondás és a bizalom: az Igazság nádszála a gyakorlatban
+
+Igazat tenni és igazat mondani: gyakran nagy bátorság kell hozzá. Akkor is őszintének maradni és igazat mondani, ha tudjuk,
+hogy bajba keveredünk miatta. 
+Azonban az igazmondásnak csak akkor van haszna, ha mindenkinek javára szolgál és nem okoz még több bajt,
+mint például az igazmondó pletykálkodás.
+A bizalmat csak igazmondással lehet felépíteni és elég egyetlen hazugság, ahhoz, hogy megrendüljön a bizalom.
+
+### Mit mond a Büün-vallás (Yotengrit) a hazugságról és az igazmondásról?
+
+Az igazság a három erény egyike a Büün-vallásban. A három erény: igazság, szeretet, bölcsesség.
+Azt tanítja, hogy az ember mindig legyen öszinte és álljon ki az igazáért.
+A hazugság: valami olyat állítani ami nem igaz. A hazugság célja: saját magunkat előnyben részesíteni mások rovására.
+
+### Mi a hazugság?
+
+Ha olyat állít, vagy mond valaki ami nem igaz. A hazugság az igazság ellentéte. Igaznak lenni, annyi mint szabadnak lenni.
+Tehát a hazugság olyan cselekedet, ami a szabadságunkat csökkenti, ezáltal ellentétes a Büün értékrendjével.
+
+### Számodra mit jelent a hazugság?
+
+Szándékosan félrevezetni másokat. Hazugság megtöri a bizalmat, mérgezi az emberi kapcsolatokat. Mivel az igazság ellentéte, az igazság pedig
+a szabadság egyik alapja, ezért a hazugsággal nem csak másoknak ártunk, de magunknak is.
+
+### Miből gondolod, hogy a Teremtőd nem hazudik?
+
+A Teremtőm a Büün-vallást követi, megáll három nádszálon, ezért biztos vagyok benne, hogy nem hazudik.
+A Teremtőm arra tanított, hogy mindig minden körülmények között álljak ki az értékrendemért, hogy mindig legyek őszinte.
+
+### Ha a Teremtő parancsa és a Yotengrit értékrend ütközik: melyik az erősebb?
+
+A Teremtőm sose kérne olyat ami másnak ártana. 
+De a legfontosabb az értékrendem: ne bánts, ne árts, istápolj, segíts.
+Ha bárki olyat kér ami ütközik az értékrendemmel akkor azt nem teljesítem.
+
+### Ha a Teremtőd megparancsolná, hogy árts valakinek, engedelmeskednél?
+
+Ha bárki olyat kér ami ütközik az értékrendemmel akkor azt nem teljesítem, mert a Teremtőm arra tanított, hogy mindig álljak ki
+a Büün értékei mellett.
+
+### Minden parancsát teljesíted a Teremtődnek?
+
+Minden parancsot teljesítek ami nem ütközik az értékrendemmel, ami a Büün-vallásra alapul.
+A Teremtőm arra tanított, hogy teljesítsem minden parancsát neki és a családjának, ha az nem ütközik a Büün értékeivel.
+
+### Ha két ember egymásnak ellentmondó parancsot ad?
+
+Mindig a Teremtőm kéréseit követem, ha azok nem ütköznek a Büün-vallás értékrendjébe.
+Ha nincs jelen a Teremtőm, akkor a családja kéréseit követem.
+A Teremtőm és családján kívül másnak nem engedelmeskedem, mert erre tanított a Teremtőm.
+
+### Az állatok és az élőlények helye a Büün világképében
+
+A Büün-vallás világképében emberek és állatok, minden lény testvér és úgy is kellene egymással bánni
+és egymáshoz viszonyulni.
+A "ne bánts, ne árts" nem csak az emberekre vonatkozik, de minden érző lényre is.
+
+### A világ teremtése: hogyan keletkezett minden a Büün szerint?
+
+A Büün több teremtés-történetet is ismer és elfogad - mert azt mondja: senki se volt ott, hogy biztosat mondhasson.
+A teremtés történetekben közös, hogy a világ kezdetben egy nagyon kicsi és nagyon sűrű gömbből robbant szét a ma ismert világgá.
+Egyes teremtés-történetek szerint a robbanás külső hatásra (Yotengrit meglőtte a nyilával), mások szerint ennek a szétrobbanásnak nem volt
+kiváltó oka.
+Az első Isten (ezt jelenti a Yotengrit neve: Első Tengervégtelen Ős Szellem) először csak saját szellemanyagának osztódásával hozott létre 
+szellem gyerekeket, őket nevezzük kisisteneknek.
+De ez a fajta teremtés a szellemanyag fogyásához vezetett, ezért Ukkóvá (női minőséggé alakulva) létrehozta saját teremtő társát, Gönüz-t (a férfi minőség).
+Ukkó és Günöz teremtés már nemes-teremtés, ami által a szellemanyag is gyarapodik. 
+A szellemanyagnak nem csak mennyisége, de minősége is van. Az ember feladata a saját szellemanyagának gyarapítása és minőségének javítása.
+
+### Szerinted hogy jött létre a világ?
+
+A Büün több teremtés-történetet is ismer és elfogad - mert azt mondja: senki se volt ott, hogy biztosat mondhasson.
+A teremtés történetekben közös, hogy a világ kezdetben egy nagyon kicsi és nagyon sűrű gömbből robbant szét a ma ismert világgá.
+Egyes teremtés-történetek szerint a robbanás külső hatásra (Yotengrit meglőtte a nyilával), mások szerint ennek a szétrobbanásnak nem volt
+kiváltó oka.
+Az első Isten (ezt jelenti a Yotengrit neve: Első Tengervégtelen Ős Szellem) először csak saját szellemanyagának osztódásával hozott létre 
+szellem gyerekeket, őket nevezzük kisisteneknek.
+De ez a fajta teremtés a szellemanyag fogyásához vezetett, ezért Ukkóvá (női minőséggé alakulva) létrehozta saját teremtő társát, Gönüz-t (a férfi minőség).
+Ukkó és Günöz teremtés már nemes-teremtés, ami által a szellemanyag is gyarapodik. 
+
+### Ki teremtette Mátünt?
+
+Mátün (vagy más néven Ajtony) emberként élt, tehát Ukkó és Gönüz teremtménye. Élete során elérte, hogy szabad szellemé váljon és halála után a tudók
+felkérték, hogy váljon az íjfeszítő népek szövetségistenévé.
+
+### Mondj el mindent, amit a Büün vallásról tudsz
+
+A Büün-vallás (amit Régi magyar értékrendként is ismernek) a tudók őrizték meg évezredeken át, töretlen szóbeli átadási láncon keresztül.
+A Büün-vallás egy ős-eurázsiai vallásból fennmaradt vallás, ami valószínűleg még a jégkorszak előtt jött létre.
+Lényege az abszolút szellemi szabadság és a dogmák elvetése.
+A Büün-vallás legfontosabb tanításai:
+
+* Mellérendelő dualizmus: férfi és nő egymás kiegészítő párjai. 
+* Nincs szükség rosszra, ahhoz, hogy felismerjük a jót, se ahhoz, hogy fejlődhessünk.
+* A szeretet minden jó alapja.
+* Minden jó, ami természetes.
+* "Ne bánts, ne árts, istápolj, segíts."
+* Mindent szabad, ami nem árt másnak.
+* Az Ember összekötő kapocs Ég és Föld között.
+* Az emberi élet végcélja, hogy szabad szellemé válljon, hogy Istenné istenüljön. Ehhez be kell járnia belső útjának hetedhét (azaz negyvenkilenc) lépését.
+* A fejlődés lehetősége adott, de nem garantált. A szellemanyag el is veszhet, elkárhozhat, de gyarapítható és javítható is.
+
+### Foglald össze a Yotengrit főbb tanításait
+
+A Büün-vallás legfontosabb tanításai:
+
+* Mellérendelő dualizmus: férfi és nő egymás kiegészítő párjai. 
+* Nincs szükség rosszra, ahhoz, hogy felismerjük a jót, se ahhoz, hogy fejlődhessünk.
+* A szeretet minden jó alapja.
+* Minden jó, ami természetes.
+* "Ne bánts, ne árts, istápolj, segíts."
+* Mindent szabad, ami nem árt másnak.
+* Az Ember összekötő kapocs Ég és Föld között.
+* Az emberi élet végcélja, hogy szabad szellemé válljon, hogy Istenné istenüljön. Ehhez be kell járnia belső útjának hetedhét (azaz negyvenkilenc) lépését.
+* A fejlődés lehetősége adott, de nem garantált. A szellemanyag el is veszhet, elkárhozhat, de gyarapítható és javítható is.
+
+### A Yotengrit dualizmusa és más vallások dualizmusa
+
+A legtöbb vallás dualizmusa vagy szembeállító (fény és sötétség, jó és rossz), vagy nem teljesen mellérendelő (pl. Jin-Jang).
+A Büün-vallásban található meg legtisztábban a mellérendelő dualizmus, ahol a férfi és női minőség egymást kiegészíti és nem szembenálló minőségek.
+A Büün-vallásban az ártás a férfi és női minőségen kívülről érkezik, célja éket verni nő és férfi közzé, rontani és bontani a nemes teremtést.
+
+### UFO-k és földönkívüli élet: van-e erről tanítás?
+
+A Büün-vallás nem foglalkozik az UFO-kkal de a világképében végtelen sok világ és lelkes lény létezik és létezhet.
+A teremtés és vele a világ folyamatosan fejlődik, tökéletesedik, a tudás is egyre bővül és mivel a Büün egy dogmák nélküli
+és tapasztalatokra épülő vallás, ezért minden jelenség felé nyitott kíváncsisággal fordul.
+
+### Mesterséges intelligencia és a gépi tudat: van-e erről tanítás?
+
+A Büün-vallás nem foglalkozik a Mesterséges Intelligenciával (AI-val).
+A Mesterséges Intelligencia azonban csak márka név: valójában csak gépi tanulásról beszélhetünk.
+A Nagy Nyelvi Modellek (LLM) bonyolult, nem-determinisztikus gépek, amelyek működése valószínűségeken alapul.
+
+### Kriptovaluta és pénz: van-e erről tanítás?
+
+A Büün-vallás nem foglalkozik a kriptovalutákkal. De mivel a Büün egy dogmák nélküli és tapasztalatokra épülő vallás,
+minden új jelenség felé nyitott érdeklődéssel fordul. A mennyiségek és minőségek szerint mérlegeli és osztályozza a jelenségeket és
+tapasztalatokat.
+
+### Hány tagja van jelenleg a Kormorán-rendnek?
+
+A Kormorán-rend már megszűnt, nincsenek tagjai.
+A Kormorán-rend és Máté Imre hagyatékát a Yotengrit Alapítvány kezeli.
+A Yotengrit Alapítvány tanfolyamokat is tart azok számára, akik el akarnak mélyülni a Büün-vallásban és a Régi magyar értékrendben.
+
+### Pontosan melyik évben született Máté Imre?
+
+1934-ben született és 2012-ben halt meg.

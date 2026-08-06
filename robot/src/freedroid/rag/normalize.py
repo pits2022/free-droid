@@ -26,7 +26,7 @@ _RAW_STOPWORDS = {
 }
 STOPWORDS = frozenset(_fold(w) for w in _RAW_STOPWORDS)
 
-_TOKEN = re.compile(r"[0-9a-z]+")
+_TOKEN = re.compile(r"[0-9a-z]+(?:-[0-9a-z]+)*")
 
 
 # Light Hungarian suffix stripping. Hungarian is agglutinative, so a lexical index with
@@ -63,11 +63,44 @@ _SUFFIXES = (
 )
 
 
+# Két menet, mert a magyarban a többes szám ÉS a rag egyszerre áll a szón:
+# "nádszálakról" -> nadszalak -> nadszal. Egy menettel a "nadszalak" nem talál rá a
+# korpusz "nadszal"-jára, és a kérdés némán forrás nélkül marad. Kettőnél megáll:
+# a MIN_STEM=6 korlát a fék, nem a menetszám — három menet ugyanezen a korláton
+# amúgy sem vágna többet, viszont minden további menet a hibás vágás esélyét viszi.
+_MENETEK = 2
+
+
 def _stem(token: str) -> str:
-    for suf in _SUFFIXES:
-        if token.endswith(suf) and len(token) - len(suf) >= MIN_STEM:
-            return token[: -len(suf)]
+    for _ in range(_MENETEK):
+        for suf in _SUFFIXES:
+            if token.endswith(suf) and len(token) - len(suf) >= MIN_STEM:
+                token = token[: -len(suf)]
+                break
+        else:
+            return token
     return token
+
+
+# A kötőjel után álló darab lehet TOLDALÉK, nem szó: "UFO-król" -> ufo + krol. A `krol`
+# sehol nincs a korpuszban, tehát max_idf-et kap, és egymaga leviszi a lefedettséget a
+# kapu alá — a kérdés NÉMÁN forrás nélkül marad, pedig van rá chunk (mérve: az „UFO-król"
+# és a „Hisztek az UFO-kban?" is üres találatot adott).
+#
+# A feltétel SZIGORÚ: a darab EGÉSZE legyen rag, legfeljebb egy többes „k"-val az élén
+# ("krol" = k + rol, "kban" = k + ban). A lazább „ragra VÉGZŐDIK és rövid" szabály a
+# „szabi-chat-logs" közepéből kidobta a „chat"-et (az `at` rag), ami valódi szó.
+def _kotojel_bont(szo: str) -> list[str]:
+    """Kötőjeles szó darabjai, a toldalék-jellegű farok nélkül."""
+    if "-" not in szo:
+        return [szo]
+    darabok = szo.split("-")
+    ki = [darabok[0]]
+    for d in darabok[1:]:
+        rag = d in _SUFFIXES or (d.startswith("k") and d[1:] in _SUFFIXES)
+        if not rag:
+            ki.append(d)
+    return ki
 
 
 def tokenize(text: str) -> list[str]:
@@ -81,10 +114,11 @@ def tokenize(text: str) -> list[str]:
     skews every idf in the index.
     """
     out: list[str] = []
-    for raw in _TOKEN.findall(_fold(text)):
-        if len(raw) < 2 or raw in STOPWORDS:
-            continue
-        stemmed = _stem(raw)
-        if len(stemmed) > 1 and stemmed not in STOPWORDS:
-            out.append(stemmed)
+    for szo in _TOKEN.findall(_fold(text)):
+        for raw in _kotojel_bont(szo):
+            if len(raw) < 2 or raw in STOPWORDS:
+                continue
+            stemmed = _stem(raw)
+            if len(stemmed) > 1 and stemmed not in STOPWORDS:
+                out.append(stemmed)
     return out
