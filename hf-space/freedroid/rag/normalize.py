@@ -63,10 +63,22 @@ _SUFFIXES = (
 )
 
 
+# Két menet, mert a magyarban a többes szám ÉS a rag egyszerre áll a szón:
+# "nádszálakról" -> nadszalak -> nadszal. Egy menettel a "nadszalak" nem talál rá a
+# korpusz "nadszal"-jára, és a kérdés némán forrás nélkül marad. Kettőnél megáll:
+# a MIN_STEM=6 korlát a fék, nem a menetszám — három menet ugyanezen a korláton
+# amúgy sem vágna többet, viszont minden további menet a hibás vágás esélyét viszi.
+_MENETEK = 2
+
+
 def _stem(token: str) -> str:
-    for suf in _SUFFIXES:
-        if token.endswith(suf) and len(token) - len(suf) >= MIN_STEM:
-            return token[: -len(suf)]
+    for _ in range(_MENETEK):
+        for suf in _SUFFIXES:
+            if token.endswith(suf) and len(token) - len(suf) >= MIN_STEM:
+                token = token[: -len(suf)]
+                break
+        else:
+            return token
     return token
 
 

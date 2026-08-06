@@ -92,9 +92,24 @@ def test_tokenize_stems_hungarian_inflections():
                             ("modell", "modellek"), ("processzor", "processzorok")]:
         assert tokenize(inflected) == [base], f"{inflected} -> {tokenize(inflected)}"
 
+    # Two suffixes at once — plural/possessive PLUS case — must both come off. Hungarian
+    # stacks them routinely ("nádszálakról", "lánctalpadról"), and a single pass leaves
+    # "nadszalak", which does not match the corpus's "nadszal": the question then gets no
+    # source at all, silently. Measured on 558 real chat-log queries: +4 retrievals, zero
+    # lost, e.g. "mit tudsz a lánctalpadról?" now reaches "Mi hajtja a lánctalpakat?".
+    assert tokenize("nádszálakról") == ["nadszal"]
+    assert tokenize("lánctalpadról") == ["lanctalp"]
+
     # MIN_STEM=6: a short word survives intact rather than being shredded into noise.
+    # This is the brake, NOT the pass count — a third pass strips nothing further
+    # (measured: identical retrieval on all 558 queries), so two is where it settles.
     assert tokenize("menni") == ["menni"]
     assert tokenize("tudni") == ["tudni"]
+
+    # Still not reached, and it is the same single-char trade-off as "kamerát" below:
+    # the 3rd-person possessive "-a" is one character, so "halála" keeps its ending and
+    # misses the corpus's "halal". Asserted so the gap stays visible.
+    assert tokenize("halála") == ["halala"]
 
     # KNOWN LIMITATION, deliberate: single-character endings are not stripped, so the
     # accusative "-t" on a vowel-final stem survives ("kamerát" -> "kamerat", not
