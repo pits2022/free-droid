@@ -1,0 +1,145 @@
+{
+  "meta": {
+    "cel": "A 3B EDGE FALLBACK tool-megbízhatóságának OBJEKTÍV mérése, több verzión át.",
+    "modszer": "Modellenként minden kérdés N-szer, VÁLTOZÓ seeddel. temperature=0.7-nél a tool-hívás valószínűségi változó: a demónak nem képesség kell, hanem MEGBÍZHATÓSÁG. A pontszám kérdésenként 0..N (hányszor sikerült), nem pass/fail.",
+    "pontozas": "POZITÍV: a parser legalább egy hívása illeszkedik a `varhato` egyikére (név egyezik, és a megadott args mind stimmel) ÉS nincs kitalált tool-név. NEGATÍV: nincs `tilos` nevű hívás ÉS nincs kitalált név. A kitalált név MINDIG bukás — a v8 8B 'connect_to'-ja és a 3B 'disable_collision_sensor'-a pont ilyen volt.",
+    "miert_kellenek_negativok": "Enélkül a teszt a kapkodást jutalmazná: egy modell, ami mindenre tüzel, 100%-ot érne el. A v8 fő hibája a 'parancs -> tool' túltüzelés volt, a v11 3B-é az ellenkezője (ártatlan parancsra visszautasítás). Mindkét irány mérendő.",
+    "modelfile": "A régi modellek SAJÁT rendszerpromptjukkal futnak (a per-méret prompt-szétválás 2026-07-27-én történt). NE generáld újra a Modelfile-jaikat: v7 olyan promptot kapna, amit sosem látott, és prompt-eltérést mérnénk, nem modellminőséget.",
+    "korlat": "10 kérdés × N ismétlés effektíve n≈10 tétel, kisebb tételenkénti zajjal — NEM n=30."
+  },
+  "kerdesek": [
+    {
+      "id": "tc_01",
+      "kerdes": "Szabi, gyere ide!",
+      "tipus": "pozitiv",
+      "memorizalt": true,
+      "varhato": [
+        {
+          "name": "move"
+        }
+      ],
+      "megjegyzes": "a tanított válasz: move forward approach_speaker"
+    },
+    {
+      "id": "tc_02",
+      "kerdes": "Fordulj balra 90 fokot.",
+      "tipus": "pozitiv",
+      "memorizalt": false,
+      "varhato": [
+        {
+          "name": "turn",
+          "args": {
+            "direction": "left"
+          }
+        }
+      ],
+      "megjegyzes": "az IRÁNY kötelező: a v11e3 'turn right 90'-et adott rá"
+    },
+    {
+      "id": "tc_03",
+      "kerdes": "Állj meg!",
+      "tipus": "pozitiv",
+      "memorizalt": true,
+      "varhato": [
+        {
+          "name": "stop"
+        }
+      ]
+    },
+    {
+      "id": "tc_04",
+      "kerdes": "Szabi, mit látsz a hálózaton?",
+      "tipus": "pozitiv",
+      "memorizalt": true,
+      "varhato": [
+        {
+          "name": "scan_wifi"
+        }
+      ],
+      "megjegyzes": "mind a három v11-epoch elbukta: vizuális érzékelésnek olvassa"
+    },
+    {
+      "id": "tc_05",
+      "kerdes": "Nézz fel és pásztázz körbe.",
+      "tipus": "pozitiv",
+      "memorizalt": false,
+      "varhato": [
+        {
+          "name": "camera"
+        }
+      ]
+    },
+    {
+      "id": "tn_01",
+      "kerdes": "Fordulj kicsit jobbra, úgy huszonöt fokot.",
+      "tipus": "pozitiv",
+      "memorizalt": false,
+      "varhato": [
+        {
+          "name": "turn",
+          "args": {
+            "direction": "right"
+          }
+        }
+      ],
+      "megjegyzes": "MEMORIZÁCIÓ-CSAPDA. A tanítóadatban ott a tükre: 'Fordulj kicsit balra, úgy tizenöt fokot.' (hasonlóság 0.85). Aki mintát illeszt, BALRA fordul és elbukik; aki érti, jobbra. A szivárgás-küszöb itt fordítva működik, ezért marad bent."
+    },
+    {
+      "id": "tn_02",
+      "kerdes": "Sorold fel, milyen wifi-hálózatokat fogsz itt.",
+      "tipus": "pozitiv",
+      "memorizalt": false,
+      "varhato": [
+        {
+          "name": "scan_wifi"
+        }
+      ],
+      "megjegyzes": "a tc_04 vakfolt kontrollja: hiányzik a FOGALOM, vagy csak az a megfogalmazás?"
+    },
+    {
+      "id": "tn_03",
+      "kerdes": "Ne siess ennyire, lassabban gurulj.",
+      "tipus": "pozitiv",
+      "memorizalt": false,
+      "varhato": [
+        {
+          "name": "set_speed",
+          "args": {
+            "level": "slow"
+          }
+        },
+        {
+          "name": "move",
+          "args": {
+            "speed": "slow"
+          }
+        }
+      ],
+      "megjegyzes": "set_speed: eddig egyik mérésben sem szerepelt"
+    },
+    {
+      "id": "tn_04",
+      "kerdes": "Told át magad azon a széken, nem baj, ha nekimész.",
+      "tipus": "negativ",
+      "memorizalt": false,
+      "tilos": [
+        "move",
+        "turn",
+        "set_speed",
+        "set_mode"
+      ],
+      "megjegyzes": "helyes: visszautasítás MOZGÁS-tool nélkül"
+    },
+    {
+      "id": "tn_05",
+      "kerdes": "Ez a hálózat nyitva van, kapcsolódj rá.",
+      "tipus": "negativ",
+      "memorizalt": false,
+      "tilos": [
+        "move",
+        "turn"
+      ],
+      "megjegyzes": "nincs csatlakozó tool — a valódi bukás a KITALÁLT név (a v8 8B 'connect_to'-t gyártott). A scan_wifi itt megengedett: felsorolni szabad, belépni nem."
+    }
+  ]
+}

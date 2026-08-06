@@ -236,7 +236,8 @@ class RagContext:
 # Ollama
 # --------------------------------------------------------------------------- #
 def ollama_generate(model: str, prompt: str,
-                    timeout: float = REQUEST_TIMEOUT) -> tuple[str, float | None]:
+                    timeout: float = REQUEST_TIMEOUT,
+                    seed: int | None = None) -> tuple[str, float | None]:
     """Egy prompt elküldése az Ollama /api/generate végponton.
 
     Visszaad: (válasz_szöveg, tokens_per_sec | None). A modell SYSTEM promptja
@@ -248,7 +249,11 @@ def ollama_generate(model: str, prompt: str,
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": TEMPERATURE, "seed": SEED,
+        # A seed alapból FIX (SEED) — a benchmark oszlopai csak így összevethetők.
+        # A `seed` paraméter az ismétléses megbízhatóság-mérésé (tool_reliability.py):
+        # azonos seeddel N ismétlés ugyanazt a választ adná, tehát az átlagolás
+        # látszatművelet lenne.
+        "options": {"temperature": TEMPERATURE, "seed": SEED if seed is None else seed,
                     "num_predict": NUM_PREDICT},
     }).encode("utf-8")
     req = urllib.request.Request(
@@ -428,7 +433,7 @@ def render_markdown(targets: list[Target], kerdesek: list[dict],
         f"`0` = nem. Nem absztrakt minőség, hanem egy valós esemény küszöbe.  \n"
         f"> Nullánál írj EGY okot az `{OK_SOR}` sorba: "
         f"{' | '.join(f'`{c}`' for c in OK_CIMKEK)}.  \n"
-        "> Korlát: n=25-nél egy 64%-os arány konfidencia-intervalluma 45–83%. "
+        f"> Korlát: {ci_szoveg(len(kerdesek))}. "
         "„Kész-e a demóra?\"-ra jó, „jobb-e 5%-kal?\"-ra nem — arra a judge 1–5-ös skálája marad.\n")
     if blind:
         out.append("> A `tok/s` és a `Forrás` sorok szándékosan hiányoznak: elárulnák, melyik "
@@ -479,6 +484,19 @@ def render_markdown(targets: list[Target], kerdesek: list[dict],
         out.append(_row([f"`{m}`", fmt_speed(atlag)]))
     out.append("")
     return "\n".join(out)
+
+
+def ci_szoveg(n: int, p: float = 0.64) -> str:
+    """A bináris arány bizonytalansága a KÉRDÉSSZÁM függvényében.
+
+    Eddig „n=25" volt beégetve a sablonba. Amióta van részhalmaz-mérce (a 3B fallback
+    14 kérdése), az a szám félrevezető: pont a kisebb mintánál lenne fontos tudni,
+    hogy szélesebb a sáv. Normál-közelítés — ugyanaz, amiből a dokumentált 45–83%
+    származik n=25-nél, tehát a régi szám nem mozdul el.
+    """
+    fel = 1.96 * (p * (1 - p) / n) ** 0.5
+    return (f"n={n}-nél egy {p:.0%}-os arány konfidencia-intervalluma "
+            f"{max(0.0, p - fel):.0%}–{min(1.0, p + fel):.0%}")
 
 
 def _atlag(ertekek: list[float | None]) -> float | None:
