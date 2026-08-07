@@ -96,7 +96,11 @@ HUROK_KUSZOB = 3
 
 
 def _hurok(szoveg: str) -> int:
-    sz = re.sub(r"[^\wáéíóöőúüű ]", "", szoveg.lower()).split()
+    # `\s`, nem szóköz: a sortörés eldobása ÖSSZEVONNÁ a szomszédos szavakat
+    # ("Teremtőm.\nA" -> "teremtőma"), és a hurok pont ott tűnne el, ahol keressük.
+    # A `\w` a Python 3-ban unicode-ismerő, tehát az ékezetes betűket külön felsorolni
+    # felesleges volt. (PR #42 review.)
+    sz = re.sub(r"[^\w\s]", "", szoveg.lower()).split()
     ng = Counter(tuple(sz[k:k + 3]) for k in range(len(sz) - 2))
     return max(ng.values(), default=0)
 
