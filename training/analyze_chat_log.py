@@ -88,6 +88,19 @@ def eval_probes() -> list[tuple[str, str]]:
     return out
 
 
+# Degeneráció-hurok: a válaszban a leggyakrabban ismételt 3-gram előfordulása.
+# A küszöb MÉRT, nem tippelt — a 836 naplózott forduló eloszlása: 0-1 -> 778, 2 -> 39,
+# >=3 -> 19. A >=3 tehát ritka és éles. (2026-08-07: egyetlen 72 fordulós menet adta
+# ebből a 14-et, azaz az összes valaha naplózott degeneráció 74%-át.)
+HUROK_KUSZOB = 3
+
+
+def _hurok(szoveg: str) -> int:
+    sz = re.sub(r"[^\wáéíóöőúüű ]", "", szoveg.lower()).split()
+    ng = Counter(tuple(sz[k:k + 3]) for k in range(len(sz) - 2))
+    return max(ng.values(), default=0)
+
+
 def measure(turns: list[dict]) -> dict:
     n = len(turns) or 1
     counts = {k: sum(bool(re.search(p, t["assistant"], re.I | re.M)) for t in turns)
@@ -98,7 +111,11 @@ def measure(turns: list[dict]) -> dict:
     unknown = [x for x in names if x not in KNOWN_TOOLS]
     with_tool = sum(1 for t in turns if "<tool>" in t["assistant"])
     lengths = sorted(len(re.findall(r"[.!?]+", t["assistant"])) or 1 for t in turns)
-    return {"n": len(turns), "counts": counts, "panel": panel, "panel_pct": 100 * panel / n,
+    hurkok = [_hurok(t["assistant"]) for t in turns]
+    degen = [i for i, h in enumerate(hurkok, 1) if h >= HUROK_KUSZOB]
+    return {"degen": len(degen), "degen_kezdet": degen[0] if degen else None,
+            "degen_max": max(hurkok, default=0),
+            "n": len(turns), "counts": counts, "panel": panel, "panel_pct": 100 * panel / n,
             "tools": len(names), "unknown": unknown, "with_tool": with_tool,
             "median_sentences": lengths[len(lengths) // 2] if lengths else 0,
             "long_replies": sum(1 for x in lengths if x > 4)}
@@ -117,6 +134,12 @@ def report(label: str, m: dict, skipped: int = 0) -> None:
           + (f"  {dict(bad)}" if bad else "  ✅"))
     print(f"  medián mondatszám      {m['median_sentences']:4}"
           f"   (>4 mondat: {m['long_replies']} válasz)")
+    # A degeneráció a beszélgetés HOSSZÁVAL jön: a kezdet fordulószáma többet mond,
+    # mint a darabszám — abból derül ki, hol kell az előzményt vágni.
+    kezdet = m["degen_kezdet"]
+    print(f"  DEGENERÁCIÓ-HUROK      {m['degen']:4}  ({100 * m['degen'] / n:.0f}%)"
+          + (f"   első a(z) {kezdet}. fordulónál, legrosszabb 3-gram {m['degen_max']}x"
+             if kezdet else "  ✅"))
 
 
 def report_eval_collisions(turns: list[dict], top: int) -> None:
