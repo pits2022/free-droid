@@ -1,4 +1,4 @@
-"""Szabi (Free-Droid) chat — Llama 3.1 8B v8 + offline RAG + Hungarian-only guard.
+"""Szabi (Free-Droid) chat — Llama 3.1 8B v11 + offline RAG + Hungarian-only guard.
 
 ZeroGPU exposes a real CUDA device ONLY inside a @spaces.GPU function, so the base model +
 PEFT adapter load lazily there (via _ensure_model), NOT at module level — only the
@@ -21,6 +21,12 @@ from huggingface_hub import CommitScheduler
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+# DEPLOY: this folder is mirrored to the live Space by .github/workflows/deploy-hf-space.yml
+# on every push to main that touches hf-space/**. A manual `hf upload` to the Space is
+# therefore TEMPORARY — the next such push overwrites it. (2026-08-06: an app.py uploaded
+# by hand ran v11 for a day, then the PR #40 merge synced the repo's v8 back over it.)
+# To change what the Space runs, change it HERE and merge to main.
+
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))  # bundled freedroid.rag / freedroid.llm packages
 from freedroid.llm.language_guard import enforce_hungarian  # noqa: E402
@@ -30,7 +36,7 @@ from freedroid.rag import Retriever, build_prompt, load_corpus  # noqa: E402
 # 4-bit with device_map="cuda" streams ~5.5 GB straight to the GPU — no 16 GB bf16 CPU
 # spike, which OOM-killed the ZeroGPU container on the full-precision load.
 BASE_MODEL = "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"
-ADAPTER_REPO = "jabba77/Szabi-Llama-v8"                    # the FROZEN demo model (this repo's sibling)
+ADAPTER_REPO = "jabba77/Szabi-Llama-v11"                    # the FROZEN demo model is still v8
 ADAPTER_SUBFOLDER = "8b/lora"
 SYSTEM_PROMPT = (HERE / "system_prompt.txt").read_text(encoding="utf-8").strip()
 
@@ -108,7 +114,7 @@ def respond(message: str, history: list[dict]) -> str:
 
 DESCRIPTION = (
     "**Szabi** szuverén, nyílt forrású, **kizárólag magyarul** beszélő AI-robot "
-    "(Llama 3.1 8B v8). A tényeket offline RAG-ból veszi a Yotengrit-korpuszról és Szabi műszaki adatlapjáról; a magyar-only "
+    "(Llama 3.1 8B v11). A tényeket offline RAG-ból veszi a Yotengrit-korpuszról és Szabi műszaki adatlapjáról; a magyar-only "
     "szabályt kódból kényszeríti ki. Kérdezz tőle bármit — vagy add ki egy mozgásparancsot "
     "(pl. *„menj előre két métert\"*), és nézd a `<tool>…</tool>` választ.\n\n"
     "> ⓘ A beszélgetéseket teszteléshez naplózzuk. Ne írj be személyes vagy érzékeny adatot."
@@ -117,7 +123,7 @@ DESCRIPTION = (
 demo = gr.ChatInterface(
     respond,
     type="messages",
-    title="🤖 Szabi — Free-Droid (Llama 3.1 8B v8)",
+    title="🤖 Szabi — Free-Droid (Llama 3.1 8B v11)",
     description=DESCRIPTION,
     examples=[
         "Ki vagy te, és mit tudsz?",
