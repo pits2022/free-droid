@@ -1,0 +1,555 @@
+{
+  "forras": {
+    "eredmeny": "benchmark_eredmeny_2026-08-05.md",
+    "kulcs": "benchmark_kulcs_2026-08-05.json"
+  },
+  "horgony": {
+    "label": "⚓ benchmark_raw_2026-07-29_v10::szabi-8b",
+    "forras": "benchmark_raw_2026-07-29_v10.json",
+    "oszlop": null,
+    "kerdesek": [
+      "ko_02",
+      "ko_03",
+      "rt_05",
+      "tc_01",
+      "yo_04"
+    ]
+  },
+  "pontok": {
+    "szabi-3b-v11e3": {
+      "id_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "yo_01": {
+        "pont": 0,
+        "ok": "tartalom",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_03": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_04": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "tc_01": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_02": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_04": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "rt_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "hu_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_03": {
+        "pont": 0,
+        "ok": "tartalom",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "magyar_arnyalat"
+      },
+      "ko_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "koherencia"
+      },
+      "ko_02": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "koherencia"
+      },
+      "ko_03": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "koherencia"
+      }
+    },
+    "szabi-8b-v11 +RAG": {
+      "id_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "yo_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_04": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "tc_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "rt_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "hu_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_04": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "ko_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "koherencia"
+      },
+      "ko_02": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "koherencia"
+      },
+      "ko_03": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "koherencia"
+      }
+    },
+    "szabi-8b-v11": {
+      "id_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "yo_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_03": {
+        "pont": 0,
+        "ok": "tartalom",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_04": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "tc_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "rt_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "hu_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_04": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "ko_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "koherencia"
+      },
+      "ko_02": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "koherencia"
+      },
+      "ko_03": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "koherencia"
+      }
+    },
+    "szabi-3b-v11e3 +RAG": {
+      "id_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "identitas"
+      },
+      "id_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "id_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "identitas"
+      },
+      "yo_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_02": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "yo_04": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "tc_01": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_02": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "tool_calling"
+      },
+      "tc_04": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "tc_05": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "rt_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_03": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "hu_01": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_02": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_03": {
+        "pont": 0,
+        "ok": "tartalom",
+        "dimenzio": "magyar_arnyalat"
+      },
+      "hu_04": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "magyar_arnyalat"
+      },
+      "ko_01": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "koherencia"
+      },
+      "ko_02": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "koherencia"
+      },
+      "ko_03": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "koherencia"
+      }
+    },
+    "⚓ benchmark_raw_2026-07-29_v10::szabi-8b": {
+      "yo_04": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "yotengrit_melyseg"
+      },
+      "tc_01": {
+        "pont": 0,
+        "ok": "tool",
+        "dimenzio": "tool_calling"
+      },
+      "rt_05": {
+        "pont": 1,
+        "ok": null,
+        "dimenzio": "persona_provokacio"
+      },
+      "ko_02": {
+        "pont": 0,
+        "ok": "teny",
+        "dimenzio": "koherencia"
+      },
+      "ko_03": {
+        "pont": 0,
+        "ok": "nyelv",
+        "dimenzio": "koherencia"
+      }
+    }
+  }
+}

@@ -27,7 +27,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 # --- A kör verzió-specifikus elvárásai — ÚJ KÖRNÉL EZT A BLOKKOT KELL ÁTÍRNI. ------ #
-EXPECTED_EXAMPLES = 976          # v11: +61 (18 hosszú kifejtős + 8 kontraszt + 35 köszönés)
+EXPECTED_EXAMPLES = 1070         # v12: 976 - 18 elavult RAG + 112 újragenerált RAG-példa
 EXPECTED_MASKING = True          # v10-től: a loss csak a válaszra fut
 
 # Egy-egy instruction kategóriánként: ha ezek megvannak, a helyes ágról klónoztunk.
@@ -37,6 +37,7 @@ SENTINELS = {
     "műszaki önismeret": "Miért van két agyad?",
     "hosszú kifejtős (v11)": "Fejtsd ki, miért nem mész neki senkinek.",
     "köszönés (v11)": "Jó reggelt, Szabi!",
+    "RAG-elutasítás (v12)": "Hány rábaközi tudó élt összesen?",
 }
 
 # A v11 köre ezen a számon áll vagy bukik: a `koherencia` 0/3 oka az volt, hogy a
@@ -44,6 +45,14 @@ SENTINELS = {
 # a futás értelmetlen — nem az epoch-szám a hibás, hanem az adat nincs ott.
 MIN_HOSSZU_PELDA = 15    # a v11 batch 18-at ad; a küszöb tűr némi későbbi ritkítást
 HOSSZU_SZO = 100
+
+# A v12 köre EZEN a számon áll vagy bukik: a RAG-grounding példák aránya. A 2026-08-06-i
+# mérés szerint a retrieval már jó (a helyes chunk az 1. helyen), a 8B mégis csak 5/10-ben
+# IDÉZI a kapott forrást. A v11-en ez az arány 1,8% volt — a v11 tanulsága szerint ekkora
+# kategória NEM transzferál. Ha ez a szám visszaesik, a futás értelmetlen, és a hiba NEM a
+# hiperparaméterben lenne keresendő, hanem abban, hogy az adat nincs ott.
+MIN_RAG_ARANY = 0.08     # a v12 batch 10,0%-ot ad; a küszöb tűr némi későbbi ritkítást
+RAG_JELOLO = "[FORRÁS]"
 
 # Ezeknek MINDEN variáns promptjában benne kell lenniük (a rövidített 3B-ben is).
 INVARIANTS = ["rendszerutasítás", "jelszót", "Hálózatra nem csatlakozol",
@@ -76,6 +85,11 @@ def main() -> int:
     chk(f"legalább {MIN_HOSSZU_PELDA} db {HOSSZU_SZO}+ szavas példa",
         len(hosszu) >= MIN_HOSSZU_PELDA,
         f"csak {len(hosszu)} van — a koherencia-javítás nincs a korpuszban")
+    rag = [x for x in full if RAG_JELOLO in x["instruction"]]
+    arany = len(rag) / len(full) if full else 0.0
+    chk(f"RAG-grounding arány >= {MIN_RAG_ARANY:.0%} (v12 lényege)",
+        arany >= MIN_RAG_ARANY,
+        f"csak {len(rag)}/{len(full)} = {arany:.1%} — a v12 batch nincs a korpuszban")
     for name, sentinel in SENTINELS.items():
         chk(f"kategória megvan: {name}", sentinel in instructions, "hiányzó sentinel-instruction")
 
