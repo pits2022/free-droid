@@ -21,6 +21,12 @@ from huggingface_hub import CommitScheduler
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+# DEPLOY: this folder is mirrored to the live Space by .github/workflows/deploy-hf-space.yml
+# on every push to main that touches hf-space/**. A manual `hf upload` to the Space is
+# therefore TEMPORARY — the next such push overwrites it. (2026-08-06: an app.py uploaded
+# by hand ran v11 for a day, then the PR #40 merge synced the repo's v8 back over it.)
+# To change what the Space runs, change it HERE and merge to main.
+
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))  # bundled freedroid.rag / freedroid.llm packages
 from freedroid.llm.language_guard import enforce_hungarian  # noqa: E402
