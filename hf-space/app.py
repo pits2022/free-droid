@@ -95,17 +95,36 @@ def _generate(messages: list[dict]) -> str:
         messages, add_generation_prompt=True, return_tensors="pt", return_dict=True
     ).to("cuda")
     with torch.no_grad():
+        # repetition_penalty: transformers default is 1.0 = NO damping, and this Space was
+        # the only place running without it — every Ollama-based measurement (benchmarks,
+        # the robot itself) runs with one. On 2026-08-07 a 72-turn chat degenerated into
+        # "A Teremtőm a gazdám. A gazdám a Teremtőm. A Teremtőm a Teremtőm."; replaying that
+        # conversation locally reproduced it at 1.0 (3-gram repeated 4x in 2 of 3 seeds) and
+        # damped it at 1.1 (2x, under the detection threshold). NOT no_repeat_ngram_size:
+        # that would forbid the repeated <tool> grammar and the "Teremtőm" vocative outright.
         out = m.generate(**inputs, max_new_tokens=256, do_sample=True, temperature=0.7,
-                         top_p=0.9, pad_token_id=tokenizer.eos_token_id)
+                         top_p=0.9, repetition_penalty=1.1,
+                         pad_token_id=tokenizer.eos_token_id)
     prompt_len = inputs["input_ids"].shape[1]
     return tokenizer.decode(out[0][prompt_len:], skip_special_tokens=True).strip()
+
+
+# How many past exchanges to keep. The 2026-08-07 measurement showed the degeneration is
+# SELF-REINFORCING: replaying the same question with a clean history produced nothing, with
+# the already-degenerated turns 45-60 as history it looped. So an unbounded history does not
+# just grow the prompt — it feeds bad output back in. The window bounds that contagion; the
+# repetition_penalty above stops the first bad answer from appearing. Both, for two reasons.
+# The number is a knob, not a measurement: the logged conversation degenerated from turn 29,
+# so 8 keeps normal demo continuity while dropping anything that far back.
+HISTORY_TURNS = 8
 
 
 def respond(message: str, history: list[dict]) -> str:
     hits = _retriever.retrieve(message, top_k=3)
     grounded = build_prompt(message, hits)  # wraps [FORRÁS]…[/FORRÁS] when hits exist
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages += [{"role": m["role"], "content": m["content"]} for m in history]
+    messages += [{"role": m["role"], "content": m["content"]}
+                 for m in history[-2 * HISTORY_TURNS:]]
     messages.append({"role": "user", "content": grounded})
     reply = enforce_hungarian(_generate(messages))
     _log(message, reply)
