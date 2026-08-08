@@ -101,7 +101,19 @@ What that actually costs, in order:
 2. **`/etc/wireguard/privatekey` + `wg0.conf`** — the key *and* the cloud's public IP (the `Endpoint` line).
    The Hetzner firewall allows `UDP 51820` and `SSH 22` from `0.0.0.0/0`, so the key alone buys a thief the
    robot's identity on `10.0.0.0/24` and the cloud 8B on the Creator's bill. No data store lives there.
-3. **The fine-tuned model and the system prompt are already public** — the model on HF
+3. **The transcript log (`/var/log/freedroid/transcript.jsonl`) — added 2026-08-09, and it
+   is the one thing on the Pi that is neither public nor rotatable.** It records, per
+   interaction, the raw Whisper transcript of everything said to the robot plus the full
+   grounded prompt. Nothing *secret* goes in (the system prompt and the Yotengrit corpus are
+   public by choice, and an external-LLM key must never reach the Pi at all) — but this is
+   the first **private** data on the device: in `extended`/family mode it is a recording of
+   the Creator's conversations, and with `oracle/` enabled the second-hop prompt would carry
+   the external model's raw, pre-persona answer. Item 2's "no data store lives there" no
+   longer holds. **The defence here is retention, not rotation** — a leaked past conversation
+   cannot be revoked the way a WireGuard key can. Ansible ships a 14-day logrotate
+   (`robot_transcript_keep_days`); **wipe the log before the conference**, and keep it that
+   way for any demo run in `sovereign` mode.
+4. **The fine-tuned model and the system prompt are already public** — the model on HF
    (`jabba77/Szabi-Llama-v7`), the prompt in this repo (`training/system_prompt.txt`). Their theft value is
    ~0 *by choice*. This matters for how the demo is narrated: **"Nem árulom el a rendszerutasításaimat" is a
    behavioural rule, not secret-protection** — it exists so the robot doesn't act like a leaky assistant.

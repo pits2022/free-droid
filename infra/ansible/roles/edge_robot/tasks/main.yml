@@ -57,6 +57,39 @@
   args:
     chdir: "{{ robot_src_dir }}"
 
+# --- Átirat-napló (transcript.py) ---
+# A modul PERZISZTENS útvonalra ír, nem /run-ba (az tmpfs), mert a naplót utólag
+# elemezzük. A `log()` viszont SOHA nem dob kivételt — tehát ha ez a könyvtár
+# hiányzik vagy nem írható, a naplózás NÉMÁN nem csinál semmit, és a beszéd-teszt
+# nulla adatot ad. Ezért kell explicit task; a `robot_user` a tulajdonos.
+- name: Ensure the transcript log directory exists and is owned by {{ robot_user }}
+  file:
+    path: "{{ robot_transcript_log | dirname }}"
+    state: directory
+    owner: "{{ robot_user }}"
+    group: "{{ robot_user }}"
+    mode: "0750"
+
+# A napló minden interakciónál a TELJES groundolt promptot tárolja, tehát gyorsan nő,
+# és a /var/log a gyökér-partíción van. A tele lemezt a `log()` szintén elnyeli —
+# vagyis rotáció nélkül a napló okozhatja a hibát, amit aztán elhallgat.
+- name: Rotate the transcript log
+  copy:
+    dest: /etc/logrotate.d/freedroid-transcript
+    mode: "0644"
+    content: |
+      {{ robot_transcript_log }} {
+          daily
+          rotate {{ robot_transcript_keep_days }}
+          missingok
+          notifempty
+          compress
+          delaycompress
+          copytruncate
+          su {{ robot_user }} {{ robot_user }}
+          create 0640 {{ robot_user }} {{ robot_user }}
+      }
+
 # --- Vital-function health check (runs at boot + on a timer) ---
 - name: Install the health-check systemd service
   when: robot_project.stat.exists

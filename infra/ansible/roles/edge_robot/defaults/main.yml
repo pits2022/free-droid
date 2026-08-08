@@ -16,6 +16,13 @@ robot_repo_version: main
 # native binary wired up separately. Off by default until Phase 4.2.
 robot_install_voice_extra: false
 
+# Átirat-napló (transcript.py). A DEFAULT_PATH-nak megfelelő útvonal; a robot
+# unprivilegizált userként fut, ezért a könyvtárat NEKI kell birtokolnia — enélkül
+# a `log()` PermissionError-t kap, amit szándékosan elnyel, és az élő beszéd-teszt
+# némán NULLA adatot termel.
+robot_transcript_log: /var/log/freedroid/transcript.jsonl
+robot_transcript_keep_days: 14   # a napló a Teremtő minden elhangzott mondatát tárolja
+
 # Health-check (freedroid-health) systemd service + timer.
 robot_venv_bin: "{{ robot_src_dir }}/.venv/bin"
 health_check_on_boot_sec: 60     # first run ~1 min after boot
