@@ -95,16 +95,39 @@ def _generate(messages: list[dict]) -> str:
         messages, add_generation_prompt=True, return_tensors="pt", return_dict=True
     ).to("cuda")
     with torch.no_grad():
-        # repetition_penalty: transformers default is 1.0 = NO damping, and this Space was
-        # the only place running without it — every Ollama-based measurement (benchmarks,
-        # the robot itself) runs with one. On 2026-08-07 a 72-turn chat degenerated into
-        # "A Teremtőm a gazdám. A gazdám a Teremtőm. A Teremtőm a Teremtőm."; replaying that
-        # conversation locally reproduced it at 1.0 (3-gram repeated 4x in 2 of 3 seeds) and
-        # damped it at 1.1 (2x, under the detection threshold). NOT no_repeat_ngram_size:
-        # that would forbid the repeated <tool> grammar and the "Teremtőm" vocative outright.
+        # NO repetition_penalty here — reverted 2026-08-08, one day after adding it.
+        #
+        # The 2026-08-07 reasoning ("every Ollama-based measurement runs with a penalty, so
+        # this matches the robot") was wrong on the detail that matters: transformers applies
+        # repetition_penalty to the ENTIRE input_ids — system prompt, chat history and the
+        # [FORRÁS] block included — while llama.cpp/Ollama only looks back repeat_last_n=64
+        # tokens. Same number, very different scope: the Space penalised MORE than the robot.
+        #
+        # What that cost, measured on the first chat after the change (n=59) against the one
+        # before it (n=72): invented tool names 0 -> 1, median sentences 4 -> 3, and the tool
+        # layer broke outright — "Fordulj hátra" -> <tool>face_behind</tool>, "gyere ide" ->
+        # <tool>move toward_speaker</tool>, and scan_wifi stopped firing on the network
+        # question it answered correctly the day before. Hungarian morphology frayed the same
+        # way ("szilábdani", "logikaom", "fedezedik" — non-words).
+        #
+        # The mechanism is the one the original commit named as its reason for rejecting
+        # no_repeat_ngram_size: the <tool> grammar is repetitive BY NATURE. <tool>, move,
+        # turn, left and forward all recur in the system prompt and in every prior turn, so a
+        # whole-input penalty pushes the model off exactly the tokens it must reuse. An
+        # agglutinative language loses stem tokens the same way.
+        #
+        # Three data points isolate it — only the middle one applies a penalty over a long
+        # context, and it is the only one that breaks:
+        #   unbounded history + no penalty (08-07 Space)   -> tools OK, language OK
+        #   8-turn history   + whole-input 1.1 (08-08)     -> tools BROKEN, language BROKEN
+        #   no history       + 64-token-window 1.1 (local) -> tools OK, language OK
+        # So neither a long context nor the penalty alone does the damage; the combination
+        # does. The degeneration this was meant to stop is handled by HISTORY_TURNS below,
+        # which targets the actual mechanism (self-reinforcing contagion, not raw repetition).
+        # If the loop comes back, the fix is a windowed penalty (a LogitsProcessor over the
+        # last ~64 tokens), NOT a whole-input one.
         out = m.generate(**inputs, max_new_tokens=256, do_sample=True, temperature=0.7,
-                         top_p=0.9, repetition_penalty=1.1,
-                         pad_token_id=tokenizer.eos_token_id)
+                         top_p=0.9, pad_token_id=tokenizer.eos_token_id)
     prompt_len = inputs["input_ids"].shape[1]
     return tokenizer.decode(out[0][prompt_len:], skip_special_tokens=True).strip()
 
