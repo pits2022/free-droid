@@ -53,15 +53,31 @@ def log(esemeny: Interakcio, path: Path | None = None) -> None:
 
     A színpadon egy tele lemez vagy egy hiányzó könyvtár nem némíthatja el Szabit,
     ezért a hibát csak jelezzük a stderr-en (a journald elkapja) és megyünk tovább.
+
+    A `default=str` és az `errors="replace"` NEM kozmetika: az első változat csak
+    `OSError`-t kapott el, és két út kiszökött rajta (mérve, nem feltételezve):
+      - nem szerializálható mező -> `TypeError` (elég egy `Path` a `toolok`-ban),
+      - lone surrogate a stringben -> `UnicodeEncodeError`, ami `ValueError`, nem
+        `OSError`. Ez pont a `hallott` mezőn valós: az a Whisper NYERS átirata, és
+        egy `surrogateescape`-pel dekódolt hibás bájtsor egyenesen ide kerül.
+    A két beállítás azért jobb, mint a puszta elnyelés, mert a sor MEGMARAD (rontott
+    karakterrel vagy `str()`-elt mezővel) ahelyett, hogy némán elveszne — a napló
+    egésze pont a diagnosztikáért van. Az `except Exception` a maradék hálója.
+
+    EGY ÍRÓT feltételez. Text-módban a `prompt` könnyen 8 KB fölé megy, ilyenkor egy
+    sor több `write()`-ban megy ki, és párhuzamos íróval összefésülődhet. Ma egyetlen
+    orchestrator-hurok naplóz, tehát nem éles; ha valaha több szál/folyamat írna, egy
+    `os.write` egy `O_APPEND` fd-re a javítás. A kár így is lokális marad: az `olvas()`
+    a sérült sort átugorja, a fájl egésze nem válik elemezhetetlenné.
     """
     cel = path or DEFAULT_PATH
     sor = {"ts": datetime.now(UTC).isoformat(timespec="seconds"),
            **asdict(esemeny)}
     try:
         cel.parent.mkdir(parents=True, exist_ok=True)
-        with cel.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(sor, ensure_ascii=False) + "\n")
-    except OSError as e:
+        with cel.open("a", encoding="utf-8", errors="replace") as f:
+            f.write(json.dumps(sor, ensure_ascii=False, default=str) + "\n")
+    except Exception as e:  # noqa: BLE001 — a napló SOHA nem állíthatja meg a robotot
         print(f"transcript: nem tudom írni a naplót ({cel}): {e}", file=sys.stderr)
 
 

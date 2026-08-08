@@ -52,10 +52,33 @@ def test_hianyzo_naplo_ures_lista(tmp_path):
 
 
 @pytest.mark.parametrize("mezo", ["hallott", "valasz", "forras", "modell",
-                                  "rag_chunkok", "prompt", "toolok"])
+                                  "rag_chunkok", "rag_cimek", "prompt", "toolok",
+                                  "stt_ms", "llm_ms", "hiba"])
 def test_a_lanc_minden_szakasza_szerepel(tmp_path, mezo):
     """A Teremtő kérése: legyen látható, mit hallott a Whisper, mi ment a RAG-ra,
     és mit válaszolt MELYIK modell. Ha egy mező eltűnik, ez a teszt fog szólni."""
     p = tmp_path / "t.jsonl"
     log(Interakcio(hallott="x"), p)
     assert mezo in json.loads(p.read_text(encoding="utf-8").splitlines()[0])
+
+
+# A "SOSEM dob" szerződés két útja, amit az első változat NEM tartott be: az
+# `except OSError` mellett a `TypeError` és a `UnicodeEncodeError` (ez `ValueError`,
+# nem `OSError`) kiszökött. Mindkettő valós, nem elméleti — lásd a `log()` docstringjét.
+def test_nem_szerializalhato_mezo_nem_dob(tmp_path, capsys):
+    """Elég egy `Path` a `toolok`-ban, és az első változat TypeError-t dobott."""
+    p = tmp_path / "t.jsonl"
+    log(Interakcio(hallott="x", toolok=[tmp_path]), p)      # nem dobhat
+    assert capsys.readouterr().err == ""                     # sőt: le is MENTETTE
+    assert str(tmp_path) in olvas(p)[0]["toolok"][0]
+
+
+def test_surrogate_a_whisper_atiratban_nem_dob(tmp_path):
+    """A `hallott` a Whisper NYERS átirata: egy `surrogateescape`-pel dekódolt hibás
+    bájtsor lone surrogate-ot hoz ide, és az `UnicodeEncodeError`-t dobott a write-ban.
+    A sor maradjon meg — rontott karakterrel is —, mert a napló a diagnosztikáért van."""
+    p = tmp_path / "t.jsonl"
+    log(Interakcio(hallott="rossz \udcff bájt", modell="szabi-8b-v11"), p)
+    sorok = olvas(p)
+    assert len(sorok) == 1
+    assert sorok[0]["modell"] == "szabi-8b-v11"              # a többi mező sértetlen
