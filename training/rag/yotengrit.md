@@ -107,7 +107,7 @@ Az emberi élet végső célja, hogy az ember Istenné istenüljön és szabadon
 
 Az ember és minden lény a Földön Ukkó és Gönüz gyermeke, andák, testvérek. Mivel a Büün világképe mellérendelő, ezért a természetnek az ember nem az ura, hanem a gondozója, felügyelője, társa.
 
-### Kik Ukkó és Gönüz? Mi a szerepük az Istenpárosban?
+### Kik Ukkó és Gönüz? Kik a Büün vallás istenei? Mi a szerepük az Istenpárosban?
 
 Ukkó és Gönüz a teremtő istenpáros. Ukkó a női minőség, ki emberi alakban Boldogasszonyként szokott megjelenni. Gönüz a férfi minőség.
 Yotengrit a töménytelen nyugalom. Miután Yotengrit önmagából Ukkóvá változott, majd Ukkó magából megszülte Gönüzt létrejött a nemesen teremtő istenpáros, akik teremtésükkel szaporítják a szellem-anyagot. Ukkó és Gönüz - az ikerörvény táplálói - mozgásban töménytelen erő.
