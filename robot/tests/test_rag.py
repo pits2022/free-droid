@@ -285,6 +285,39 @@ def test_coverage_gate_keeps_short_on_topic_question(retriever):
     assert retriever.retrieve("Ki az a Yotengrit?")
 
 
+@pytest.fixture(scope="module")
+def teljes_retriever() -> Retriever:
+    """A SZÁLLÍTOTT korpusz — a `retriever` fixture csak a yotengrit.md-t tölti be, a
+    hardver-kérdésekhez viszont a szabi_tech.md is kell (a `DEFAULT_SOURCES` mindkettőt
+    hozza). A kérés-ige stopwordök pont a domének HATÁRÁN buknak meg, ezért itt a
+    production-korpusz a helyes alany."""
+    return Retriever(load_corpus())
+
+
+@pytest.mark.parametrize("query", [
+    "Mesélj a lánctalpakról és a hardveredről",   # ez adta a kitalált FreeRTOS-választ
+    "Mesélje el, hogyan működik a lánctalpad",    # ugyanaz magázva — a közönség így kérdez
+    "Beszélj a dualizmusról",
+])
+def test_expository_request_verb_does_not_starve_the_gate(teljes_retriever, query):
+    """A kifejtést kérő ige nincs a korpuszban, tehát max_idf-et kapna, és egymaga
+    levinné az idf-lefedettséget a kapu alá — pedig a kérdés témát jelölő tokenjei
+    (lanctalp, hardver) találnak. Stopwordként nem visz idf-et, a kérdés átmegy."""
+    assert teljes_retriever.retrieve(query)
+
+
+@pytest.mark.parametrize("query", [
+    "Mondj egy viccet magyarul",
+    "Írj egy Haikut a teremtődről",
+])
+def test_creative_request_stays_ungrounded(teljes_retriever, query):
+    """A HATÁR, amit a fenti javítás nem léphet át: az ALKOTÁST kérő ige (`mondj`,
+    `írj`) szándékosan NEM stopword. Mérve (2 modell x 2 seed): groundolva 4/4
+    kimenet elvesztette a vers-formát, groundolatlanul 4/4 megtartotta — az egyik
+    válasz szó szerint a chunkból idézett etimológiát haiku helyett."""
+    assert not teljes_retriever.retrieve(query)
+
+
 def test_build_prompt_does_not_invite_source_talk(retriever):
     prompt = build_prompt("Ki Gönüz?", retriever.retrieve("Kik Ukkó és Gönüz?"))
     assert "forrás alapján válaszolj" not in prompt   # the phrase the model parroted back
