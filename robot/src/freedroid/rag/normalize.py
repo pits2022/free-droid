@@ -36,6 +36,12 @@ _RAW_STOPWORDS = {
     # teremtődről" is [FORRÁS]-t kapott, azaz a haiku tanítást mondott volna fel.
     "mesélj", "meséld", "magyarázd", "magyarázz", "beszélj", "sorold",
     "ismertesd", "foglald",
+    # MAGÁZÓ alakok. A konferencia közönsége jó eséllyel magázza a robotot, és a
+    # tegező listától eltérően ezeket a stemmer NEM kapja el mellékesen (a `-jen`/
+    # `-jon` végű `meséljen`/`beszéljen` kiesik, a `-ja`/`-je` végű `mesélje`/
+    # `magyarázza` nem). Mérve: "Magyarázd el, hogyan működik a lánctalpad" -> tech-009,
+    # ugyanaz magázva -> ÜRES. Korpusz-ütközés nincs (az "összefoglalja" külön token).
+    "mesélje", "magyarázza", "sorolja", "ismertesse", "foglalja",
 }
 STOPWORDS = frozenset(_fold(w) for w in _RAW_STOPWORDS)
 
