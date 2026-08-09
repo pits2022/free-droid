@@ -88,15 +88,36 @@ def main() -> None:
     prompt, cimek = ctx.build(spec["kerdes"])
     print(f"{args.kerdes}: {spec['kerdes']}\nforrás-chunkok: {cimek}\n")
 
+    out = args.out or HERE / f"rag_citation_{args.kerdes}_{datetime.now():%Y-%m-%d}.json"
     nyers: dict[str, list[dict]] = {}
+
+    def ments() -> None:
+        """A részeredmény minden modell után lemezre kerül.
+
+        Nem elméleti óvatosság: 2026-08-07-én egy RAG-teszt SOCKET-TIMEOUTTAL állt le az
+        első modell után, és a már legenerált válaszok elvesztek. Egy 8B-s, 10 seedes kör
+        CPU-n fél óra — az újrafuttatás drágább, mint egy fájlírás.
+        """
+        out.write_text(json.dumps({"kerdes": spec["kerdes"], "chunkok": cimek,
+                                   "eredmeny": nyers}, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
+
     for model in args.models:
         kan = fog = leak = nt = 0
         hosszak: list[int] = []
         nyers[model] = []
         print(f"== {model} ==")
         for i in range(args.repeat):
-            valasz, _ = ollama_generate(model, prompt, timeout=args.timeout,
-                                        seed=SEED_BAZIS + i)
+            try:
+                valasz, _ = ollama_generate(model, prompt, timeout=args.timeout,
+                                            seed=SEED_BAZIS + i)
+            except Exception as e:  # noqa: BLE001 — timeout, hálózat, leállított Ollama
+                # Egy kiesett seed NE vigye el az egész kört: jelezzük, mentünk, megyünk
+                # tovább. Az arányok nevezője ezért a SIKERES futások száma lesz.
+                print(f"  seed {SEED_BAZIS + i}: KIESETT — {type(e).__name__}: {e}")
+                nyers[model].append({"seed": SEED_BAZIS + i, "hiba": f"{type(e).__name__}: {e}"})
+                ments()
+                continue
             k = bool(spec["kanonikus"].search(valasz))
             talalt = [nev for nev, rx in spec["forras_fogalom"] if rx.search(valasz)]
             kan += k
@@ -109,16 +130,21 @@ def main() -> None:
             print(f"  seed {SEED_BAZIS + i}: {'KAN' if k else '...'} "
                   f"{'FOG' if talalt else '...'} [{hosszak[-1]:3d} szó] "
                   f"{','.join(talalt) or '-'}")
-        n = args.repeat
+        # A nevező a SIKERES futások száma. Ha egy seed kiesett, a 4/10 és a 4/9 nem
+        # ugyanaz az állítás — a hiányzó futás nem számít kudarcnak a mért tulajdonságra.
+        n = len(hosszak)
+        if not n:
+            print("  --> nincs egyetlen sikeres futás sem\n")
+            continue
+        kiesett = args.repeat - n
         print(f"  --> KANONIKUS {kan}/{n} (gyenge: a promptban is benne van) · "
               f"FORRÁS-FOGALOM {fog}/{n} (EZ a grounding) · "
               f"meta-szivárgás {leak}/{n} · „ezt nem tudom” {nt}/{n} · "
-              f"átlaghossz {sum(hosszak) // n} szó\n")
+              f"átlaghossz {sum(hosszak) // n} szó"
+              + (f" · KIESETT {kiesett}" if kiesett else "") + "\n")
+        ments()
 
-    out = args.out or HERE / f"rag_citation_{args.kerdes}_{datetime.now():%Y-%m-%d}.json"
-    out.write_text(json.dumps({"kerdes": spec["kerdes"], "chunkok": cimek,
-                               "eredmeny": nyers}, ensure_ascii=False, indent=2),
-                   encoding="utf-8")
+    ments()
     print(f"nyers válaszok: {out}")
 
 

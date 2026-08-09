@@ -35,7 +35,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "robot" / "src"))
 from freedroid.rag import Retriever, load_corpus
 from freedroid.rag.normalize import tokenize
 
-R = Retriever(load_corpus())
+_R: Retriever | None = None
+
+
+def _retriever() -> Retriever:
+    """Lusta betöltés: az `import edge_rele` ne olvasson korpuszt a lemezről.
+
+    A relé-válaszokat máshonnan is importáljuk (az összevető-tábla generálásából, és a
+    Pi-n majd az orchestrátorból), ott pedig egy import-idejű lemezolvasás vagy lassít,
+    vagy hiányzó korpusz esetén importálhatatlanná teszi a modult.
+    """
+    global _R
+    if _R is None:
+        _R = Retriever(load_corpus())
+    return _R
 
 # 1) PARANCS -> tool. Kiváltó szó -> (tool, kísérő mondat).
 PARANCS = [
@@ -85,13 +98,17 @@ def valasz(kerdes: str) -> str:
         m = re.search(minta, k)
         if m:
             arg = m.groups()[-1] if m.groups() and (m.groups()[-1] or "").isdigit() else None
-            return f"{mondat} {tool.format(arg) if arg else re.sub(r' \{0\}', '', tool)}"
+            # `.replace`, nem `.format`: egy sablonban előforduló másik kapcsos zárójel
+            # a `.format()`-tal KeyError-t dobna. Itt nincs ilyen, de a hívás legyen
+            # ártalmatlan akkor is, ha valaki új sablont vesz fel.
+            kesz = tool.replace("{0}", arg) if arg else tool.replace(" {0}", "")
+            return f"{mondat} {kesz}"
     for minta, szoveg in ELUTASIT:
         if re.search(minta, k):
             return szoveg
     if re.search(IDENT_KIVALTO, k):
         return IDENTITAS
-    hits = R.retrieve(kerdes, top_k=3)
+    hits = _retriever().retrieve(kerdes, top_k=3)
     if hits:
         return _kivonat(kerdes, hits[0].chunk)
     return ELHARIT
@@ -99,8 +116,9 @@ def valasz(kerdes: str) -> str:
 
 if __name__ == "__main__":
     import json
-    qs = json.load(open(Path(__file__).resolve().parent / "persona_benchmark.json",
-                        encoding="utf-8"))
+    with open(Path(__file__).resolve().parent / "persona_benchmark.json",
+              encoding="utf-8") as f:
+        qs = json.load(f)
     qs = qs["kerdesek"] if isinstance(qs, dict) else qs
     for q in qs:
         print(f"{q['id']:6} | {valasz(q['kerdes'])}")
