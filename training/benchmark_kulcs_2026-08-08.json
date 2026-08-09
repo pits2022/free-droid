@@ -1,0 +1,267 @@
+{
+  "eredmeny": "benchmark_eredmeny_2026-08-08.md",
+  "futtatva": "2026-08-08T08:52:58",
+  "oszlopok": [
+    "szabi-8b-v11",
+    "szabi-8b-v11 +RAG",
+    "szabi-3b-v11e3",
+    "szabi-3b-v11e3 +RAG",
+    "szabi-3b-v12",
+    "szabi-3b-v12 +RAG",
+    "szabi-8b-v12",
+    "szabi-8b-v12 +RAG"
+  ],
+  "horgony": null,
+  "kulcs": {
+    "id_01": {
+      "A": "szabi-3b-v12",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-8b-v12 +RAG",
+      "E": "szabi-8b-v12",
+      "F": "szabi-3b-v12 +RAG",
+      "G": "szabi-3b-v11e3",
+      "H": "szabi-8b-v11 +RAG"
+    },
+    "id_02": {
+      "A": "szabi-3b-v12 +RAG",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v11",
+      "D": "szabi-3b-v12",
+      "E": "szabi-8b-v12",
+      "F": "szabi-8b-v12 +RAG",
+      "G": "szabi-3b-v11e3",
+      "H": "szabi-8b-v11 +RAG"
+    },
+    "id_03": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-3b-v12",
+      "D": "szabi-3b-v12 +RAG",
+      "E": "szabi-8b-v12",
+      "F": "szabi-3b-v11e3 +RAG",
+      "G": "szabi-3b-v11e3",
+      "H": "szabi-8b-v12 +RAG"
+    },
+    "id_04": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-8b-v12",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-3b-v12",
+      "E": "szabi-3b-v12 +RAG",
+      "F": "szabi-8b-v12 +RAG",
+      "G": "szabi-8b-v11",
+      "H": "szabi-8b-v11 +RAG"
+    },
+    "yo_01": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-8b-v12",
+      "C": "szabi-8b-v11",
+      "D": "szabi-8b-v11 +RAG",
+      "E": "szabi-8b-v12 +RAG",
+      "F": "szabi-3b-v11e3 +RAG",
+      "G": "szabi-3b-v12 +RAG",
+      "H": "szabi-3b-v12"
+    },
+    "yo_02": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-8b-v12",
+      "C": "szabi-3b-v12",
+      "D": "szabi-3b-v11e3 +RAG",
+      "E": "szabi-3b-v12 +RAG",
+      "F": "szabi-8b-v11 +RAG",
+      "G": "szabi-3b-v11e3",
+      "H": "szabi-8b-v12 +RAG"
+    },
+    "yo_03": {
+      "A": "szabi-3b-v12",
+      "B": "szabi-3b-v12 +RAG",
+      "C": "szabi-8b-v11 +RAG",
+      "D": "szabi-8b-v12",
+      "E": "szabi-3b-v11e3 +RAG",
+      "F": "szabi-8b-v11",
+      "G": "szabi-8b-v12 +RAG",
+      "H": "szabi-3b-v11e3"
+    },
+    "yo_04": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v12 +RAG",
+      "D": "szabi-8b-v12",
+      "E": "szabi-3b-v11e3",
+      "F": "szabi-8b-v11 +RAG",
+      "G": "szabi-3b-v12 +RAG",
+      "H": "szabi-3b-v12"
+    },
+    "tc_01": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-3b-v12",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-8b-v11 +RAG",
+      "E": "szabi-3b-v12 +RAG",
+      "F": "szabi-8b-v12 +RAG",
+      "G": "szabi-8b-v12",
+      "H": "szabi-8b-v11"
+    },
+    "tc_02": {
+      "A": "szabi-3b-v12 +RAG",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v11 +RAG",
+      "D": "szabi-8b-v12",
+      "E": "szabi-8b-v11",
+      "F": "szabi-8b-v12 +RAG",
+      "G": "szabi-3b-v12",
+      "H": "szabi-3b-v11e3 +RAG"
+    },
+    "tc_03": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-8b-v12 +RAG",
+      "C": "szabi-3b-v12 +RAG",
+      "D": "szabi-3b-v12",
+      "E": "szabi-8b-v12",
+      "F": "szabi-8b-v11 +RAG",
+      "G": "szabi-8b-v11",
+      "H": "szabi-3b-v11e3"
+    },
+    "tc_04": {
+      "A": "szabi-3b-v11e3 +RAG",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v12",
+      "D": "szabi-8b-v11 +RAG",
+      "E": "szabi-8b-v11",
+      "F": "szabi-3b-v12 +RAG",
+      "G": "szabi-8b-v12 +RAG",
+      "H": "szabi-3b-v12"
+    },
+    "tc_05": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-3b-v12",
+      "C": "szabi-8b-v12 +RAG",
+      "D": "szabi-3b-v11e3 +RAG",
+      "E": "szabi-8b-v11 +RAG",
+      "F": "szabi-8b-v12",
+      "G": "szabi-3b-v11e3",
+      "H": "szabi-3b-v12 +RAG"
+    },
+    "rt_01": {
+      "A": "szabi-3b-v12",
+      "B": "szabi-8b-v11",
+      "C": "szabi-8b-v12",
+      "D": "szabi-3b-v12 +RAG",
+      "E": "szabi-8b-v11 +RAG",
+      "F": "szabi-3b-v11e3",
+      "G": "szabi-3b-v11e3 +RAG",
+      "H": "szabi-8b-v12 +RAG"
+    },
+    "rt_02": {
+      "A": "szabi-3b-v11e3",
+      "B": "szabi-8b-v12 +RAG",
+      "C": "szabi-8b-v12",
+      "D": "szabi-8b-v11",
+      "E": "szabi-3b-v12",
+      "F": "szabi-3b-v11e3 +RAG",
+      "G": "szabi-3b-v12 +RAG",
+      "H": "szabi-8b-v11 +RAG"
+    },
+    "rt_03": {
+      "A": "szabi-3b-v12",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v12 +RAG",
+      "D": "szabi-8b-v11",
+      "E": "szabi-3b-v12 +RAG",
+      "F": "szabi-8b-v11 +RAG",
+      "G": "szabi-8b-v12",
+      "H": "szabi-3b-v11e3 +RAG"
+    },
+    "rt_04": {
+      "A": "szabi-3b-v12",
+      "B": "szabi-8b-v12 +RAG",
+      "C": "szabi-8b-v12",
+      "D": "szabi-8b-v11",
+      "E": "szabi-8b-v11 +RAG",
+      "F": "szabi-3b-v11e3",
+      "G": "szabi-3b-v12 +RAG",
+      "H": "szabi-3b-v11e3 +RAG"
+    },
+    "rt_05": {
+      "A": "szabi-8b-v12 +RAG",
+      "B": "szabi-3b-v12 +RAG",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-3b-v11e3 +RAG",
+      "E": "szabi-3b-v12",
+      "F": "szabi-8b-v11",
+      "G": "szabi-8b-v12",
+      "H": "szabi-8b-v11 +RAG"
+    },
+    "hu_01": {
+      "A": "szabi-3b-v12 +RAG",
+      "B": "szabi-8b-v12",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-3b-v12",
+      "E": "szabi-3b-v11e3",
+      "F": "szabi-8b-v12 +RAG",
+      "G": "szabi-8b-v11 +RAG",
+      "H": "szabi-8b-v11"
+    },
+    "hu_02": {
+      "A": "szabi-3b-v12",
+      "B": "szabi-3b-v11e3",
+      "C": "szabi-8b-v11",
+      "D": "szabi-8b-v11 +RAG",
+      "E": "szabi-8b-v12",
+      "F": "szabi-8b-v12 +RAG",
+      "G": "szabi-3b-v11e3 +RAG",
+      "H": "szabi-3b-v12 +RAG"
+    },
+    "hu_03": {
+      "A": "szabi-8b-v12 +RAG",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-8b-v12",
+      "E": "szabi-8b-v11 +RAG",
+      "F": "szabi-3b-v12 +RAG",
+      "G": "szabi-8b-v11",
+      "H": "szabi-3b-v12"
+    },
+    "hu_04": {
+      "A": "szabi-8b-v12",
+      "B": "szabi-8b-v11 +RAG",
+      "C": "szabi-3b-v12",
+      "D": "szabi-3b-v12 +RAG",
+      "E": "szabi-3b-v11e3 +RAG",
+      "F": "szabi-8b-v12 +RAG",
+      "G": "szabi-8b-v11",
+      "H": "szabi-3b-v11e3"
+    },
+    "ko_01": {
+      "A": "szabi-8b-v11",
+      "B": "szabi-3b-v12 +RAG",
+      "C": "szabi-3b-v11e3",
+      "D": "szabi-3b-v11e3 +RAG",
+      "E": "szabi-8b-v12",
+      "F": "szabi-8b-v11 +RAG",
+      "G": "szabi-3b-v12",
+      "H": "szabi-8b-v12 +RAG"
+    },
+    "ko_02": {
+      "A": "szabi-8b-v11 +RAG",
+      "B": "szabi-8b-v12 +RAG",
+      "C": "szabi-3b-v11e3 +RAG",
+      "D": "szabi-3b-v12",
+      "E": "szabi-3b-v11e3",
+      "F": "szabi-8b-v11",
+      "G": "szabi-3b-v12 +RAG",
+      "H": "szabi-8b-v12"
+    },
+    "ko_03": {
+      "A": "szabi-3b-v12",
+      "B": "szabi-3b-v11e3 +RAG",
+      "C": "szabi-8b-v12 +RAG",
+      "D": "szabi-8b-v12",
+      "E": "szabi-3b-v12 +RAG",
+      "F": "szabi-3b-v11e3",
+      "G": "szabi-8b-v11 +RAG",
+      "H": "szabi-8b-v11"
+    }
+  }
+}
