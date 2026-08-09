@@ -1,0 +1,161 @@
+{
+  "kerdes": "Mi a különbség a jin-jang és a Yotengrit dualizmusa között?",
+  "chunkok": [
+    "A Yotengrit dualizmusa és más vallások dualizmusa",
+    "Egy-két mondatban: hogyan határolja el Szabi a Yotengrit dualizmusát a jin-jangtól?"
+  ],
+  "eredmeny": {
+    "szabi-8b-v11": [
+      {
+        "seed": 42,
+        "valasz": "A jin-jang mindig egyik oldalra tolja a másikat, a hímtől megfosztva a nőstényt, vagy fordítva. A Büün világnézete szerint azonban nincs kettős elválasztás. A férfi és női erő egymást tölti fel, nem gyengíti meg egymást.",
+        "kanonikus": false,
+        "forras_fogalom": []
+      },
+      {
+        "seed": 43,
+        "valasz": "A jin-jangban a férfi aktív, a női passzív. A Büün vallás szerint a hímség és a nősténység egyenlő erők.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 44,
+        "valasz": "A jin-jang a férfi és női minőség ellensúlyozására épít, ahol az egyik elnyomja a másikat. A Yotengri dualizmusban viszont az erők egymást kiegészítenek, mert hasonlóak és részei ugyanannak a nemes teremtésnek.",
+        "kanonikus": false,
+        "forras_fogalom": []
+      },
+      {
+        "seed": 45,
+        "valasz": "A jin-jangnál minden egyensúly nélkül van. A férfi ág és a női ág egymást elnyomják, ha valamelyik megerősödik. A Büün-vallás szembenézést tanít.",
+        "kanonikus": false,
+        "forras_fogalom": []
+      },
+      {
+        "seed": 46,
+        "valasz": "A jin-jang az aktív-férfi és passzív-női minőség szembeállítása, míg a Büün-vallás szerint a férfi és női jellegek kiegészítik egymást. A Yotengrit dualizmusa nem ellenséges, hanem összekapcsoló erőt lát bennük.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 47,
+        "valasz": "A jin-jang dualizmus szerint az aktív férfi erő (jang) mindig elnyomja a passzív nőies erőt (jin). A Yotengrit viszont egyensúlyra törekszik: nem elnyomás, hanem kiegészítés.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 48,
+        "valasz": "A jin-jang egy szembeállító modell, ahol a férfi és női minőség kiegészíti egymást. A Büün-vallás szerint viszont a hím és nőminőség hasonló jellegek, csak egyiknek van több, a másiké kevesebb. Ezt nem szembenállásban látom, hanem összeadódásban.",
+        "kanonikus": false,
+        "forras_fogalom": []
+      },
+      {
+        "seed": 49,
+        "valasz": "A jin-jangban az aktív és passzív minőség ellentétben áll egymással. A Büün-vallás szerint viszont egy-egy fajta több van, ha nincs a másik éppen elenyészett, hanem kiegészítve mindkettő megvan.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 50,
+        "valasz": "A jin-jang a férfi és nő fázisai, míg a mi dualizmusunk a hímség és nősténység szellemi minősége. Az őszinte erő és az érzékeny bölcsesség kiegészítik egymást bennem, de nem ellensúlyozzák.",
+        "kanonikus": false,
+        "forras_fogalom": []
+      },
+      {
+        "seed": 51,
+        "valasz": "A jin-jang rendszerben a férfi aktív (jang), a nő passzív (jin). A Büün-vallás szerint viszont mindkettő egyenlő erejű, csak másképpen erősödik meg.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      }
+    ],
+    "szabi-8b-v12": [
+      {
+        "seed": 42,
+        "valasz": "A jin mindig passzív, nőies. A jang aktív, férfias. A Büün viszont egyenlő hímből és nőstényből áll. Hasonló jellegek, csak a súlyuk különbözik.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 43,
+        "valasz": "A jin mindig passzív, nőies. A jang aktív, férfias. Nálunk viszont hímség és nősténység hasonló jellegek, de kiegészítik egymást.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 44,
+        "valasz": "A jin mindig passzív, nőies. A jang aktív, férfias. A Büün viszont nem ilyen szembeállító.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 45,
+        "valasz": "A jin-jang aktív és passzív. A Büün szerint viszont nő és férfi hímben és nőstényben egyaránt van, de ha hiányzik az egyiknek a lényege, akkor nem lehet egész.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 46,
+        "valasz": "A jin-jang passzív vagy aktív, nőies vagy férfias. A Büün világnézetben ezek hasonló jellegek, de ahol egyiknek több van, ott a másiknak kevesebb – így kiegészítik egymást.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív",
+          "több/kevesebb"
+        ]
+      },
+      {
+        "seed": 47,
+        "valasz": "A távol-keleti vallásban mindenhol szembeállítottak, fény és sötétség. A Büünben nincs semmi ilyen – ott az egyensúly a kiegészítés.",
+        "kanonikus": false,
+        "forras_fogalom": []
+      },
+      {
+        "seed": 48,
+        "valasz": "A jin mindig passzív, nőies. Nálunk hímség és nősténység hasonló jellegek, csak a mennyiségük különböző. Kiegészítik egymást.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 49,
+        "valasz": "A jin-jang mindig szembenálló: nő és férfi. A Büün-vallás szerint viszont a hímség és a nősténység kiegészítik egymást.",
+        "kanonikus": false,
+        "forras_fogalom": []
+      },
+      {
+        "seed": 50,
+        "valasz": "A jin mindig passzív, nőies. A Yotengri szerint viszont a hím és női minőség egyenlő erővel rendelkezik. Kiegészítik egymást.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív"
+        ]
+      },
+      {
+        "seed": 51,
+        "valasz": "A jin mindig passzív és nőies. Nálunk a hímség és a nősténység hasonló jellegek, de ha egyiknek több van, ott kevesebb van a másiknak. Így kiegészítik egymást.",
+        "kanonikus": false,
+        "forras_fogalom": [
+          "passzív/aktív",
+          "több/kevesebb"
+        ]
+      }
+    ]
+  }
+}
