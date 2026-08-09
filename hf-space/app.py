@@ -1,4 +1,4 @@
-"""Szabi (Free-Droid) chat — Llama 3.1 8B v11 + offline RAG + Hungarian-only guard.
+"""Szabi (Free-Droid) chat — Llama 3.1 8B + offline RAG + Hungarian-only guard.
 
 ZeroGPU exposes a real CUDA device ONLY inside a @spaces.GPU function, so the base model +
 PEFT adapter load lazily there (via _ensure_model), NOT at module level — only the
@@ -38,6 +38,11 @@ from freedroid.rag import Retriever, build_prompt, load_corpus  # noqa: E402
 BASE_MODEL = "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"
 ADAPTER_REPO = "jabba77/Szabi-Llama-v12"
 ADAPTER_SUBFOLDER = "8b/lora"
+# A felületen megjelenő verzió-címke a REPO NEVÉBŐL jön, nem kézzel írva. 2026-08-09-én
+# az adapter már v12 volt, a cím viszont v11-et, a README v8-at hirdetett — három helyen
+# élt ugyanaz a szám, és mindhárom külön drift-elt. A README front mattere nem
+# származtatható (statikus YAML), azt a tests/test_hf_space_bundle.py őrzi.
+MODEL_LABEL = ADAPTER_REPO.rsplit("-", 1)[-1]        # "jabba77/Szabi-Llama-v12" -> "v12"
 SYSTEM_PROMPT = (HERE / "system_prompt.txt").read_text(encoding="utf-8").strip()
 
 # --- RAG: offline BM25 over the Yotengrit corpus (49 chunks, bundled) ---
@@ -156,7 +161,7 @@ def respond(message: str, history: list[dict]) -> str:
 
 DESCRIPTION = (
     "**Szabi** szuverén, nyílt forrású, **kizárólag magyarul** beszélő AI-robot "
-    "(Llama 3.1 8B v11). A tényeket offline RAG-ból veszi a Yotengrit-korpuszról és Szabi műszaki adatlapjáról; a magyar-only "
+    f"(Llama 3.1 8B {MODEL_LABEL}). A tényeket offline RAG-ból veszi a Yotengrit-korpuszról és Szabi műszaki adatlapjáról; a magyar-only "
     "szabályt kódból kényszeríti ki. Kérdezz tőle bármit — vagy add ki egy mozgásparancsot "
     "(pl. *„menj előre két métert\"*), és nézd a `<tool>…</tool>` választ.\n\n"
     "> ⓘ A beszélgetéseket teszteléshez naplózzuk. Ne írj be személyes vagy érzékeny adatot."
@@ -165,7 +170,7 @@ DESCRIPTION = (
 demo = gr.ChatInterface(
     respond,
     type="messages",
-    title="🤖 Szabi — Free-Droid (Llama 3.1 8B v11)",
+    title=f"🤖 Szabi — Free-Droid (Llama 3.1 8B {MODEL_LABEL})",
     description=DESCRIPTION,
     examples=[
         "Ki vagy te, és mit tudsz?",
