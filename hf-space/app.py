@@ -36,7 +36,7 @@ from freedroid.rag import Retriever, build_prompt, load_corpus  # noqa: E402
 # 4-bit with device_map="cuda" streams ~5.5 GB straight to the GPU — no 16 GB bf16 CPU
 # spike, which OOM-killed the ZeroGPU container on the full-precision load.
 BASE_MODEL = "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"
-ADAPTER_REPO = "jabba77/Szabi-Llama-v11"                    # the FROZEN demo model is still v8
+ADAPTER_REPO = "jabba77/Szabi-Llama-v12"
 ADAPTER_SUBFOLDER = "8b/lora"
 SYSTEM_PROMPT = (HERE / "system_prompt.txt").read_text(encoding="utf-8").strip()
 
