@@ -1,0 +1,42 @@
+#!/usr/sbin/nft -f
+# free-droid edge tűzfal — Ansible által kezelt, kézzel ne szerkeszd.
+#
+# A Pi felülete szándékosan kicsi: az Ollama a 127.0.0.1:11434-re kötődik (ai_stack,
+# bind-guard teszttel), tehát a LAN-on NINCS hitelesítés nélküli LLM-API. Marad az
+# sshd és a WireGuard, és ezt a kettőt zárjuk le.
+
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority filter; policy drop;
+
+    iif lo accept
+    ct state established,related accept
+
+    # Diagnosztika. Egy néma robot mellett a ping az első kérdés, hogy "él-e a
+    # hálózat vagy a szolgáltatás" — ezt nem érdemes elvenni magunktól.
+    ip protocol icmp accept
+    ip6 nexthdr icmpv6 accept
+
+    # WireGuard. Bárhonnan engedjük, és ez NEM lazaság: a WireGuard hitelesítés
+    # nélküli csomagra egyáltalán nem válaszol, tehát a port kívülről nem is
+    # látszik. Így a felhő újraépítése (új publikus IP) sem igényel szabály-módosítást.
+    udp dport 51820 accept
+
+    # SSH csak a felsorolt forrásokból. A lista a robot_ssh_allowed_sources változó;
+    # a WireGuard-alhálózat a tartalék út, a hotspot a helyi út.
+{% for src in robot_ssh_allowed_sources %}
+    ip saddr {{ src }} tcp dport 22 accept
+{% endfor %}
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy drop;
+  }
+
+  # A kimenő forgalmat nem szűrjük: a robotnak kell a felhő, az NTP és a hotspot.
+  chain output {
+    type filter hook output priority filter; policy accept;
+  }
+}

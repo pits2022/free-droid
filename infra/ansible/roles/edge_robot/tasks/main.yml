@@ -118,3 +118,116 @@
     name: freedroid-health.timer
     enabled: true
     state: started
+
+# ── SSH hardening ────────────────────────────────────────────────────────────
+# A sorrend nem esztétika: ELŐBB ellenőrizzük, hogy van érvényes kulcs, és csak
+# UTÁNA tiltjuk a jelszavas belépést. Fordítva egy üres authorized_keys végleg
+# kizárná a Teremtőt egy olyan gépből, aminek nincs billentyűzete.
+
+- name: Read the robot user's authorized_keys (lockout pre-flight)
+  when: robot_harden_sshd
+  slurp:
+    src: "{{ robot_user_home }}/.ssh/authorized_keys"
+  register: robot_authorized_keys
+  failed_when: false
+
+- name: Refuse to disable password auth without a usable public key
+  when: robot_harden_sshd
+  assert:
+    that:
+      - robot_authorized_keys.content is defined
+      - (robot_authorized_keys.content | b64decode).strip() | length > 0
+    fail_msg: >-
+      {{ robot_user_home }}/.ssh/authorized_keys üres vagy nem létezik. A jelszavas
+      belépés tiltása ITT megállt, mert utána semmilyen úton nem lehetne belépni a
+      Pi-re. Tedd fel a kulcsot (ssh-copy-id), aztán futtasd újra.
+    success_msg: "Van kulcs — a jelszavas belépés biztonságosan tiltható."
+
+- name: Harden sshd (key-only, no root login)
+  when: robot_harden_sshd
+  template:
+    src: sshd_hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-freedroid.conf
+    mode: '0644'
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify: Reload sshd
+
+# ── Tűzfal (nftables) ────────────────────────────────────────────────────────
+# Opt-in (robot_firewall_enabled), mert egy rossz forrás-lista kizárja a Teremtőt.
+# Az élő SSH-munkamenet a `ct state established` szabály miatt túléli a bekapcsolást.
+
+- name: Install nftables
+  when: robot_firewall_enabled
+  apt:
+    name: nftables
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Refuse an SSH allow-list that cannot let anyone in
+  when: robot_firewall_enabled
+  assert:
+    that:
+      - robot_ssh_allowed_sources | length > 0
+    fail_msg: >-
+      robot_ssh_allowed_sources üres, a szabálykészlet MINDEN SSH-t eldobna.
+      Vedd fel legalább a WireGuard-alhálózatot (10.0.0.0/24).
+
+- name: Deploy the nftables ruleset
+  when: robot_firewall_enabled
+  template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: '0755'
+    validate: '/usr/sbin/nft -c -f %s'
+  notify: Reload nftables
+
+- name: Enable nftables at boot
+  when: robot_firewall_enabled
+  systemd:
+    name: nftables
+    enabled: true
+    state: started
+
+# ── Tartalék hálózat: a saját 4G wifi router ─────────────────────────────────
+# Ez a HELYI út, ha a WireGuard áll. Kézzel, megbízható csatornán (Ansible-over-SSH)
+# beállított hálózat — a "soha nem csatlakozik kimondott parancsra" invariáns
+# a HANGVEZÉRLÉSRE szól, erre nem.
+#
+# A PSK-t nem tároljuk a repóban: ha nincs megadva, a task egyszerűen kimarad.
+# nmcli-t használunk, mert a Raspberry Pi OS Bookworm NetworkManagerrel jön (ez
+# ugyanaz a réteg, amit a scan_wifi() is olvas).
+
+- name: Add the fallback hotspot connection ({{ robot_hotspot_ssid }})
+  when: robot_hotspot_psk | length > 0
+  no_log: true
+  command:
+    argv:
+      - nmcli
+      - device
+      - wifi
+      - connect
+      - "{{ robot_hotspot_ssid }}"
+      - password
+      - "{{ robot_hotspot_psk }}"
+      - name
+      - "{{ robot_hotspot_ssid }}"
+  register: robot_hotspot_add
+  changed_when: "'successfully' in robot_hotspot_add.stdout | lower"
+  failed_when:
+    - robot_hotspot_add.rc != 0
+    - "'already exists' not in robot_hotspot_add.stderr | lower"
+
+- name: Make the hotspot auto-connect with priority {{ robot_hotspot_priority }}
+  when: robot_hotspot_psk | length > 0
+  command:
+    argv:
+      - nmcli
+      - connection
+      - modify
+      - "{{ robot_hotspot_ssid }}"
+      - connection.autoconnect
+      - "yes"
+      - connection.autoconnect-priority
+      - "{{ robot_hotspot_priority }}"
+  changed_when: true

@@ -2,3 +2,17 @@
 - name: Reload systemd
   systemd:
     daemon_reload: true
+
+# `reloaded`, nem `restarted`: az sshd újratöltése NEM bontja a futó munkamenetet,
+# tehát a Teremtő nem esik ki abból a kapcsolatból, amin épp hardenel.
+- name: Reload sshd
+  systemd:
+    name: ssh
+    state: reloaded
+
+# Ugyanez az elv: a `ct state established` szabály miatt az élő SSH túléli a
+# szabálykészlet betöltését.
+- name: Reload nftables
+  systemd:
+    name: nftables
+    state: reloaded

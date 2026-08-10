@@ -1,0 +1,30 @@
+# free-droid sshd hardening — Ansible által kezelt, kézzel ne szerkeszd.
+#
+# Drop-in, nem a főfájl átírása: a Bookworm sshd_config-ja `Include
+# /etc/ssh/sshd_config.d/*.conf`-ot tartalmaz a fájl ELEJÉN, és az OpenSSH-ban az
+# ELSŐ előfordulás nyer — tehát ami itt van, az felülírja a főfájl későbbi sorait.
+
+# Ez a valódi védelem. Kulcs-only sshd ellen nincs mit brute force-olni, ezért
+# nem is teszünk fail2ban-t a gépre (az a konferencián inkább öngól: kizárhatná
+# a Teremtőt a színpad mellett).
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PubkeyAuthentication yes
+
+# Root nem lép be SSH-n. Az Ansible az unprivilegizált {{ robot_user }}-ként
+# kapcsolódik és `become`-mal emel jogot, tehát ez semmit nem tör el.
+PermitRootLogin no
+
+# A kulcs ed25519. Az `ssh-rsa` (SHA-1) aláírást az OpenSSH 8.8+ ELEVE tiltja —
+# ezért itt NEM szűkítjük a PubkeyAcceptedAlgorithms-t: egy kézzel írt lista
+# könnyen visszaengedne egy elavult algoritmust, vagy kizárná a jövőbeli kulcsot.
+# A default itt szigorúbb, mint amit valószínűleg írnánk.
+
+# Kevesebb felület: X11 és ügynök-továbbítás nem kell egy robotnak.
+X11Forwarding no
+AllowAgentForwarding no
+
+# Egy leszakadt 4G kapcsolat után ne maradjanak zombi munkamenetek a Pi-n.
+ClientAliveInterval 30
+ClientAliveCountMax 4
