@@ -85,8 +85,10 @@ resource "local_file" "ansible_inventory" {
   mother-001 ansible_host=${hcloud_server.mother.ipv4_address} ansible_user=root vpn_ip=10.0.0.1
 
   [edge]
-  # Update 'ansible_host' with the actual LAN IP of the Pi if it's not reachable via its mDNS hostname
-  child-001 ansible_host=child-001.local ansible_user=pi vpn_ip=10.0.0.2
+  # A hosztnév a var.edge_ansible_host. Ha a robot adatkapcsolaton van, a helyes
+  # érték a WireGuard-cím (10.0.0.2), és az SSH a felhőn megy át jump hostként:
+  #   ansible_ssh_common_args='-o ProxyJump=root@${hcloud_server.mother.ipv4_address}'
+  child-001 ansible_host=${var.edge_ansible_host} ansible_user=pi vpn_ip=10.0.0.2
   EOT
   filename = "${path.root}/../ansible/inventory.ini"
 }

@@ -14,3 +14,16 @@ variable "cloud_location" {
   type        = string
   default     = "nbg1"
 }
+# A Pi-t az Ansible ezen a néven éri el. A korábbi hardkódolt `child-001.local`
+# mDNS-név NEM oldódott fel (sem a fejlesztői gépen, sem a 4G routeren), tehát az
+# első futás elakadt volna rajta. Az itthoni DNS a `free-droid-001.home`-ot adja.
+#
+# ⚠️ Egyik név sem univerzális: a `.home` az itthoni router DNS-e, a Wifi196-on
+# nem biztos, hogy feloldódik, adatkapcsolaton pedig a WireGuard `10.0.0.2` a
+# helyes érték. Ezért VÁLTOZÓ, nem konstans — hálózatonként átállítható:
+#   terraform apply -var edge_ansible_host=10.0.0.2
+variable "edge_ansible_host" {
+  description = "Ansible host for the Pi: home DNS name, hotspot IP, or the WireGuard 10.0.0.2"
+  type        = string
+  default     = "free-droid-001.home"
+}

@@ -57,4 +57,5 @@ module "cloud" {
   ssh_public_key_path = var.ssh_public_key_path
   cloud_server_type   = var.cloud_server_type
   cloud_location      = var.cloud_location
+  edge_ansible_host   = var.edge_ansible_host
 }
