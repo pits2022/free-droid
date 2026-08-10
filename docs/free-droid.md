@@ -503,7 +503,7 @@ free-droid/
 | MX1508 motorvezérlő (6 db) | ✅ Megvan – ⚠️ NEM használható 11.1V LiPo-val (max 10V), kis motorokra félretéve |
 | **Cytron HAT-MDD10 motorvezérlő** | ✅ Megérkezett – 25mm goldpin strip mellékelve |
 | **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` |
-| **USB LTE modem (Huawei E3372 HiLink)** | ❌ **Rendelni kell** – elsődleges netkapcsolat a helyszínen + pár GB-os feltöltőkártyás SIM |
+| ~~USB LTE modem (Huawei E3372 HiLink)~~ | ✅ **KIVÁLTVA (2026-08-10, a Teremtő): a saját 4G wifi router (`Wifi196`) adja a helyszíni netet.** Nem kell megrendelni – lekerül a kritikus útról. Ráadásul jobb: a router a robotot és a Teremtő laptopját UGYANARRA a hálózatra teszi, tehát a helyszíni SSH LAN-on megy, VPN és CGNAT nélkül – ez a tartalék belépési út (lásd `edge_robot`/`robot_hotspot_ssid`). |
 
 ---
 

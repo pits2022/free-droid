@@ -118,3 +118,149 @@
     name: freedroid-health.timer
     enabled: true
     state: started
+
+# ── SSH hardening ────────────────────────────────────────────────────────────
+# A sorrend nem esztétika: ELŐBB ellenőrizzük, hogy van érvényes kulcs, és csak
+# UTÁNA tiltjuk a jelszavas belépést. Fordítva egy üres authorized_keys végleg
+# kizárná a Teremtőt egy olyan gépből, aminek nincs billentyűzete.
+
+- name: Read the robot user's authorized_keys (lockout pre-flight)
+  when: robot_harden_sshd
+  slurp:
+    src: "{{ robot_user_home }}/.ssh/authorized_keys"
+  register: robot_authorized_keys
+  failed_when: false
+
+# A `.strip() | length > 0` NEM elég (PR #54 review): egy csak kommentet tartalmazó
+# fájl — amilyet az RPi Imager is hagyhat ("# Initialized by image") — átmenne rajta,
+# és utána a jelszavas belépés tiltása VÉGLEG kizárna. Ezért nem hosszt mérünk, hanem
+# valódi kulcs-sort keresünk: a kulcstípus-tokent BÁRHOL a sorban (`search`, nem
+# `match`), mert egy érvényes sor kezdődhet opciókkal is
+# (`restrict,command="..." ssh-ed25519 AAAA...`).
+- name: Refuse to disable password auth without a usable public key
+  when: robot_harden_sshd
+  vars:
+    robot_key_lines: >-
+      {{ (robot_authorized_keys.content | default('') | b64decode).splitlines()
+         | reject('match', '^\s*#')
+         | reject('match', '^\s*$')
+         | select('search', '(ssh-ed25519|ssh-rsa|ecdsa-sha2-|sk-ssh-|sk-ecdsa-)')
+         | list }}
+  assert:
+    that:
+      - robot_authorized_keys.content is defined
+      - robot_key_lines | length > 0
+    fail_msg: >-
+      {{ robot_user_home }}/.ssh/authorized_keys nem tartalmaz HASZNÁLHATÓ publikus
+      kulcsot (üres, nem létezik, vagy csak kommentek/szemét van benne). A jelszavas
+      belépés tiltása ITT megállt, mert utána semmilyen úton nem lehetne belépni egy
+      billentyűzet nélküli Pi-re. Tedd fel a kulcsot (ssh-copy-id), aztán futtasd újra.
+    success_msg: "{{ robot_key_lines | length }} használható kulcs — tiltható a jelszó."
+
+- name: Harden sshd (key-only, no root login)
+  when: robot_harden_sshd
+  template:
+    src: sshd_hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-freedroid.conf
+    mode: '0644'
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify: Reload sshd
+
+# ── Tűzfal (nftables) ────────────────────────────────────────────────────────
+# Opt-in (robot_firewall_enabled), mert egy rossz forrás-lista kizárja a Teremtőt.
+# Az élő SSH-munkamenet a `ct state established` szabály miatt túléli a bekapcsolást.
+
+- name: Install nftables
+  when: robot_firewall_enabled
+  apt:
+    name: nftables
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Refuse an SSH allow-list that cannot let anyone in
+  when: robot_firewall_enabled
+  assert:
+    that:
+      - robot_ssh_allowed_sources | length > 0
+    fail_msg: >-
+      robot_ssh_allowed_sources üres, a szabálykészlet MINDEN SSH-t eldobna.
+      Vedd fel legalább a WireGuard-alhálózatot (10.0.0.0/24).
+
+# A `nft -c` is elkapná, de ott már csak egy nyers parse-hibát látnánk. Itt a hiba
+# megnevezi a tényleges okot (PR #54 review: IPv6 cím az `ip saddr` listában).
+- name: Refuse an IPv6 address in the IPv4-only allow-list
+  when: robot_firewall_enabled
+  assert:
+    that:
+      - robot_ssh_allowed_sources | select('search', ':') | list | length == 0
+    fail_msg: >-
+      robot_ssh_allowed_sources IPv6 címet tartalmaz
+      ({{ robot_ssh_allowed_sources | select('search', ':') | list | join(', ') }}).
+      Ez a lista `ip saddr`-ré rendel, ami csak IPv4-et illeszt — az IPv6-források
+      a robot_ssh_allowed_sources_v6 listába mennek.
+
+- name: Deploy the nftables ruleset
+  when: robot_firewall_enabled
+  template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: '0755'
+    validate: '/usr/sbin/nft -c -f %s'
+  notify: Reload nftables
+
+- name: Enable nftables at boot
+  when: robot_firewall_enabled
+  systemd:
+    name: nftables
+    enabled: true
+    state: started
+
+# ── Tartalék hálózat: a saját 4G wifi router ─────────────────────────────────
+# Ez a HELYI út, ha a WireGuard áll. Kézzel, megbízható csatornán (Ansible-over-SSH)
+# beállított hálózat — a "soha nem csatlakozik kimondott parancsra" invariáns
+# a HANGVEZÉRLÉSRE szól, erre nem.
+#
+# A PSK-t nem tároljuk a repóban: ha nincs megadva, a task egyszerűen kimarad.
+# nmcli-t használunk, mert a Raspberry Pi OS Bookworm NetworkManagerrel jön (ez
+# ugyanaz a réteg, amit a scan_wifi() is olvas).
+
+# `connection add`, NEM `device wifi connect` (PR #54 review): az utóbbi aktív
+# szkennelést és azonnali kapcsolódást csinál, tehát elhasal — és megbuktatja az
+# egész playbookot —, ha a 4G router épp ki van kapcsolva vagy nincs hatótávon.
+# Pontosan ez az itthoni bekészítés helyzete. A profil létrehozásához nem kell,
+# hogy a hálózat LÁTSZÓDJON; a robot majd magától felcsatlakozik, amikor megjelenik.
+- name: Check whether the hotspot profile already exists
+  when: robot_hotspot_psk | length > 0
+  command:
+    argv: [nmcli, -t, -f, NAME, connection, show]
+  register: robot_nm_connections
+  changed_when: false
+  failed_when: false
+
+# Egyetlen task, minden tulajdonsággal — így idempotens is: ha a profil megvan,
+# nem futunk újra (a review a `changed_when: true`-t jogosan kifogásolta).
+- name: Add the fallback hotspot profile ({{ robot_hotspot_ssid }}, autoconnect)
+  when:
+    - robot_hotspot_psk | length > 0
+    - robot_hotspot_ssid not in (robot_nm_connections.stdout_lines | default([]))
+  no_log: true
+  command:
+    argv:
+      - nmcli
+      - connection
+      - add
+      - type
+      - wifi
+      - con-name
+      - "{{ robot_hotspot_ssid }}"
+      - ssid
+      - "{{ robot_hotspot_ssid }}"
+      - wifi-sec.key-mgmt
+      - wpa-psk
+      - wifi-sec.psk
+      - "{{ robot_hotspot_psk }}"
+      - connection.autoconnect
+      - "yes"
+      - connection.autoconnect-priority
+      - "{{ robot_hotspot_priority }}"

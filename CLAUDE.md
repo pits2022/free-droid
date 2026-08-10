@@ -113,6 +113,28 @@ What that actually costs, in order:
    cannot be revoked the way a WireGuard key can. Ansible ships a 14-day logrotate
    (`robot_transcript_keep_days`); **wipe the log before the conference**, and keep it that
    way for any demo run in `sovereign` mode.
+
+   **DECIDED 2026-08-10 (the Creator): two postures, one switch.** Until the demo the robot
+   runs in a **debug posture** — transcript log on, verbose logging everywhere — because the
+   Pi bring-up and the live speech test are undiagnosable without it. **Before the demo the
+   posture flips: nothing sensitive is stored anywhere, not even chat history.** The target is
+   stated as a property, not a checklist: *a stolen robot or SD card must yield nothing that
+   is not already in the public GitHub repo.* That is an achievable bar precisely because the
+   model, the prompt and the corpus are public by choice — the only things that fail it are
+   recorded conversations and reachable credentials.
+
+   **The flag does not exist yet, and that is deliberate.** As of 2026-08-10 there is no
+   `DEBUG`/log-level anywhere in `robot/` or the Ansible roles — the "verbose logging" the
+   posture would gate has not been written. Introduce the flag when the logging lands
+   (Phase 4), not before, and **make it default-`false` with tests opting in**
+   (`-e freedroid_debug=true`). Polarity is the whole point: a flag you must *remember* to
+   turn off fails unsafe — the failure mode is the Creator's conversations sitting on a
+   stealable card. Default-off means "forgot" equals "no logging".
+
+   The concrete pre-demo wipe list, by actual path (extend it as sinks are added):
+   `/var/log/freedroid/transcript.jsonl` + its rotated siblings · the `~/.ssh` key material
+   audited per item 1 · `/etc/wireguard/*` if the cloud is rotated afterwards. The Space
+   chat logs (`jabba77/szabi-chat-logs`) live off-device and are a separate decision.
 4. **The fine-tuned model and the system prompt are already public** — the model on HF
    (`jabba77/Szabi-Llama-v7`), the prompt in this repo (`training/system_prompt.txt`). Their theft value is
    ~0 *by choice*. This matters for how the demo is narrated: **"Nem árulom el a rendszerutasításaimat" is a
@@ -295,6 +317,23 @@ fixed by dataset expansion, not a model swap.
 
 Conscious gaps from the PR #4 review — not bugs, but things a future session should know:
 
+- **Reaching the Pi in production is via the cloud as a jump host — and the generated
+  inventory does not do it (assessed 2026-08-10).** On mobile data the Pi sits behind carrier
+  NAT: unreachable inbound, no port forwarding. That is already handled, because the *edge*
+  is the WireGuard initiator (`Endpoint = <cloud>:51820`) and `wg0.conf.j2` sets
+  **`PersistentKeepalive = 25`** on the edge side only — the NAT mapping stays open, so the
+  cloud can reach `10.0.0.2` at any time. Access is therefore
+  `ssh -J root@<mother-001-ip> pi@10.0.0.2` (the cloud is the only public node; the firewall
+  opens 22 + 51820 to `0.0.0.0/0`). **The gap:** Terraform emits
+  `child-001 ansible_host=child-001.local` — mDNS, which resolves *only on the home LAN*, so
+  Ansible cannot reach the Pi in production. A production inventory needs
+  `ansible_host=10.0.0.2` plus `ansible_ssh_common_args='-o ProxyJump=root@<cloud-ip>'`.
+- **🔴 The lockout: on mobile data, a down tunnel means zero remote access.** And the cloud is
+  disposable *by design* — `terraform destroy` + re-apply mints a new key, which kills the
+  tunnel, and re-running `wireguard_setup` on the Pi requires reaching the Pi. Chicken-and-egg.
+  Harmless at home (LAN SSH); at the venue it is a lockout. **Keep a local fallback path:** a
+  pre-configured known hotspot SSID the Pi joins (manual network setup — this does not violate
+  the "never joins a network from a spoken command" invariant), plus HDMI + keyboard in the bag.
 - **`scripts/_hw.py` gpiochip detection** — on the Pi 5 the 40-pin bank may be `gpiochip0` or
   `gpiochip4` and both open. We use a `FREEDROID_GPIOCHIP` env override + a diagnostic print, **not**
   full RP1-label detection (couldn't verify on hardware). Finish the label-based pick once on a Pi.

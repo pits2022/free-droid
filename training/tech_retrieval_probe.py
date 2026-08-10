@@ -19,8 +19,13 @@ Ugyanez szinonimán (hardver/számítógép, szenzor/érzékelő: NULLA közös 
 stemmer-eltérésen ('memóriád' -> memori, 'memóriája' -> memoria).
 
 A címek átírása után (2. személy + szinonimák a címben): **8/20 -> 18/20**. A maradék
-kettőhöz NINCS chunk (operációs rendszer, adattárolás) — az tartalmi hiány, nem
-retrieval-hiba, és ezt a próba szándékosan bent hagyja emlékeztetőnek.
+kettőhöz NEM VOLT chunk (operációs rendszer, adattárolás) — az tartalmi hiány volt, nem
+retrieval-hiba. 2026-08-10-én megírva mindkettő (a spec 1. szoftver-szekciója adta az
+OS-t; a tárolást a repó tényei), így **20/20**.
+
+A kapu ezért 20, nem 18: a küszöb a MÉRT állapotot védi, különben a két új chunk
+elvesztése csendben átmenne. Ha egy jövőbeli kör tudatosan kivesz egy chunkot, a
+küszöböt kell vele együtt csökkenteni — a szám akkor is döntés marad, nem véletlen.
 
 EZ A SZÁM AZ EDGE-MÓD KRITIKUS ÚTJA. A 2026-08-09-i relé-mérés szerint modell nélküli
 fallback is elég (23/25 vs a 3B 11/25), de akkor nincs modell, ami elfedje a retrieval
@@ -62,7 +67,7 @@ def main() -> int:
         cim = hits[0].chunk.title[:46] if hits else "-"
         print(f"  {jel} {q:47} {cim}")
     print(f"\n  tech-chunkot kap: {ok}/{len(TECH)}")
-    return 0 if ok >= 18 else 1
+    return 0 if ok >= 20 else 1
 
 
 if __name__ == "__main__":

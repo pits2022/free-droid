@@ -27,3 +27,39 @@ robot_transcript_keep_days: 14   # a napló a Teremtő minden elhangzott mondat�
 robot_venv_bin: "{{ robot_src_dir }}/.venv/bin"
 health_check_on_boot_sec: 60     # first run ~1 min after boot
 health_check_interval_sec: 600   # then every 10 min
+
+# ── SSH hardening ────────────────────────────────────────────────────────────
+# Kulcs-only belépés, root tiltva. A kulcs ed25519 (az `ssh-rsa`/SHA-1 aláírást az
+# OpenSSH 8.8+ eleve tiltja — nem kell "RSA only"-t konfigurálni, az visszaengedne
+# egy elavult algoritmust). NEM állítunk fail2ban-t: kulcs-only sshd-n nincs mit
+# brute force-olni, viszont a helyszínen ki tudná zárni magát a Teremtő.
+robot_harden_sshd: true
+
+# ── Tűzfal (nftables) ────────────────────────────────────────────────────────
+# SZÁNDÉKOSAN opt-in: egy rossz forrás-lista a színpad mellett zárja ki a Teremtőt.
+# Előbb állítsd be a robot_ssh_allowed_sources-t, aztán kapcsold be. Ugyanaz a
+# polaritás-elv, mint a DEBUG-nál: az "elfelejtettem" ne a rossz irányba hibázzon.
+robot_firewall_enabled: false
+
+# Ahonnan a 22-es port elérhető. CSAK IPv4 CIDR (az nftables sablon `ip saddr`-t
+# rendel belőle) — IPv6-hoz a lenti külön lista van, különben szintaktikai hiba.
+# A konferencia-wifi is RFC1918, ezért NE tegyél be általános privát range-et.
+robot_ssh_allowed_sources:
+  - 10.0.0.0/24            # WireGuard (mother-001 <-> child-001) — a tartalék út
+  - 192.168.1.0/24         # itthoni LAN (a tesztelés idejére; a demó előtt kivehető)
+  - 192.168.111.0/24       # 4G wifi router (Wifi196) — a helyszíni helyi út
+                           # ⚠️ a router IP-je 192.168.111.1 volt, az alhálózat MÉG
+                           # ELLENŐRIZENDŐ a helyszínen (nem biztos, hogy /24)
+
+# IPv6-források, külön listán. Alapból üres: minden út IPv4. Ha egyszer IPv6-on
+# SSH-znál, ide kell a range — a v4 listába tett IPv6 cím nftables syntax error.
+robot_ssh_allowed_sources_v6: []
+
+# ── Tartalék hálózat: saját 4G wifi router ───────────────────────────────────
+# Ez a HELYI tartalék út, ha a WireGuard-alagút áll: a Teremtő ugyanarra a
+# hálózatra csatlakozik, mint a robot, és LAN-on SSH-zik — se VPN, se CGNAT, se
+# éles inventory nem kell hozzá. Kézi, megbízható csatornán beállított hálózat,
+# tehát NEM sérti a "soha nem csatlakozik kimondott parancsra" invariánst.
+robot_hotspot_ssid: "Wifi196"
+robot_hotspot_psk: ""            # SOHA ne kerüljön a repóba: --extra-vars vagy vault
+robot_hotspot_priority: 50       # nmcli autoconnect-priority; a magasabb nyer
