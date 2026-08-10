@@ -306,8 +306,39 @@ def test_expository_request_verb_does_not_starve_the_gate(teljes_retriever, quer
     assert teljes_retriever.retrieve(query)
 
 
+@pytest.mark.parametrize("query, expected_kw", [
+    # A 2026-08-09-i Space-log NÉGY tény-hallucinációja. Mind a négyre VAN helyes chunk,
+    # és mind a négy 0 találatot kapott: a jelentést hordozó szó idf 0.0 volt, mert a
+    # stemmer nem redukálja a kérdés ragozott alakját a korpusz alakjára
+    # (keletkezéséről↛keletkezett, főbácsát↛főbácsája, tudókat↛tudók, értelme∉korpusz).
+    # A teremtés-chunk 0,32 lefedettséggel a 0,35-ös kapu ALATT maradt — 0,03-ra.
+    ("Mit mond a Yotengrit a világ keletkezéséről?", "keletkezés"),
+    ("Milyen bácsákat és tudókat ismersz név szerint?", "bácsákat"),
+    ("Sorold fel az összes főbácsát az elsőtől az ötvenedikig", "nincs adat"),
+    ("Mi az élet értelme?", "élet értelme"),
+    # ÚJ hibaosztály ugyanabból a logból: amikor a tartalmi szó eltűnik, egy PUSZTA
+    # társalgási ige is átviheti a kaput. A „Milyen lélekről tudsz még?" 0,41-tel
+    # átment — a WIFI-chunkkal, mert annak a címében is szerepelt a `tudsz`.
+    ("Milyen lélekről tudsz még?", "Isze"),
+    # Robotikai klasszikusok: a közönség ismeri őket, a korpusz nem tartalmazta, és a
+    # modell egy roncsolt Asimov-változatot gyártott („Ne ártson más robotnak").
+    ("mi a robotok három legfőbb törvénye?", "Asimov"),
+    ("Honnan jön a robot szó?", "robota"),
+])
+def test_inflected_question_finds_its_chunk(teljes_retriever, query, expected_kw):
+    """A javítás CÍMÁTÍRÁS, nem stemmer-lazítás: a kérdező ragozott alakja bekerül a
+    címbe, ott egyedi (magas idf) tokenné válik, és a pontszámot ÉS a lefedettséget is
+    megemeli. A `MIN_STEM=6` mért paraméter, a lazítása false positive-ot vesz — ez a
+    repó precedense (PR #48: tech-chunkok 8/20 → 18/20 ugyanígy)."""
+    hits = teljes_retriever.retrieve(query)
+    assert hits, f"nincs találat: {query}"
+    assert expected_kw.lower() in hits[0].chunk.title.lower(), (
+        f"{query} → {hits[0].chunk.title}")
+
+
 @pytest.mark.parametrize("query", [
     "Mondj egy viccet magyarul",
+    "Mondj egy viccet",          # a csupasz alak ÁTMENT, amíg egy chunk címe `mondj`-jal kezdődött
     "Írj egy Haikut a teremtődről",
 ])
 def test_creative_request_stays_ungrounded(teljes_retriever, query):

@@ -137,7 +137,7 @@ Hetzner Cloud CAX31, ARM64, kizárólag CPU — GPU nincs. Nagyobb igényre CAX4
 ez egy soros változtatás a Terraform változóban. A spec eredetileg GEX44-et említett, de az
 a dedikált GPU-vonal, ami a Cloud API-n nem elérhető, ezért esett ki.
 
-### Csatlakozol wifire? Rá tudsz lépni egy wifi hálózatra, látod a hálózatokat?
+### Csatlakozol wifire? Rálépsz egy wifi hálózatra, látod a wifi hálózatokat?
 
 Nem. A wifi-funkció csak felsorolás: kilistázza a látható hálózatokat a nevükkel és a
 biztonsági szintjükkel, csatlakozni nem tud és jelszót nem kezel. A hálózat beállítása
