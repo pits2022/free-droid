@@ -52,9 +52,18 @@ variable "cloud_location" {
   default     = "nbg1"
 }
 
+# See the cloud module's variable of the same name: the Pi's Ansible host differs
+# per network (home DNS / hotspot / WireGuard).
+variable "edge_ansible_host" {
+  description = "Ansible host for the Pi: home DNS name, hotspot IP, or the WireGuard 10.0.0.2"
+  type        = string
+  default     = "free-droid-001.home"
+}
+
 module "cloud" {
   source              = "./cloud"
   ssh_public_key_path = var.ssh_public_key_path
   cloud_server_type   = var.cloud_server_type
   cloud_location      = var.cloud_location
+  edge_ansible_host   = var.edge_ansible_host
 }
