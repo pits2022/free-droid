@@ -240,6 +240,27 @@ def run(cfg: TrainConfig, export_gguf: bool = True) -> Path:
     if eval_kw:
         sft_kwargs[eval_kw] = "epoch"          # measure on the validation set
 
+        # A záró GGUF-export a MEMÓRIÁBAN lévő modellre megy, tehát alapból az UTOLSÓ
+        # epochot exportálja — akkor is, ha a görbe már megfordult. A v13-on ez meg is
+        # történt (eval_loss e2=1,406 -> e3=1,424): a kirakott `szabi-8b-v13` a fordulat
+        # rossz oldalán volt, és egy külön Colab-export + újramérés kellett hozzá.
+        # Ezzel a trainer a legjobb epochot tölti vissza a futás végén, tehát a
+        # loss-vétó MAGÁTÓL érvényesül az exportra is.
+        #
+        # Csak `eval_kw` mellett állítjuk be: `load_best_model_at_end` kiértékelés
+        # nélkül hibát dob, és a save/eval stratégiának egyeznie kell — a `save_strategy`
+        # a fenti `sft_kwargs` literálban már fixen `"epoch"`, tehát az egyezés adott.
+        # (A PR #55 review épp itt vélt ValueError-t: a `save_strategy` 15 sorral
+        # feljebb, egy hosszú komment alatt van, ezért olvasás közben nem látszik.
+        # Nem `_pick_kwarg`-gal oldjuk fel: a `save_strategy` feltétel nélkül megy be,
+        # tehát ha egy build nem fogadná el, a dict építése hasalna el korábban.) A `checkpoints/` továbbra is MINDEN epochot megtart
+        # (save_total_limit=None), tehát a szomszéd-epoch utólag is exportálható
+        # `export_checkpoint.py`-vel — a legjobb kiválasztása nem szűkíti a jelölteket.
+        if _pick_kwarg(SFTConfig, ("load_best_model_at_end",)):
+            sft_kwargs["load_best_model_at_end"] = True
+            sft_kwargs["metric_for_best_model"] = "eval_loss"
+            sft_kwargs["greater_is_better"] = False
+
     tok_kw = _pick_kwarg(SFTTrainer, ("processing_class", "tokenizer")) or "processing_class"
     print(f"TRL compat: seq={seq_kw!r}, eval={eval_kw!r}, tokenizer={tok_kw!r}")
 
