@@ -85,8 +85,10 @@ resource "local_file" "ansible_inventory" {
   mother-001 ansible_host=${hcloud_server.mother.ipv4_address} ansible_user=root vpn_ip=10.0.0.1
 
   [edge]
-  # A hosztnév a var.edge_ansible_host. Ha a robot adatkapcsolaton van, a helyes
-  # érték a WireGuard-cím (10.0.0.2), és az SSH a felhőn megy át jump hostként:
+  # Host comes from var.edge_ansible_host. When the robot is on mobile data the correct
+  # value is its WireGuard address (10.0.0.2) and SSH goes through the cloud as a jump
+  # host — the Pi sits behind carrier NAT, but it is the WireGuard initiator and wg0.conf
+  # sets PersistentKeepalive on the edge side, so the cloud can reach it at any time:
   #   ansible_ssh_common_args='-o ProxyJump=root@${hcloud_server.mother.ipv4_address}'
   child-001 ansible_host=${var.edge_ansible_host} ansible_user=pi vpn_ip=10.0.0.2
   EOT
