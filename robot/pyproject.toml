@@ -8,7 +8,12 @@ license = { text = "GPL-3.0-or-later" }
 
 # Pi-only runtime (no off-Pi mock backend — see CLAUDE.md decision).
 dependencies = [
-    "lgpio",                               # GPIO/PWM: Cytron HAT-MDD10 motors, HC-SR04P ultrasonic
+    # Csak a Pi-n telepszik. Az `lgpio` C-kiterjesztést fordít (swig kell hozzá), és
+    # feltétel nélküli függőségként MEGBUKTATTA az `uv sync`-et minden nem-Pi gépen —
+    # tehát a CLAUDE.md-ben dokumentált `uv sync --extra dev` + `uv run pytest`
+    # munkafolyamat off-Pi sosem működött, és helyette PYTHONPATH-kerülőút kellett.
+    # A marker aarch64-re szűkít (a spec 64 bites Raspberry Pi OS-t ír elő).
+    "lgpio ; platform_machine == 'aarch64'",  # GPIO/PWM: Cytron HAT-MDD10, HC-SR04P
     "adafruit-circuitpython-pca9685",      # PCA9685 servo PWM (I2C) — camera pan/tilt
     "adafruit-circuitpython-neopixel-spi", # WS2812 status ring over SPI (spec: SPI mode → avoids PWM/DMA conflict, so not rpi_ws281x)
     "ollama",                              # cloud/edge LLM client
@@ -30,6 +35,10 @@ dev = [
 [project.scripts]
 freedroid = "freedroid.orchestrator:main"
 freedroid-health = "freedroid.health.cli:main"
+# A korpusz-újraépítés a repó saját konvenciója szerint, nem `python -m`-mel: az
+# utóbbi RuntimeWarninggal fut (a `freedroid.rag` csomag importálja a `corpus`-t,
+# tehát `-m` esetén kétszer töltődik be), és a helyes könyvtárat is fejből kell tudni.
+freedroid-corpus = "freedroid.rag.corpus:main"
 
 [build-system]
 requires = ["hatchling"]
