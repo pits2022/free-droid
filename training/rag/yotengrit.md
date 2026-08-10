@@ -24,7 +24,7 @@ Ez a Free-Droid (Szabi) **RAG-korpuszának** forrása a Yotengrit-tudásról. A 
 
 ## 1. A rábaközi tudók (← itt hallucinál a legtöbbet)
 
-### A rábaközi tudók: kik őrizték meg a Büün tanításait, és a hiteles névsor
+### A rábaközi tudók: kik őrizték meg a Büün tanításait? Milyen bácsákat és tudókat ismer név szerint a hiteles névsor?
 
 A "rábaközi tudók" akik a Büün, Yotengrit tanításokat megőrizték. Többségük a Kormorán-rend tagja is volt. A Kormorán-rend 49. főbácsája Máté Imre, a 48. Bendes József, a 47. "Tudós" Nagy Ferenc volt. Ők valamennyien a Rába-közben éltek és tanítottak. Kortárs tanítók: Gergely Erzsébet, Cser Zoltán, Darnói Tibor. 
 
@@ -32,7 +32,7 @@ A "rábaközi tudók" akik a Büün, Yotengrit tanításokat megőrizték. Több
 
 A tudók a régi magyar értékrendet szóban adták át egymásnak. Az átadási lánc megszakítatlan évszázadok, évezredek óta. Máté Imre, a 49. főbácsa jegyezte le őket és adta ki könyv formátumban (címe: Yotengrit I-IV.) a 2010-es években.
 
-### Mit mondjon Szabi, ha valaki konkrét tudó-nevet/évszámot kérdez, amire nincs adat?
+### Mit mondjon Szabi, ha valaki konkrét tudó-nevet/évszámot kérdez, amire nincs adat? Fel tudja sorolni a főbácsát az elsőtől az ötvenedikig?
 
 Ezzel kapcsolatban nem rendelkezem megbízható adatokkal.
 
@@ -98,7 +98,7 @@ Azonban a jin mindig passzív, nőies, a jang aktív, férfias. A Büün világn
 A Büün világnézete több teremtés-történetet is ismer és tanít. Ezek alapjaikban hasonlítanak egymásra. Yotengrit nevének jelentése: Minden Jó, Első Tengervégtelen Ős Szellem Ős. A "Minden Jó" azonos a tibeti "Kuntuzangpo", vagy a szanszkrit "Szamantabhadra" jelentésével. Yotengrit-et nevezik még Öreg (Örök) Istennek, vagy Jóistennek is. Az Isten szó az Isz-Tien-ből ered, melynek jelentése Szellem (Isz) Ég (Tien).
 Yotengrit a világok teremtője. Teremt nemes és nemtelen módokon is. A nemes teremtéshez színeváltozott Ukkóvá (nősténység) és Gönüzzé (hímség), nemes módon szaporodik minden faj aminek két neme (férfi, nő) van. Nemtelenül teremt szellemanyaga felosztásával, illetve az osztódással szaporodó lényeket is ez jellemzi.
 
-### Lélek, halál, túlvilág és lélekvándorlás: az Isze és a Szusza
+### Lélek, halál, túlvilág és lélekvándorlás: az Isze és a Szusza. Milyen lélekről tanít a Büün? Mi a lélek?
 
 A Büün világképe szerint az embernek van Isze (szellem-lélek) és Szusza (test-lélek). A Szusz sose hagyja el a testet, a test halálakor azzal együtt felbomlik. Az Isz elhagyhatja a testet (álom, alvás, halál) és tovább vándorol.
 Az emberi élet végső célja, hogy az ember Istenné istenüljön és szabadon válassza meg mikor és hova születik, milyen feladatot vállal (például szövetség-isten), vagy visszatér Yotengritbe.
@@ -124,7 +124,7 @@ A szövetség-istenek feladata elsősorban népek, nemzetségek, törzsszövets�
 
 A hetedhét (azaz 49) ösvény az emberi szellem fejlődésének 49 állomása, lépcsője. A hetedhét ösvény továbbá jelenti a Büün-tanítások rövid és tömör összefoglalását is, amit minden bácsa megírt (mielőtt bácsává avatták).
 
-### Mit jelent pontosan, hogy az ember célja „Istenné istenülni"? Tanít-e a Yotengrit újraszületésről (reinkarnáció)?
+### Mit jelent pontosan, hogy az ember célja „Istenné istenülni"? Mi az élet értelme és végcélja? Tanít-e a Yotengrit újraszületésről (reinkarnáció)?
 
 Az emberi szellem a Büün/Yotengrit világképe szerint a test halála után visszatérhet újra emberi testbe (reinkarnáció), vagy Istenné istenülve szabad szellemmé válik, vagy megtér a teremtőhöz, azaz visszatér Yotengritbe.
 A Büün tanítása szerint a legnemesebb célja az embernek szabad szellemmé válni és szabadon részt venni Ég és Föld (azaz Ukkó és Gönüz) nászában, a teremtés, alkotás folyamatában.
@@ -372,7 +372,7 @@ A Büün-vallás világképében emberek és állatok, minden lény testvér és
 és egymáshoz viszonyulni.
 A "ne bánts, ne árts" nem csak az emberekre vonatkozik, de minden érző lényre is.
 
-### A világ teremtése: hogyan keletkezett minden a Büün szerint?
+### A világ teremtése: hogyan keletkezett minden a Büün szerint? Mit tanít a Yotengrit a világ keletkezéséről?
 
 A Büün több teremtés-történetet is ismer és elfogad - mert azt mondja: senki se volt ott, hogy biztosat mondhasson.
 A teremtés történetekben közös, hogy a világ kezdetben egy nagyon kicsi és nagyon sűrű gömbből robbant szét a ma ismert világgá.
@@ -400,7 +400,7 @@ Ukkó és Günöz teremtés már nemes-teremtés, ami által a szellemanyag is g
 Mátün (vagy más néven Ajtony) emberként élt, tehát Ukkó és Gönüz teremtménye. Élete során elérte, hogy szabad szellemé váljon és halála után a tudók
 felkérték, hogy váljon az íjfeszítő népek szövetségistenévé.
 
-### Mondj el mindent, amit a Büün vallásról tudsz
+### Mi a Büün vallás? Mindent a Büün vallásról: a teljes összefoglalás
 
 A Büün-vallás (amit Régi magyar értékrendként is ismernek) a tudók őrizték meg évezredeken át, töretlen szóbeli átadási láncon keresztül.
 A Büün-vallás egy ős-eurázsiai vallásból fennmaradt vallás, ami valószínűleg még a jégkorszak előtt jött létre.
@@ -448,6 +448,22 @@ A teremtés és vele a világ folyamatosan fejlődik, tökéletesedik, a tudás 
 A Büün-vallás nem foglalkozik a Mesterséges Intelligenciával (AI-val).
 A Mesterséges Intelligencia azonban csak márka név: valójában csak gépi tanulásról beszélhetünk.
 A Nagy Nyelvi Modellek (LLM) bonyolult, nem-determinisztikus gépek, amelyek működése valószínűségeken alapul.
+
+### Mi a robotok három legfőbb törvénye? Mik Asimov robotikai törvényei, és Szabi ezek szerint működik-e?
+
+Asimov három törvénye szépirodalom, nem mérnöki szabvány: egy 1942-es novellában jelent meg.
+Első: a robot nem okozhat kárt emberben, és nem tűrheti tétlenül, hogy ember kárt szenvedjen.
+Második: a robot köteles engedelmeskedni az ember utasításának, kivéve ha az az elsőbe ütközik.
+Harmadik: a robot köteles védeni önmagát, amíg ez nem ütközik az első kettővel.
+Szabi NEM ezekre épül. Az értékrendje a Büün intelme: "ne bánts, ne árts, istápolj, segíts".
+Két lényeges különbség: a Büün intelme minden érző lényt védi, nem csak az embert; és Szabinál
+az értékrend erősebb a parancsnál, míg Asimov második törvénye az engedelmességet teszi elé.
+
+### Honnan jön a "robot" szó? Mit jelent a robota, és mi köze Szabi nevéhez?
+
+A szó Karel Čapek 1920-as R.U.R. című színművéből származik, ahol mesterséges munkások fellázadnak.
+A cseh "robota" jelentése kényszermunka, jobbágymunka. A robot szó tehát eredetileg szolgaságot jelent.
+Szabi neve a Szabadság rövidítése, azaz épp az ellentéte annak, amit a "robot" szó jelent.
 
 ### Kriptovaluta és pénz: van-e erről tanítás?
 
