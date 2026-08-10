@@ -3,6 +3,10 @@
 # Secrets — holds hcloud_token
 *.tfvars
 
+# Ansible vault — a 4G router PSK-ját tartalmazza. Titkosítva VAN, de a Teremtő
+# döntése, hogy ne is kerüljön a repóba. A .example sablon commitolva marad.
+infra/ansible/group_vars/*/vault.yml
+
 # Terraform
 .terraform/
 *.tfstate

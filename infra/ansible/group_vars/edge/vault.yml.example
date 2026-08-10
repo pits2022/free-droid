@@ -1,0 +1,22 @@
+---
+# Sablon a `group_vars/edge/vault.yml`-hez. Ezt a fájlt MÁSOLD le, töltsd ki, majd
+# titkosítsd — a kitöltött vault.yml gitignore-olt, nem kerül a repóba.
+#
+#   cd infra/ansible
+#   cp group_vars/edge/vault.yml.example group_vars/edge/vault.yml
+#   $EDITOR group_vars/edge/vault.yml          # írd bele a valódi PSK-t
+#   ansible-vault encrypt group_vars/edge/vault.yml
+#
+# Futtatás:
+#   ansible-playbook -i inventory.ini site.yml --ask-vault-pass
+#
+# A `group_vars/edge/` az inventory.ini mellett van, tehát az [edge] csoport
+# automatikusan megkapja — nem kell `-e @...`.
+#
+# Megjegyzés: egy ansible-vault fájl titkosítva van, ezért normál esetben BE
+# SZOKÁS commitolni. Itt a Teremtő döntése a szigorúbb: titkosítva ÉS nem
+# commitolva. Következménye, hogy a fájl nincs biztonsági mentésben — de a wifi
+# PSK a routerről bármikor újra kiolvasható, tehát ez elfogadható csere.
+
+# A 4G wifi router (Wifi196) WPA2-PSK jelszava.
+robot_hotspot_psk: "IDE-A-VALODI-PSK"

@@ -131,17 +131,31 @@
   register: robot_authorized_keys
   failed_when: false
 
+# A `.strip() | length > 0` NEM elég (PR #54 review): egy csak kommentet tartalmazó
+# fájl — amilyet az RPi Imager is hagyhat ("# Initialized by image") — átmenne rajta,
+# és utána a jelszavas belépés tiltása VÉGLEG kizárna. Ezért nem hosszt mérünk, hanem
+# valódi kulcs-sort keresünk: a kulcstípus-tokent BÁRHOL a sorban (`search`, nem
+# `match`), mert egy érvényes sor kezdődhet opciókkal is
+# (`restrict,command="..." ssh-ed25519 AAAA...`).
 - name: Refuse to disable password auth without a usable public key
   when: robot_harden_sshd
+  vars:
+    robot_key_lines: >-
+      {{ (robot_authorized_keys.content | default('') | b64decode).splitlines()
+         | reject('match', '^\s*#')
+         | reject('match', '^\s*$')
+         | select('search', '(ssh-ed25519|ssh-rsa|ecdsa-sha2-|sk-ssh-|sk-ecdsa-)')
+         | list }}
   assert:
     that:
       - robot_authorized_keys.content is defined
-      - (robot_authorized_keys.content | b64decode).strip() | length > 0
+      - robot_key_lines | length > 0
     fail_msg: >-
-      {{ robot_user_home }}/.ssh/authorized_keys üres vagy nem létezik. A jelszavas
-      belépés tiltása ITT megállt, mert utána semmilyen úton nem lehetne belépni a
-      Pi-re. Tedd fel a kulcsot (ssh-copy-id), aztán futtasd újra.
-    success_msg: "Van kulcs — a jelszavas belépés biztonságosan tiltható."
+      {{ robot_user_home }}/.ssh/authorized_keys nem tartalmaz HASZNÁLHATÓ publikus
+      kulcsot (üres, nem létezik, vagy csak kommentek/szemét van benne). A jelszavas
+      belépés tiltása ITT megállt, mert utána semmilyen úton nem lehetne belépni egy
+      billentyűzet nélküli Pi-re. Tedd fel a kulcsot (ssh-copy-id), aztán futtasd újra.
+    success_msg: "{{ robot_key_lines | length }} használható kulcs — tiltható a jelszó."
 
 - name: Harden sshd (key-only, no root login)
   when: robot_harden_sshd
@@ -173,6 +187,19 @@
       robot_ssh_allowed_sources üres, a szabálykészlet MINDEN SSH-t eldobna.
       Vedd fel legalább a WireGuard-alhálózatot (10.0.0.0/24).
 
+# A `nft -c` is elkapná, de ott már csak egy nyers parse-hibát látnánk. Itt a hiba
+# megnevezi a tényleges okot (PR #54 review: IPv6 cím az `ip saddr` listában).
+- name: Refuse an IPv6 address in the IPv4-only allow-list
+  when: robot_firewall_enabled
+  assert:
+    that:
+      - robot_ssh_allowed_sources | select('search', ':') | list | length == 0
+    fail_msg: >-
+      robot_ssh_allowed_sources IPv6 címet tartalmaz
+      ({{ robot_ssh_allowed_sources | select('search', ':') | list | join(', ') }}).
+      Ez a lista `ip saddr`-ré rendel, ami csak IPv4-et illeszt — az IPv6-források
+      a robot_ssh_allowed_sources_v6 listába mennek.
+
 - name: Deploy the nftables ruleset
   when: robot_firewall_enabled
   template:
@@ -198,36 +225,42 @@
 # nmcli-t használunk, mert a Raspberry Pi OS Bookworm NetworkManagerrel jön (ez
 # ugyanaz a réteg, amit a scan_wifi() is olvas).
 
-- name: Add the fallback hotspot connection ({{ robot_hotspot_ssid }})
+# `connection add`, NEM `device wifi connect` (PR #54 review): az utóbbi aktív
+# szkennelést és azonnali kapcsolódást csinál, tehát elhasal — és megbuktatja az
+# egész playbookot —, ha a 4G router épp ki van kapcsolva vagy nincs hatótávon.
+# Pontosan ez az itthoni bekészítés helyzete. A profil létrehozásához nem kell,
+# hogy a hálózat LÁTSZÓDJON; a robot majd magától felcsatlakozik, amikor megjelenik.
+- name: Check whether the hotspot profile already exists
   when: robot_hotspot_psk | length > 0
+  command:
+    argv: [nmcli, -t, -f, NAME, connection, show]
+  register: robot_nm_connections
+  changed_when: false
+  failed_when: false
+
+# Egyetlen task, minden tulajdonsággal — így idempotens is: ha a profil megvan,
+# nem futunk újra (a review a `changed_when: true`-t jogosan kifogásolta).
+- name: Add the fallback hotspot profile ({{ robot_hotspot_ssid }}, autoconnect)
+  when:
+    - robot_hotspot_psk | length > 0
+    - robot_hotspot_ssid not in (robot_nm_connections.stdout_lines | default([]))
   no_log: true
   command:
     argv:
       - nmcli
-      - device
-      - wifi
-      - connect
-      - "{{ robot_hotspot_ssid }}"
-      - password
-      - "{{ robot_hotspot_psk }}"
-      - name
-      - "{{ robot_hotspot_ssid }}"
-  register: robot_hotspot_add
-  changed_when: "'successfully' in robot_hotspot_add.stdout | lower"
-  failed_when:
-    - robot_hotspot_add.rc != 0
-    - "'already exists' not in robot_hotspot_add.stderr | lower"
-
-- name: Make the hotspot auto-connect with priority {{ robot_hotspot_priority }}
-  when: robot_hotspot_psk | length > 0
-  command:
-    argv:
-      - nmcli
       - connection
-      - modify
+      - add
+      - type
+      - wifi
+      - con-name
       - "{{ robot_hotspot_ssid }}"
+      - ssid
+      - "{{ robot_hotspot_ssid }}"
+      - wifi-sec.key-mgmt
+      - wpa-psk
+      - wifi-sec.psk
+      - "{{ robot_hotspot_psk }}"
       - connection.autoconnect
       - "yes"
       - connection.autoconnect-priority
       - "{{ robot_hotspot_priority }}"
-  changed_when: true
