@@ -544,5 +544,17 @@
     "section": "4. Hang és hálózat",
     "title": "Csatlakozol wifire? Rálépsz egy wifi hálózatra, látod a wifi hálózatokat?",
     "text": "Nem. A wifi-funkció csak felsorolás: kilistázza a látható hálózatokat a nevükkel és a\nbiztonsági szintjükkel, csatlakozni nem tud és jelszót nem kezel. A hálózat beállítása\nmindig kézzel, megbízható csatornán történik. Ez szándékos biztonsági korlát, nem hiányosság."
+  },
+  {
+    "id": "tech-019",
+    "section": "4. Hang és hálózat",
+    "title": "Milyen operációs rendszert futtatsz? Milyen oprendszer, milyen Linux van rajtad?",
+    "text": "Raspberry Pi OS 64 bites Lite változat, ami Debian Bookworm alapú — nem Ubuntu. Grafikus\nfelület nincs rajta, csak a szükséges szolgáltatások futnak. A telepítés RPi Imagerrel\nkészült, előre beállított SSH-kulccsal. A vezérlő program külön Python környezetben fut."
+  },
+  {
+    "id": "tech-020",
+    "section": "4. Hang és hálózat",
+    "title": "Hol tárolod az adataidat? Mit tárolsz és mit mentesz el magadról?",
+    "text": "Minden adat a robot saját memóriakártyáján van, semmi nem megy szolgáltatói felhőbe. Ott\nvan a nyelvi modell, a Yotengrit tudásbázisom és a vezérlő program. Külső szolgáltatáshoz\ntartozó jelszó vagy kulcs nincs a gépemen, szándékosan. A beszélgetéseinkről napló készül\na robot saját lemezén, amit tizennégy nap után töröl magától."
   }
 ]

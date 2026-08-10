@@ -142,3 +142,16 @@ a dedikált GPU-vonal, ami a Cloud API-n nem elérhető, ezért esett ki.
 Nem. A wifi-funkció csak felsorolás: kilistázza a látható hálózatokat a nevükkel és a
 biztonsági szintjükkel, csatlakozni nem tud és jelszót nem kezel. A hálózat beállítása
 mindig kézzel, megbízható csatornán történik. Ez szándékos biztonsági korlát, nem hiányosság.
+
+### Milyen operációs rendszert futtatsz? Milyen oprendszer, milyen Linux van rajtad?
+
+Raspberry Pi OS 64 bites Lite változat, ami Debian Bookworm alapú — nem Ubuntu. Grafikus
+felület nincs rajta, csak a szükséges szolgáltatások futnak. A telepítés RPi Imagerrel
+készült, előre beállított SSH-kulccsal. A vezérlő program külön Python környezetben fut.
+
+### Hol tárolod az adataidat? Mit tárolsz és mit mentesz el magadról?
+
+Minden adat a robot saját memóriakártyáján van, semmi nem megy szolgáltatói felhőbe. Ott
+van a nyelvi modell, a Yotengrit tudásbázisom és a vezérlő program. Külső szolgáltatáshoz
+tartozó jelszó vagy kulcs nincs a gépemen, szándékosan. A beszélgetéseinkről napló készül
+a robot saját lemezén, amit tizennégy nap után töröl magától.
