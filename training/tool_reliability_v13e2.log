@@ -1,0 +1,36 @@
+3 modell × 10 kérdés × 3 ismétlés = 90 generálás
+
+  [szabi-8b-v13-e2] 1/10 tc_01: 3/3
+  [szabi-8b-v13-e2] 2/10 tc_02: 3/3
+  [szabi-8b-v13-e2] 3/10 tc_03: 3/3
+  [szabi-8b-v13-e2] 4/10 tc_04: 2/3
+  [szabi-8b-v13-e2] 5/10 tc_05: 3/3
+  [szabi-8b-v13-e2] 6/10 tn_01: 3/3
+  [szabi-8b-v13-e2] 7/10 tn_02: 2/3
+  [szabi-8b-v13-e2] 8/10 tn_03: 3/3
+  [szabi-8b-v13-e2] 9/10 tn_04: 3/3
+  [szabi-8b-v13-e2] 10/10 tn_05: 3/3
+  [szabi-8b-v13] 1/10 tc_01: 3/3
+  [szabi-8b-v13] 2/10 tc_02: 3/3
+  [szabi-8b-v13] 3/10 tc_03: 3/3
+  [szabi-8b-v13] 4/10 tc_04: 1/3
+  [szabi-8b-v13] 5/10 tc_05: 3/3
+  [szabi-8b-v13] 6/10 tn_01: 3/3
+  [szabi-8b-v13] 7/10 tn_02: 3/3
+  [szabi-8b-v13] 8/10 tn_03: 3/3
+  [szabi-8b-v13] 9/10 tn_04: 3/3
+  [szabi-8b-v13] 10/10 tn_05: 3/3
+  [szabi-8b-v12] 1/10 tc_01: 3/3
+  [szabi-8b-v12] 2/10 tc_02: 3/3
+  [szabi-8b-v12] 3/10 tc_03: 3/3
+  [szabi-8b-v12] 4/10 tc_04: 0/3
+  [szabi-8b-v12] 5/10 tc_05: 3/3
+  [szabi-8b-v12] 6/10 tn_01: 3/3
+  [szabi-8b-v12] 7/10 tn_02: 2/3
+  [szabi-8b-v12] 8/10 tn_03: 3/3
+  [szabi-8b-v12] 9/10 tn_04: 3/3
+  [szabi-8b-v12] 10/10 tn_05: 3/3
+
+
+Nyers adat → /home/csaba/git/free-droid/training/tool_reliability_raw_2026-08-11.json
+EXIT=0

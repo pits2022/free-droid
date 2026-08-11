@@ -789,9 +789,18 @@ def main() -> int:
     raw_file = HERE / f"{prefix}_raw_{today}.json"
     key_file = HERE / f"{prefix}_kulcs_{today}.json"
 
-    if result_file.exists() and not args.force:
-        print(f"HIBA: {result_file.name} már létezik (kézi pontok elveszhetnek).\n"
-              f"  Felülíráshoz add meg a --force flaget.", file=sys.stderr)
+    # A guard MINDHÁROM kimenetre megy, nem csak az eredmény-md-re: a kulcs és a nyers
+    # json korábban feltétel nélkül íródott, tehát egy aznapi második futás CSENDBEN
+    # elvitte a már kipontozott kör feloldókulcsát és a következő kör horgony-fájlját.
+    # Csak azt vizsgáljuk, ami tényleg íródni fog (kulcs: vak módban, nyers: --json-out),
+    # különben a hamis riasztás --force-ra kényszerít, az pedig a valódit is feloldja.
+    utkozes = [f for f, irodik in ((result_file, True), (key_file, args.blind),
+                                  (raw_file, args.json_out)) if irodik and f.exists()]
+    if utkozes and not args.force:
+        print("HIBA: már létezik: " + ", ".join(f.name for f in utkozes) +
+              " (kézi pontok / a következő kör horgonya elveszhet).\n"
+              "  Felülíráshoz add meg a --force flaget, vagy nevezd át a korábbi kört "
+              "(pl. _nyers/_RAG utótag).", file=sys.stderr)
         return 1
 
     # Horgony a drága futás ELŐTT töltődik: egy rossz --anchor útvonal ne 40 perc

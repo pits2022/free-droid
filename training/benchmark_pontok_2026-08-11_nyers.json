@@ -1,7 +1,7 @@
 {
   "forras": {
-    "eredmeny": "benchmark_eredmeny_2026-08-11.md",
-    "kulcs": "benchmark_kulcs_2026-08-11.json"
+    "eredmeny": "benchmark_eredmeny_2026-08-11_nyers.md",
+    "kulcs": "benchmark_kulcs_2026-08-11_nyers.json"
   },
   "horgony": {
     "label": "⚓ benchmark_raw_2026-08-05::szabi-8b-v11",
