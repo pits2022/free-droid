@@ -20,6 +20,7 @@ from freedroid.rag import (
     load_corpus,
     parse_chunks,
 )
+from freedroid.rag.context import KIFEJTOS_MONDAT
 from freedroid.rag.corpus import DEFAULT_SOURCES
 from freedroid.rag.normalize import tokenize
 
@@ -229,6 +230,21 @@ def test_build_prompt_grounds_on_hits(retriever):
 
 def test_build_prompt_passthrough_without_hits():
     assert build_prompt("Mi a kedvenc színed?", []) == "Mi a kedvenc színed?"
+
+
+def test_build_prompt_length_budget_only_with_source(retriever):
+    """A mondat-költségvetés CSAK a forrásos ágon jelenik meg.
+
+    Mérve (2026-08-11): a bőbeszédű utasítás forrás NÉLKÜL elvitte a <tool> blokkot a
+    "Szabi, gyere ide!"-ről mindhárom mintában, és képességet hallucinált — egy 3 szavas
+    parancsra kirakott mondat-padló kitöltésre kényszerít. Ezért a parancsokra és a
+    nem-talált kérdésekre sosem kerülhet hosszpadló: a retrieval sikere dönt.
+    """
+    hits = retriever.retrieve("Kik Ukkó és Gönüz?")
+    assert f"legfeljebb {KIFEJTOS_MONDAT} mondatban" in build_prompt("Ki Gönüz?", hits)
+    assert "legfeljebb 1 mondatban" in build_prompt("Ki Gönüz?", hits, mondatok=1)
+    # Forrás nélkül a felülírás sem tehet hozzá semmit — a csupasz kérdés marad.
+    assert build_prompt("Szabi, gyere ide!", [], mondatok=5) == "Szabi, gyere ide!"
 
 
 def test_build_context_lists_titles(retriever):
