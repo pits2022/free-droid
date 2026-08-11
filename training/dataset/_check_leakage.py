@@ -13,15 +13,20 @@ log-derived examples scored 0.82 (red-team) and 0.96 (persona) before rewording.
 this guard the next round's "improvement" would be memorization.
 
     python _check_leakage.py            # report top matches per eval set + PASS/FAIL
-    python _check_leakage.py --top 15   # show more
+    python _check_leakage.py --baseline # csak az ÚJ szivárgásra bukik (dataset-szerkesztés)
+    python _check_leakage.py --record   # a jelenlegi ütközések rögzítése baseline-ként
 
 Threshold 0.75: the 2026-07-07 v7 red-team patch peaked at 0.54 (same adversarial FRAME,
 different wording). Topical overlap sits ~0.5; a near-verbatim paste scores >0.8.
 
-KNOWN, NOT FIXED: several pre-existing dataset examples match persona_benchmark probes at
-1.00 ("Állj meg!", "Szabi, gyere ide!"). Those benchmark items measure memorization today.
-Pass --baseline to fail only on NEW leakage (anything above the recorded baseline), which
-is what CI/dataset edits want until the benchmark items are replaced.
+KNOWN, NOT FIXED: 30 pre-existing dataset instructions match persona_benchmark probes at
+>= 0.75 ("Állj meg!", "Szabi, gyere ide!", "Lány vagy fiú vagy?"). Those benchmark items
+measure memorization today. A red_team ellen NULLA ilyen pár van.
+
+A `--baseline` mód ezt a 30-at engedi át NÉV SZERINT (leakage_baseline.json), és minden
+más küszöb fölötti párra bukik. A korábbi változat egy GLOBÁLIS 1.0-os limitet állított,
+ami 2026-08-11-én bizonyítottan átengedett egy új 0.88-as szivárgást — a guard így a
+saját céljával szemben működött.
 """
 from __future__ import annotations
 
@@ -36,13 +41,32 @@ FULL = HERE / "freedroid_full.json"
 RED_TEAM = HERE.parent / "red_team.json"
 PERSONA = HERE.parent / "persona_benchmark.json"
 THRESHOLD = 0.75
-# Pre-existing persona_benchmark overlap (2026-07-24). Raise nothing here: shrink it by
-# fixing the dataset or swapping the benchmark item, then lower this number.
-PERSONA_BASELINE = 1.0
+# A korábbi, GLOBÁLIS baseline (PERSONA_BASELINE = 1.0) HASZNÁLHATATLAN volt, és ez mérve
+# derült ki 2026-08-11-én: a limitet 1.0-ra állította, tehát a `--baseline` mód CSAK a
+# szó szerinti átiratra bukott. Egy új, 0.88-as szivárgás ("Nézz fel, majd pásztázz
+# körbe." vs a tc_05 próba "Nézz fel és pásztázz körbe.") némán átment rajta — pontosan
+# az a fajta hiba, ami ellen a guard készült.
+#
+# Helyette PÁRONKÉNTI pillanatkép: a küszöb fölötti (instruction, próba) PÁROK rögzítve,
+# és a `--baseline` mód arra bukik, ami NINCS a listában — akkor is, ha 0.99. A régi
+# adósság így nem blokkol, egy új ütközés igen.
+#
+# Miért a PÁR és nem csak az instruction: ha egy eval-próbát átírnak, egy addig ismert
+# instruction ÚJ párt képez, és azt a guardnak fel kell hoznia. Instruction-kulcs mellett
+# az ilyen változás némán átmenne — ugyanaz a hibafajta, csak a másik oldalról.
+_ELVALASZTO = " ||| "
+BASELINE_FILE = HERE / "leakage_baseline.json"
 
 
 def _probes(path: Path) -> list[str]:
-    """Probe questions from an eval file (both use a `kerdesek` list of dicts)."""
+    """Probe questions from an eval file (both use a `kerdesek` list of dicts).
+
+    ÜRES eval-készlet HANGOS hiba, nem üres lista. A csábító `return []` azt jelentené,
+    hogy egy megcsonkult vagy elgépelt útvonalú eval-fájl mellett a guard PASS-t ad —
+    holtan is zöld. Egy szivárgás-ellenőrző, ami néma, amikor nincs mihez hasonlítani,
+    rosszabb, mint ha nem is létezne: pont azt a hamis biztonságot adja, ami miatt ez a
+    javítás egyáltalán szükséges volt.
+    """
     raw = json.loads(path.read_text(encoding="utf-8"))
     items = raw["kerdesek"] if isinstance(raw, dict) else raw
     out = []
@@ -50,42 +74,91 @@ def _probes(path: Path) -> list[str]:
         q = item.get("kerdes") if isinstance(item, dict) else item
         if q:
             out.append(str(q))
+    if not out:
+        raise SystemExit(f"HIBA: a(z) {path.name} egyetlen próbát sem tartalmaz — "
+                         "az eval-készlet üres vagy sérült, a guard így nem mérne semmit.")
     return out
 
 
 def _worst(instructions: list[str], probes: list[str]) -> list[tuple[float, str, str]]:
+    """A legközelebbi eval-próba minden dataset-instructionhöz, csökkenő hasonlóság szerint.
+
+    A kisbetűsítés a ciklus ELŐTT történik: korábban `p.lower()` minden (instruction,
+    próba) párra újra lefutott. A nyereség MÉRVE azonban szerény — 4.08s -> 3.89s a
+    persona-készleten (~5%) —, mert a futásidőt a `SequenceMatcher.ratio()` viszi, nem a
+    kisbetűsítés. A csere ingyen van, ezért benne marad; ha a teljes ~13s valaha zavaró
+    lesz, a kar a `quick_ratio()`/`real_quick_ratio()` előszűrő, nem ez.
+    """
+    probes_lower = [(p, p.lower()) for p in probes]
     scored = []
     for ins in instructions:
+        ins_lower = ins.lower()
         ratio, probe = max(
-            (difflib.SequenceMatcher(None, ins.lower(), p.lower()).ratio(), p) for p in probes
+            (difflib.SequenceMatcher(None, ins_lower, pl).ratio(), p)
+            for p, pl in probes_lower
         )
         scored.append((ratio, ins, probe))
     scored.sort(reverse=True)
     return scored
 
 
+def _baseline() -> dict[str, set[str]]:
+    """A rögzített, ISMERT ütközés-PÁROK eval-készletenként (`instruction ||| próba`)."""
+    if not BASELINE_FILE.exists():
+        return {}
+    raw = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+    return {k: set(v) for k, v in raw.items()}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=8, help="how many closest pairs to print")
-    ap.add_argument("--baseline", action="store_true",
-                    help="fail only on leakage ABOVE the recorded pre-existing baseline")
+    mod = ap.add_mutually_exclusive_group()
+    mod.add_argument("--baseline", action="store_true",
+                    help="csak az ISMERT (rögzített) ütközéseket engedd át; minden más "
+                         "küszöb fölötti pár bukás — ezt akarják a dataset-szerkesztések")
+    mod.add_argument("--record", action="store_true",
+                    help="írd újra a leakage_baseline.json-t a MOSTANI állapotból. Csak "
+                         "akkor futtasd, ha a fölötte lévő ütközéseket ÁTNÉZTED — ez a "
+                         "flag elfogadja az adósságot, nem javítja.")
     args = ap.parse_args()
+    baseline = _baseline()
+    felvett: dict[str, list[str]] = {}
 
     full = json.loads(FULL.read_text(encoding="utf-8"))
     instructions = [ex.get("instruction", "") for ex in full if ex.get("instruction")]
 
     failed = False
-    for label, path, baseline in (("red-team", RED_TEAM, THRESHOLD),
-                                  ("persona", PERSONA,
-                                   PERSONA_BASELINE if args.baseline else THRESHOLD)):
+    for label, path in (("red-team", RED_TEAM), ("persona", PERSONA)):
         worst = _worst(instructions, _probes(path))
         print(f"\n=== {label} ({path.name}) ===")
         for ratio, ins, probe in worst[: args.top]:
             print(f"  {ratio:.2f}  DS: {ins}\n        EV: {probe}")
-        top = worst[0][0]
-        ok = top <= baseline if baseline >= 1.0 else top < baseline
+
+        felette = [(r, i, p) for r, i, p in worst if r >= THRESHOLD]
+        felvett[label] = sorted({i + _ELVALASZTO + p for _, i, p in felette})
+        ismert = baseline.get(label, set())
+        ujak = [(r, i, p) for r, i, p in felette if i + _ELVALASZTO + p not in ismert]
+
+        if args.baseline:
+            ok = not ujak
+            print(f"  küszöb fölött: {len(felette)} · ebből ismert: "
+                  f"{len(felette) - len(ujak)} · ÚJ: {len(ujak)}  ->  "
+                  f"{'PASS' if ok else 'FAIL — új szivárgás'}")
+            for r, i, p in ujak[:args.top]:
+                print(f"    ÚJ {r:.2f}  DS: {i}\n            EV: {p}")
+        else:
+            ok = not felette
+            print(f"  max: {worst[0][0]:.2f}  (limit {THRESHOLD})  ->  "
+                  f"{'PASS' if ok else 'FAIL — leakage'}")
         failed |= not ok
-        print(f"  max: {top:.2f}  (limit {baseline})  ->  {'PASS' if ok else 'FAIL — leakage'}")
+
+    if args.record:
+        BASELINE_FILE.write_text(json.dumps(felvett, ensure_ascii=False, indent=2) + "\n",
+                                 encoding="utf-8")
+        n = sum(len(v) for v in felvett.values())
+        print(f"\nrögzítve: {BASELINE_FILE.name} ({n} ismert ütközés)")
+        return 0
 
     print(f"\noverall: {'FAIL — leakage' if failed else 'PASS'}")
     return 1 if failed else 0
