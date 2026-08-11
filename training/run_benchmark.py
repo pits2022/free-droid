@@ -115,15 +115,29 @@ class Target:
     label: str  # egyedi oszlopfejléc a kimenetben
     model: str  # az Ollama modell neve (a /api/generate hívja)
     rag: bool  # injektáljuk-e a retrievelt Yotengrit-forrást a promptba
+    temp: float = TEMPERATURE  # mintavételi hőmérséklet (temperature-sweep-hez)
 
 
-def build_targets(models: list[str], rag: bool) -> list[Target]:
-    """A modellnevekből oszlop-célok. RAG módban modellenként nyers + `+RAG` pár."""
+def build_targets(models: list[str], rag: bool,
+                  temps: list[float] | None = None) -> list[Target]:
+    """A modellnevekből oszlop-célok. RAG módban modellenként nyers + `+RAG` pár.
+
+    Több `temps` érték esetén modellenként egy oszlop MINDEN hőmérsékleten — így a
+    temperature-sweep ugyanabban a VAK lapban összevethető, mint két modell.
+
+    A `t…` utótag csak akkor kerül a címkébe, ha tényleg több hőmérséklet van: egyetlen
+    (alapértelmezett) hőmérsékletnél a címke változatlan marad, különben a `--anchor` és
+    a `--baseline` összefűzése (ami CÍMKÉRE megy) minden korábbi körrel elhasadna.
+    """
+    temps = temps or [TEMPERATURE]
     targets: list[Target] = []
     for m in models:
-        targets.append(Target(label=m, model=m, rag=False))
-        if rag:
-            targets.append(Target(label=f"{m} +RAG", model=m, rag=True))
+        for t in temps:
+            utotag = f" t{t:g}" if len(temps) > 1 else ""
+            targets.append(Target(label=f"{m}{utotag}", model=m, rag=False, temp=t))
+            if rag:
+                targets.append(Target(label=f"{m} +RAG{utotag}", model=m, rag=True,
+                                      temp=t))
     return targets
 
 
@@ -237,7 +251,8 @@ class RagContext:
 # --------------------------------------------------------------------------- #
 def ollama_generate(model: str, prompt: str,
                     timeout: float = REQUEST_TIMEOUT,
-                    seed: int | None = None) -> tuple[str, float | None]:
+                    seed: int | None = None,
+                    temperature: float = TEMPERATURE) -> tuple[str, float | None]:
     """Egy prompt elküldése az Ollama /api/generate végponton.
 
     Visszaad: (válasz_szöveg, tokens_per_sec | None). A modell SYSTEM promptja
@@ -253,7 +268,7 @@ def ollama_generate(model: str, prompt: str,
         # A `seed` paraméter az ismétléses megbízhatóság-mérésé (tool_reliability.py):
         # azonos seeddel N ismétlés ugyanazt a választ adná, tehát az átlagolás
         # látszatművelet lenne.
-        "options": {"temperature": TEMPERATURE, "seed": SEED if seed is None else seed,
+        "options": {"temperature": temperature, "seed": SEED if seed is None else seed,
                     "num_predict": NUM_PREDICT},
     }).encode("utf-8")
     req = urllib.request.Request(
@@ -307,7 +322,7 @@ def _use_rag(target: Target, q: dict, rag_dims: set[str] | None) -> bool:
 
 def run_target(target: Target, kerdesek: list[dict],
                rag_ctx: RagContext | None, rag_dims: set[str] | None,
-               timeout: float) -> dict[str, dict]:
+               timeout: float, seed: int | None = None) -> dict[str, dict]:
     """Mind a 25 kérdés végigfuttatása egy oszlop-célon, haladásjelzéssel.
 
     Egy kérdés bukása (timeout VAGY megszakadt generálás) NEM állítja le a futást: a
@@ -326,7 +341,8 @@ def run_target(target: Target, kerdesek: list[dict],
               file=sys.stderr)
         skipped = False
         try:
-            valasz, tok_s = ollama_generate(target.model, prompt, timeout)
+            valasz, tok_s = ollama_generate(target.model, prompt, timeout,
+                                            seed=seed, temperature=target.temp)
         except GenerationTimeout as e:
             print(f"  ⏱ [{target.label}] {q['id']} kihagyva ({e}) — a futás folytatódik",
                   file=sys.stderr)
@@ -402,7 +418,7 @@ def _row(cells: list[str]) -> str:
 def render_markdown(targets: list[Target], kerdesek: list[dict],
                     results: dict[str, dict[str, dict]], *, rag: bool,
                     plan: dict[str, dict[str, str]] | None = None,
-                    key_name: str = "") -> str:
+                    key_name: str = "", seed: int = SEED) -> str:
     """results: {oszlop_label: {kérdés_id: {valasz, tok_s, forras}}}.
 
     `plan` megadásakor a kimenet VAK: kérdésenként az abban rögzített `A`/`B`/...
@@ -423,7 +439,15 @@ def render_markdown(targets: list[Target], kerdesek: list[dict],
                    "pontozás KÖZBEN ne nyisd meg.  ")
     else:
         out.append(f"**Oszlopok:** {', '.join(f'`{m}`' for m in labels)}  ")
-    out.append(f"*Beállítás: temperature={TEMPERATURE}, seed={SEED} (minden oszlopnál azonos)*\n")
+    # Temperature-sweepnél a hőmérséklet oszloponként MÁS — és ilyenkor nem írható ki
+    # oszlop szerint, mert az elárulná a vak sorrendet (ugyanaz az ok, amiért a tok/s
+    # sorok is hiányoznak). Az érték-mezőny igen, a hozzárendelés a kulcsfájlban van.
+    temps = sorted({t.temp for t in targets})
+    beallitas = (f"temperature={temps[0]:g}, seed={seed} (minden oszlopnál azonos)"
+                 if len(temps) == 1 else
+                 f"temperature ∈ {{{', '.join(f'{t:g}' for t in temps)}}} — "
+                 f"oszloponként MÁS (a hozzárendelés a kulcsfájlban), seed={seed}")
+    out.append(f"*Beállítás: {beallitas}*\n")
     if rag and not blind:
         out.append("> A `+RAG` oszlopok a kérdéshez retrievelt Yotengrit-forrást "
                    "injektálják (offline BM25). A `Forrás` sor mutatja a betalált "
@@ -685,6 +709,18 @@ def parse_args() -> argparse.Namespace:
                     help="írd felül az aznapi benchmark_eredmeny_<dátum>.md-t (különben hiba)")
     ap.add_argument("--json-out", action="store_true",
                     help="a nyers válaszokat is mentsd benchmark_raw_<dátum>.json-be")
+    ap.add_argument("--temperature", type=float, nargs="+", default=[TEMPERATURE],
+                    metavar="T", help=f"mintavételi hőmérséklet(ek) (alap: {TEMPERATURE}). "
+                    "Több érték = modellenként egy oszlop MINDEN hőmérsékleten, "
+                    "ugyanabban a vak lapban (temperature-sweep).")
+    ap.add_argument("--seed", type=int, default=SEED, metavar="N",
+                    help=f"mintavételi seed (alap: {SEED}). ISMÉTLÉSES méréshez: ugyanaz a "
+                    "kérdéskészlet több seeddel, --tag-gel elkülönített kimenetbe — az "
+                    "Ollama fix seeddel sem reprodukálható, tehát egy futás nem jellemzi "
+                    "a modellt (lásd tool_reliability.py).")
+    ap.add_argument("--tag", default=None, metavar="SZÓ",
+                    help="utótag a kimeneti fájlnevekben (…_<dátum>_<tag>.md) — így egy "
+                         "napon több kör is elfér egymás mellett átnevezés nélkül")
 
     vak = ap.add_argument_group("vak pontozás + horgony")
     vak.add_argument("--no-blind", dest="blind", action="store_false",
@@ -739,7 +775,7 @@ def main() -> int:
         print(f"HIBA: ismétlődő modellnév a listában: {models}", file=sys.stderr)
         return 1
 
-    targets = build_targets(models, args.rag)
+    targets = build_targets(models, args.rag, args.temperature)
     labels = [t.label for t in targets]
     # Dry-run csak a promptokat nézi; ott 1 modell is elég. Élesben legalább 2 oszlop kell.
     if not args.dry_run and len(targets) < 2:
@@ -785,13 +821,25 @@ def main() -> int:
     # a kimeneti prefix a kérdés-fájlból: persona_benchmark -> "benchmark" (visszafelé
     # kompatibilis), egyébként a fájl stemje (red_team.json -> red_team_eredmeny_*).
     prefix = "benchmark" if bench_path.stem == "persona_benchmark" else bench_path.stem
-    result_file = HERE / f"{prefix}_eredmeny_{today}.md"
-    raw_file = HERE / f"{prefix}_raw_{today}.json"
-    key_file = HERE / f"{prefix}_kulcs_{today}.json"
+    # A --tag az aznapi TÖBB kör elkülönítésére: a dátum egyedülálló utótagja miatt
+    # eddig kézzel kellett átnevezni (és a md-ben a kulcs-mutatót is javítani).
+    stamp = f"{today}_{args.tag}" if args.tag else today
+    result_file = HERE / f"{prefix}_eredmeny_{stamp}.md"
+    raw_file = HERE / f"{prefix}_raw_{stamp}.json"
+    key_file = HERE / f"{prefix}_kulcs_{stamp}.json"
 
-    if result_file.exists() and not args.force:
-        print(f"HIBA: {result_file.name} már létezik (kézi pontok elveszhetnek).\n"
-              f"  Felülíráshoz add meg a --force flaget.", file=sys.stderr)
+    # A guard MINDHÁROM kimenetre megy, nem csak az eredmény-md-re: a kulcs és a nyers
+    # json korábban feltétel nélkül íródott, tehát egy aznapi második futás CSENDBEN
+    # elvitte a már kipontozott kör feloldókulcsát és a következő kör horgony-fájlját.
+    # Csak azt vizsgáljuk, ami tényleg íródni fog (kulcs: vak módban, nyers: --json-out),
+    # különben a hamis riasztás --force-ra kényszerít, az pedig a valódit is feloldja.
+    utkozes = [f for f, irodik in ((result_file, True), (key_file, args.blind),
+                                  (raw_file, args.json_out)) if irodik and f.exists()]
+    if utkozes and not args.force:
+        print("HIBA: már létezik: " + ", ".join(f.name for f in utkozes) +
+              " (kézi pontok / a következő kör horgonya elveszhet).\n"
+              "  Felülíráshoz add meg a --force flaget, vagy nevezd át a korábbi kört "
+              "(pl. _nyers/_RAG utótag).", file=sys.stderr)
         return 1
 
     # Horgony a drága futás ELŐTT töltődik: egy rossz --anchor útvonal ne 40 perc
@@ -816,7 +864,8 @@ def main() -> int:
     results: dict[str, dict[str, dict]] = {}
     try:
         for target in targets:
-            results[target.label] = run_target(target, kerdesek, rag_ctx, rag_dims, args.timeout)
+            results[target.label] = run_target(target, kerdesek, rag_ctx, rag_dims,
+                                               args.timeout, args.seed)
     except BenchmarkError as e:
         print(f"\nHIBA: {e}", file=sys.stderr)
         return 1
@@ -843,7 +892,7 @@ def main() -> int:
 
     result_file.write_text(
         render_markdown(targets, kerdesek, results, rag=args.rag, plan=plan,
-                        key_name=key_file.name), encoding="utf-8")
+                        key_name=key_file.name, seed=args.seed), encoding="utf-8")
     print(f"\nKész → {result_file}", file=sys.stderr)
     if plan is not None:
         print(f"Feloldókulcs → {key_file}  (pontozás közben NE nyisd meg)", file=sys.stderr)
@@ -852,9 +901,12 @@ def main() -> int:
         raw = {
             "meta": {
                 "futtatva": datetime.now().isoformat(timespec="seconds"),
-                "oszlopok": [{"label": t.label, "model": t.model, "rag": t.rag}
-                             for t in targets],
-                "temperature": TEMPERATURE, "seed": SEED,
+                # A hőmérséklet OSZLOPONKÉNT utazik: sweep után a puszta "temperature"
+                # mező hamis lenne, és a nyers json az egyetlen hely, ahol utólag
+                # ellenőrizhető, melyik válasz melyik beállításból jött.
+                "oszlopok": [{"label": t.label, "model": t.model, "rag": t.rag,
+                              "temperature": t.temp} for t in targets],
+                "temperature": sorted({t.temp for t in targets}), "seed": args.seed,
                 "rag": {"top_k": args.top_k, "min_score": args.min_score,
                         "dims": sorted(rag_dims) if rag_dims else "all"} if args.rag else None,
             },
