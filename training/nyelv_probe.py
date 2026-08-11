@@ -104,28 +104,39 @@ def tool_hibak(valaszok: list[str]) -> tuple[int, int]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("raw", type=Path, help="egy run_benchmark.py --json-out kimenet")
+    ap.add_argument("raw", type=Path, nargs="+",
+                    help="egy vagy több run_benchmark.py --json-out kimenet. Több fájl = "
+                         "ISMÉTLÉSES mérés: ugyanaz a kérdéskészlet más seeddel, és a "
+                         "számok oszloponként ÖSSZEADÓDNAK. Ez a helyes használat: egy "
+                         "futás 3-4 eseménye Poisson-zaj, nem mérés.")
     ap.add_argument("--reszletek", action="store_true",
                     help="sorolja fel a talált szóalakokat oszloponként")
     args = ap.parse_args()
 
-    try:
-        d = json.loads(args.raw.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        print(f"HIBA: nem tudom beolvasni a {args.raw.name}-t: {e}", file=sys.stderr)
-        return 1
+    adatok = []
+    for f in args.raw:
+        try:
+            adatok.append(json.loads(f.read_text(encoding="utf-8")))
+        except (OSError, ValueError) as e:
+            print(f"HIBA: nem tudom beolvasni a {f.name}-t: {e}", file=sys.stderr)
+            return 1
 
     szokincs = projekt_szokincs()
-    oszlopok = [o["label"] for o in d["meta"]["oszlopok"]]
-    hom = {o["label"]: o.get("temperature") for o in d["meta"]["oszlopok"]}
+    oszlopok, hom = [], {}
+    for d in adatok:
+        for o in d["meta"]["oszlopok"]:
+            if o["label"] not in hom:
+                oszlopok.append(o["label"])
+            hom[o["label"]] = o.get("temperature")
 
-    print(f"# Gépi nyelv-metrika — {args.raw.name}\n")
+    print(f"# Gépi nyelv-metrika — {', '.join(f.name for f in args.raw)}"
+          f"{f' ({len(args.raw)} futás összegezve)' if len(args.raw) > 1 else ''}\n")
     print("| Oszlop | temp | magyar szóalak-roncs | egyedi | angol szó | kitalált tool |")
     print("| :--- | ---: | ---: | ---: | ---: | ---: |")
     reszlet = {}
     for lab in oszlopok:
-        valaszok = [it["valaszok"][lab]["valasz"] for it in d["eredmenyek"]
-                    if it["valaszok"].get(lab)]
+        valaszok = [it["valaszok"][lab]["valasz"] for d in adatok
+                    for it in d["eredmenyek"] if it["valaszok"].get(lab)]
         roncs, angol = ismeretlen_szavak(valaszok)
         roncs = Counter({w: n for w, n in roncs.items() if w.lower() not in szokincs})
         kitalalt, _ = tool_hibak(valaszok)

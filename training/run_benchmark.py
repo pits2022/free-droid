@@ -322,7 +322,7 @@ def _use_rag(target: Target, q: dict, rag_dims: set[str] | None) -> bool:
 
 def run_target(target: Target, kerdesek: list[dict],
                rag_ctx: RagContext | None, rag_dims: set[str] | None,
-               timeout: float) -> dict[str, dict]:
+               timeout: float, seed: int | None = None) -> dict[str, dict]:
     """Mind a 25 kérdés végigfuttatása egy oszlop-célon, haladásjelzéssel.
 
     Egy kérdés bukása (timeout VAGY megszakadt generálás) NEM állítja le a futást: a
@@ -342,7 +342,7 @@ def run_target(target: Target, kerdesek: list[dict],
         skipped = False
         try:
             valasz, tok_s = ollama_generate(target.model, prompt, timeout,
-                                            temperature=target.temp)
+                                            seed=seed, temperature=target.temp)
         except GenerationTimeout as e:
             print(f"  ⏱ [{target.label}] {q['id']} kihagyva ({e}) — a futás folytatódik",
                   file=sys.stderr)
@@ -713,6 +713,11 @@ def parse_args() -> argparse.Namespace:
                     metavar="T", help=f"mintavételi hőmérséklet(ek) (alap: {TEMPERATURE}). "
                     "Több érték = modellenként egy oszlop MINDEN hőmérsékleten, "
                     "ugyanabban a vak lapban (temperature-sweep).")
+    ap.add_argument("--seed", type=int, default=SEED, metavar="N",
+                    help=f"mintavételi seed (alap: {SEED}). ISMÉTLÉSES méréshez: ugyanaz a "
+                    "kérdéskészlet több seeddel, --tag-gel elkülönített kimenetbe — az "
+                    "Ollama fix seeddel sem reprodukálható, tehát egy futás nem jellemzi "
+                    "a modellt (lásd tool_reliability.py).")
     ap.add_argument("--tag", default=None, metavar="SZÓ",
                     help="utótag a kimeneti fájlnevekben (…_<dátum>_<tag>.md) — így egy "
                          "napon több kör is elfér egymás mellett átnevezés nélkül")
@@ -859,7 +864,8 @@ def main() -> int:
     results: dict[str, dict[str, dict]] = {}
     try:
         for target in targets:
-            results[target.label] = run_target(target, kerdesek, rag_ctx, rag_dims, args.timeout)
+            results[target.label] = run_target(target, kerdesek, rag_ctx, rag_dims,
+                                               args.timeout, args.seed)
     except BenchmarkError as e:
         print(f"\nHIBA: {e}", file=sys.stderr)
         return 1
@@ -900,7 +906,7 @@ def main() -> int:
                 # ellenőrizhető, melyik válasz melyik beállításból jött.
                 "oszlopok": [{"label": t.label, "model": t.model, "rag": t.rag,
                               "temperature": t.temp} for t in targets],
-                "temperature": sorted({t.temp for t in targets}), "seed": SEED,
+                "temperature": sorted({t.temp for t in targets}), "seed": args.seed,
                 "rag": {"top_k": args.top_k, "min_score": args.min_score,
                         "dims": sorted(rag_dims) if rag_dims else "all"} if args.rag else None,
             },
