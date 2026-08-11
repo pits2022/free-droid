@@ -20,7 +20,10 @@ _TARGET = rb.Target(label="teszt", model="m", rag=False)
 
 
 def _raise(exc):
-    def _f(model, prompt, timeout):
+    # **kw: a hívó a temperature-t (és bármi későbbi opciót) kulcsszóval adja át — a
+    # stubnak nem szabad a szignatúra bővítésén elhasadnia, mert a teszt tárgya a
+    # timeout-viselkedés, nem a paraméterlista.
+    def _f(model, prompt, timeout, **kw):
         raise exc
     return _f
 
