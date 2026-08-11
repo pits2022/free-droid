@@ -71,8 +71,33 @@ _TOKEN = re.compile(r"[0-9a-z]+(?:-[0-9a-z]+)*")
 # definition, since there is nothing left to gain on the technical side. Precision wins:
 # a wrong [FORRÁS] is worse than a missing one, because the fine-tune already teaches
 # "Ezt nem tudom".
+#
+# 2026-08-11: a TŐ-KONZISZTENCIA mérése (alapalak vs ragozott alak ugyanarra a tőre
+# essen) új sort tett a táblába. A mérce ehhez KELLETT: a fenti két műszer egyike sem
+# látja a token-szintű rombolást, mert a chat-arány csak azt számolja, kap-e a kérdés
+# LEGALÁBB EGY chunkot — egy elrontott token a többi szó mellett ritkán viszi nullára.
+#
+#   config                       tő-pár   10+10 próba   968 chat-kérdés
+#   alap                          8/15      20/20 / 6/10     25.6%
+#   + többes birtokos (-aid…)    11/15      20/20 / 7/10     25.4%   <- EZ
+#   „-ra/-re ki, -a/-e be"        2/15      20/20 / 8/10     25.4%   <- ELVETVE
+#
+# Az utolsó sor a tanulság: az `architektúra` (alapalak `architektu`, birtokos alak
+# `architektur`) megjavítható a `-ra`/`-re` kivételével és az egykarakteres `-a`/`-e`
+# felvételével — de az ÁRA hét elromlott pár (`nádszálra`, `kamerára`, `memóriára`,
+# `lánctalpra`, `hardverre`, `tudásra`, `szabadságra` egyike sem egyezik többé az
+# alapalakjával). A chat-arány ezt NEM mutatta (25.4% vs 25.6%), tehát mérce nélkül
+# beszállt volna a kódba. Ne próbáld újra e nélkül a próba nélkül.
+#
+# Az egykarakteres ragok külön is újramérve: NULLA plusz találat, ahogy korábban.
 MIN_STEM = 6
 _SUFFIXES = (
+    # Többes birtokos EGY LÉPÉSBEN. Két lépésben nem jön ki: a `szenzoraid` -> `-id` ->
+    # `szenzora` -> `-ra` -> `szenzo`, azaz a `-ra` beleeszik a tőbe. Egységként a
+    # `szenzoraid` -> `szenzor`, ami egyezik az alapalakkal. Ezért ÁLL ELÖL: a lista
+    # sorrendje dönt, és a rövidebb `-id`/`-ra` elvinné előle.
+    "aitok", "eitek", "jaid", "jeid", "aink", "eink",
+    "aid", "eid", "aim", "eim", "ait", "eit",
     "otok", "etek", "atok", "unk", "juk",                         # possessive (plural)
     "bol", "rol", "tol", "hoz", "hez", "ban", "ben",              # case
     "nak", "nek", "val", "vel", "ert", "kent",
