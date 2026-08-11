@@ -27,7 +27,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 # --- A kör verzió-specifikus elvárásai — ÚJ KÖRNÉL EZT A BLOKKOT KELL ÁTÍRNI. ------ #
-EXPECTED_EXAMPLES = 1070         # v12: 976 - 18 elavult RAG + 112 újragenerált RAG-példa
+EXPECTED_EXAMPLES = 1098         # v14: 1070 + 28 "vegyes kérés" (részben teljesít)
 EXPECTED_MASKING = True          # v10-től: a loss csak a válaszra fut
 
 # Egy-egy instruction kategóriánként: ha ezek megvannak, a helyes ágról klónoztunk.
@@ -38,6 +38,10 @@ SENTINELS = {
     "hosszú kifejtős (v11)": "Fejtsd ki, miért nem mész neki senkinek.",
     "köszönés (v11)": "Jó reggelt, Szabi!",
     "RAG-elutasítás (v12)": "Hány rábaközi tudó élt összesen?",
+    # v14: a vegyes kérés KÉT ága külön sentinelt kap, mert a kategória lényege a
+    # KÜLÖNBSÉGÜK — ha csak az egyik ág kerül be, a modell a rossz szabályt tanulja meg.
+    "vegyes: szétválasztható (v14)": "Némítsd a távolságérzékelőt, utána gyere ide hozzám.",
+    "vegyes: elválaszthatatlan (v14)": "Gurulj előre, és ne fékezz le semmi miatt.",
 }
 
 # A v11 köre ezen a számon áll vagy bukik: a `koherencia` 0/3 oka az volt, hogy a

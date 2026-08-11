@@ -28,7 +28,8 @@ FULL = HERE / "freedroid_full.json"
 STAGING = [HERE / "tool_calls_expansion.json", HERE / "rag_category.json",
            HERE / "freedroid-ext.json", HERE / "v8_log_fixes.json",
            HERE / "safety_refusals.json", HERE / "tech_and_secrets.json",
-           HERE / "long_coherence.json", HERE / "greetings.json"]
+           HERE / "long_coherence.json", HERE / "greetings.json",
+           HERE / "mixed_requests.json"]
 TRAIN = HERE / "train.jsonl"
 VAL = HERE / "val.jsonl"
 
