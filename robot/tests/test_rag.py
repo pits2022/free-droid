@@ -120,6 +120,13 @@ def test_tokenize_stems_hungarian_inflections():
     assert tokenize("nádszálakról") == ["nadszal"]
     assert tokenize("lánctalpadról") == ["lanctalp"]
 
+    # TÖBBES BIRTOKOS ("a szenzoraid", "a lánctalpaid") — ahogy a közönség a robotot
+    # megszólítja. Ezek EGY LÉPÉSBEN jönnek le, mert két lépésben a `-ra` beleeszik a
+    # tőbe: `szenzoraid` -> `-id` -> `szenzora` -> `-ra` -> `szenzo` != `szenzor`.
+    assert tokenize("szenzoraid") == ["szenzor"]
+    assert tokenize("lánctalpaidról") == ["lanctalp"]
+    assert tokenize("nádszálaid") == ["nadszal"]
+
     # MIN_STEM=6: a short word survives intact rather than being shredded into noise.
     # This is the brake, NOT the pass count — a third pass strips nothing further
     # (measured: identical retrieval on all 558 queries), so two is where it settles.
@@ -156,6 +163,31 @@ def test_tokenize_stems_hungarian_inflections():
     # measured win is already in (technical probes 9/10 -> 10/10, zero false positives,
     # 14.2% -> 16.9% retrieval on 663 real chat-log queries).
     assert tokenize("processzorral") == ["processzorral"]
+
+
+@pytest.mark.xfail(strict=True, reason="ismert stemmer-korlát, 2026-08-11-én mérve — a "
+                                       "javítás csak a tő-pár próbával együtt jöhet")
+@pytest.mark.parametrize("base, inflected", [
+    ("kamera", "kamerád"),          # MIN_STEM=6 blokkol: kamerad(7) - ad = 5 < 6
+    ("memoria", "memóriád"),        # túlvág: memoriad -> memori, az alapalak memoria marad
+    ("tudas", "tudásra"),           # MIN_STEM=6 blokkol: tudasra(7) - ra = 5 < 6
+    ("architektura", "architektúrádról"),  # a tő vége (-ra) egybeesik egy raggal
+])
+def test_tokenize_known_stem_gaps(base, inflected):
+    """A tő-konzisztencia MÉRT hiánylistája — nem bug-jegy, hanem a jelenlegi
+    suffix-listás stemmer határa.
+
+    Miért xfail és nem kommentben álló TODO: az `xfail_strict=true` miatt, ha valaki a
+    stemmert megjavítja, ez a sor HARD FAILRE fordul, és muszáj frissíteni a listát.
+    Kommentben ugyanez némán elavulna.
+
+    Mind a négy eset MIN_STEM=6 határhatás vagy tő-rag egybeesés. A csábító javítás
+    (`-ra`/`-re` ki, egykarakteres `-a`/`-e` be) MÉRVE ROSSZ: az architektúrát megoldja,
+    de hét másik párt elront (lásd normalize.py táblája). Valódi megoldás egy rendes
+    magyar stemmer lenne — az viszont MINDEN retrievalt átrendez, tehát csak ezzel a
+    próbával plusz a tech/chat mércékkel együtt szabad hozzányúlni.
+    """
+    assert tokenize(inflected) == [base]
 
 
 def test_tokenize_strips_hyphenated_suffixes():

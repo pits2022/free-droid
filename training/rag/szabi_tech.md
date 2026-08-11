@@ -15,7 +15,7 @@ változik, EZT a fájlt kell frissíteni, majd `python -m freedroid.rag.corpus`.
 
 ## 1. Architektúra
 
-### Milyen architektúrára épülsz? Hogyan működik a felhő-edge felépítésed?
+### Milyen architektúrára épülsz? Milyen az architektúrád? Hogyan működik a felhő-edge felépítésed?
 
 Hibrid cloud-edge architektúra, aszimmetrikus felállásban. A felhőben egy nagyobb, az
 eszközön egy kisebb nyelvi modell fut, és egy Python orkesztrátor dönti el, melyiket

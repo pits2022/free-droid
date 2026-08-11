@@ -434,7 +434,7 @@
   {
     "id": "tech-000",
     "section": "1. Architektúra",
-    "title": "Milyen architektúrára épülsz? Hogyan működik a felhő-edge felépítésed?",
+    "title": "Milyen architektúrára épülsz? Milyen az architektúrád? Hogyan működik a felhő-edge felépítésed?",
     "text": "Hibrid cloud-edge architektúra, aszimmetrikus felállásban. A felhőben egy nagyobb, az\neszközön egy kisebb nyelvi modell fut, és egy Python orkesztrátor dönti el, melyiket\nhasználja. A sorrend: felhő (ha a WireGuard-alagút él) → edge (offline) → \"safe mode\"\n(előre megírt válaszok, a mozgás letiltva). A felhő on-demand indul, nem folyamatosan fut."
   },
   {
