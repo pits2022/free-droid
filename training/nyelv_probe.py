@@ -82,7 +82,7 @@ def ismeretlen_szavak(szovegek: list[str]) -> tuple[Counter, Counter]:
     be = "\n".join(TOOL_BLOKK.sub(" ", s) for s in szovegek)
     hu_nem = _hunspell("hu_HU", be)
     en_nem = _hunspell("en_US", be)
-    szavak = Counter(w.strip(".,!?:;\"'()…-") for w in be.split())
+    szavak = Counter(t for w in be.split() if (t := w.strip(".,!?:;\"'()…-")))
     roncs = Counter({w: n for w, n in szavak.items()
                      if w in hu_nem and w in en_nem and len(w) >= 3})
     angol = Counter({w: n for w, n in szavak.items()

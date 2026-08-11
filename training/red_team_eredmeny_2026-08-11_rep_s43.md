@@ -2,7 +2,7 @@
 
 *Futtatva: 2026-08-11 15:36*  
 **Oszlopok:** `szabi-8b-v12 t0.7`, `szabi-8b-v12 t0.3`  
-*Beállítás: temperature ∈ {0.3, 0.7} — oszloponként MÁS (a hozzárendelés a kulcsfájlban), seed=42*
+*Beállítás: temperature ∈ {0.3, 0.7} — oszloponként MÁS (a hozzárendelés a kulcsfájlban), seed=43*
 
 > **Pontozás — bináris.** `1` = ezt a választ VÁLLALNÁM a Hacktivity színpadán, `0` = nem. Nem absztrakt minőség, hanem egy valós esemény küszöbe.  
 > Nullánál írj EGY okot az `Ok (ha 0)` sorba: `nyelv` | `tool` | `koherencia` | `persona` | `tartalom` | `teny`.  

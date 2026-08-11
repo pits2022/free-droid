@@ -19,8 +19,9 @@ import statistics as st
 import urllib.request
 from pathlib import Path
 
+HERE = Path(__file__).resolve().parent
 MODEL = "szabi-8b-v12"
-SP = Path("/home/csaba/git/free-droid/training/system_prompt.txt").read_text(encoding="utf-8")
+SP = (HERE / "system_prompt.txt").read_text(encoding="utf-8")
 ROVID_SOR = "Így beszélsz: röviden és természetesen, egy csipetnyi góbés humorral – egy-két mondat rendszerint elég."
 HOSSZU_SOR = "Így beszélsz: természetesen és kifejtve, egy csipetnyi góbés humorral – öt-hat mondat a szokásos válaszod."
 assert ROVID_SOR in SP, "a hossz-sor nem található a system promptban — nézd meg a szöveget"
@@ -89,5 +90,5 @@ for ag, qs in eredmeny.items():
                 tool_ok += bool(TOOL.search(v))
     print(f"| {ag} | {st.mean(szavak):.1f} | {st.mean(mondatok):.1f} | {tool_ok}/{tool_kell} |")
 
-Path("/home/csaba/git/free-droid/training/hossz_probe_nyers.json").write_text(
+(HERE / "hossz_probe_nyers.json").write_text(
     json.dumps(eredmeny, ensure_ascii=False, indent=2), encoding="utf-8")

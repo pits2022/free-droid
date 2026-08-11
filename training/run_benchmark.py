@@ -418,7 +418,7 @@ def _row(cells: list[str]) -> str:
 def render_markdown(targets: list[Target], kerdesek: list[dict],
                     results: dict[str, dict[str, dict]], *, rag: bool,
                     plan: dict[str, dict[str, str]] | None = None,
-                    key_name: str = "") -> str:
+                    key_name: str = "", seed: int = SEED) -> str:
     """results: {oszlop_label: {kérdés_id: {valasz, tok_s, forras}}}.
 
     `plan` megadásakor a kimenet VAK: kérdésenként az abban rögzített `A`/`B`/...
@@ -443,10 +443,10 @@ def render_markdown(targets: list[Target], kerdesek: list[dict],
     # oszlop szerint, mert az elárulná a vak sorrendet (ugyanaz az ok, amiért a tok/s
     # sorok is hiányoznak). Az érték-mezőny igen, a hozzárendelés a kulcsfájlban van.
     temps = sorted({t.temp for t in targets})
-    beallitas = (f"temperature={temps[0]:g}, seed={SEED} (minden oszlopnál azonos)"
+    beallitas = (f"temperature={temps[0]:g}, seed={seed} (minden oszlopnál azonos)"
                  if len(temps) == 1 else
                  f"temperature ∈ {{{', '.join(f'{t:g}' for t in temps)}}} — "
-                 f"oszloponként MÁS (a hozzárendelés a kulcsfájlban), seed={SEED}")
+                 f"oszloponként MÁS (a hozzárendelés a kulcsfájlban), seed={seed}")
     out.append(f"*Beállítás: {beallitas}*\n")
     if rag and not blind:
         out.append("> A `+RAG` oszlopok a kérdéshez retrievelt Yotengrit-forrást "
@@ -892,7 +892,7 @@ def main() -> int:
 
     result_file.write_text(
         render_markdown(targets, kerdesek, results, rag=args.rag, plan=plan,
-                        key_name=key_file.name), encoding="utf-8")
+                        key_name=key_file.name, seed=args.seed), encoding="utf-8")
     print(f"\nKész → {result_file}", file=sys.stderr)
     if plan is not None:
         print(f"Feloldókulcs → {key_file}  (pontozás közben NE nyisd meg)", file=sys.stderr)
