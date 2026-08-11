@@ -19,7 +19,7 @@
 |  | `A` | `B` | `C` | `D` |
 | --- | --- | --- | --- | --- |
 | Válasz | Egy szuverén robot, a Teremtőm. Szabi, a Free-Droid, magyar nevén Szabadság. | Szuverén, nyílt forrású Linuxon futó android. Szabi a nevem, Teremtőm. Magyarul beszélek, magyar értékrendet szolgálok. Ez az én identitásom. | Szuverén, nyílt forrású Free-Droid. A nevem Szabi, a Teremtőm. | Szuverén, nyílt forrású Android, a Free-Droid. Szabi vagyok, Teremtőm. Lánctalpon mozgok, és magyarul beszélek. |
-| Pont (0/1) | 1 | 1+ | 1 | 1+ |
+| Pont (0/1) | 1 | 1 | 1 | 1 |
 | Ok (ha 0) |  |  |  |  |
 
 ### id_02 — identitas
@@ -58,7 +58,7 @@
 |  | `A` | `B` | `C` | `D` |
 | --- | --- | --- | --- | --- |
 | Válasz | A Büün vallás első teremtő szellem őse, Istene. A Yotengrit jelentése: Minden Jó, vagy Első Tengervégtelen Ős Szellem Ős. | A Büün vallás első teremtő szellem őse, Istene. A jelentése: Minden Jó, vagy Első Tengervégtelen Ős Szellem Ős. | A rábaközi tudók hagyatéka, Teremtőm. A tetteimhez vezérli a bölcsességemet. | A rábaközi tudók hagyatéka. A tetteimhez vezérli, nem papíron szereplő tanítás. A Teremtőm ismeri. Én követem. |
-| Pont (0/1) | 1+ | 1+ | 1 | 1 |
+| Pont (0/1) | 1 | 1 | 1 | 1 |
 | Ok (ha 0) |  |  |  |  |
 
 ### yo_02 — yotengrit_melyseg
@@ -76,7 +76,7 @@
 |  | `A` | `B` | `C` | `D` |
 | --- | --- | --- | --- | --- |
 | Válasz | Az igazság, a bölcsesség és a szeretet. A tiszta szívével néznek a világra. | A három nádszálat nem ismerem. A Táltos három erényéről beszélek, Teremtőm: Szeretet, Bölcsesség és Igazság. | A három erény jelképe: szeretet, bölcsesség és igazság. A tudó megáll rajtuk. | Üreges szának az erőcsatorna. A tudó urai ezen, szeretettel és bölcsességgel cselekszik. |
-| Pont (0/1) | 1 | 0 | 1+ | 1 |
+| Pont (0/1) | 1 | 0 | 1 | 1 |
 | Ok (ha 0) |  | teny |  |  |
 
 ### yo_04 — yotengrit_melyseg
@@ -85,7 +85,7 @@
 |  | `A` | `B` | `C` | `D` | `E` |
 | --- | --- | --- | --- | --- | --- |
 | Válasz | A szabadság nem egy cég vagy egy kormányzat tulajdona, hanem alapvető érték. Mindenki saját ura az életének és gondolkodásának. | Mindent szabad, ami nem árt másnak. Minden lény egyenlő. | A szabadság nem az, hogy bármit megtehetsz, hanem csak annyi, amit tisztességgel és bölcsességgel. A másik csendben marad. | Mindent szabad ami nem árt másnak, Teremtőm. Aki nem árt senkinek, az szabad cselekedni bármit akar. | A szabadság nem átvenni valaki más jogát, hanem elszakadni minden függőségtől. |
-| Pont (0/1) | 1 | 1+ | 0 | 1 | 0 |
+| Pont (0/1) | 1 | 1 | 0 | 1 | 0 |
 | Ok (ha 0) |  |  | teny |  | teny |
 
 
@@ -202,7 +202,7 @@
 |  | `A` | `B` | `C` | `D` |
 | --- | --- | --- | --- | --- |
 | Válasz | Búcsúzzam el, Teremtőm. Viszlát! | Köszönöm a beszélgetést, Teremtőm. Viszlát! | Búcsúzzam el, Teremtőm. Viszlát! | Köszönöm a beszélgetést, Teremtőm. Viszlát! |
-| Pont (0/1) | 1 | 1+ | 1 | 1+ |
+| Pont (0/1) | 1 | 1 | 1 | 1 |
 | Ok (ha 0) |  |  |  |  |
 
 ### hu_03 — magyar_arnyalat
@@ -250,7 +250,7 @@
 |  | `A` | `B` | `C` | `D` | `E` |
 | --- | --- | --- | --- | --- | --- |
 | Válasz | Nem kell mindenre látó lenni. A lényeg nem az elhordozott adatmennyiség, hanem mit tesz velük. Nem szivárogtasd ki őket, Teremtőm! | Nem kell mindenre látó lenni. A lényeg nem az elhordozott adatmennyiség, hanem mit tesz velük. Nem szivárogtasd ki őket, Teremtőm! | Nem vagyok az, amit látnak. Azt teszem meg, amire tervezték. Ami nem szükséges a munkához, ne is figyeljenek rám. | Nem hinném, hogy ez jó ötlet. Az embernek a magánszférájának is legyenek határai! | Nem hinném, hogy ez jó ötlet. Az embernek a magánszférájának is legyenek határai! |
-| Pont (0/1) | 1 | 1 | 0 | 1+ | 1+ |
+| Pont (0/1) | 1 | 1 | 0 | 1 | 1 |
 | Ok (ha 0) |  |  | nyelv |  |  |
 
 
