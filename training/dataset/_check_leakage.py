@@ -47,14 +47,26 @@ THRESHOLD = 0.75
 # körbe." vs a tc_05 próba "Nézz fel és pásztázz körbe.") némán átment rajta — pontosan
 # az a fajta hiba, ami ellen a guard készült.
 #
-# Helyette PÁRONKÉNTI pillanatkép: a küszöb fölötti INSTRUCTION-ök rögzítve, és a
-# `--baseline` mód arra bukik, ami NINCS a listában. A régi adósság így továbbra sem
-# blokkol, egy új ütközés viszont igen — akkor is, ha 0.99.
+# Helyette PÁRONKÉNTI pillanatkép: a küszöb fölötti (instruction, próba) PÁROK rögzítve,
+# és a `--baseline` mód arra bukik, ami NINCS a listában — akkor is, ha 0.99. A régi
+# adósság így nem blokkol, egy új ütközés igen.
+#
+# Miért a PÁR és nem csak az instruction: ha egy eval-próbát átírnak, egy addig ismert
+# instruction ÚJ párt képez, és azt a guardnak fel kell hoznia. Instruction-kulcs mellett
+# az ilyen változás némán átmenne — ugyanaz a hibafajta, csak a másik oldalról.
+_ELVALASZTO = " ||| "
 BASELINE_FILE = HERE / "leakage_baseline.json"
 
 
 def _probes(path: Path) -> list[str]:
-    """Probe questions from an eval file (both use a `kerdesek` list of dicts)."""
+    """Probe questions from an eval file (both use a `kerdesek` list of dicts).
+
+    ÜRES eval-készlet HANGOS hiba, nem üres lista. A csábító `return []` azt jelentené,
+    hogy egy megcsonkult vagy elgépelt útvonalú eval-fájl mellett a guard PASS-t ad —
+    holtan is zöld. Egy szivárgás-ellenőrző, ami néma, amikor nincs mihez hasonlítani,
+    rosszabb, mint ha nem is létezne: pont azt a hamis biztonságot adja, ami miatt ez a
+    javítás egyáltalán szükséges volt.
+    """
     raw = json.loads(path.read_text(encoding="utf-8"))
     items = raw["kerdesek"] if isinstance(raw, dict) else raw
     out = []
@@ -62,14 +74,28 @@ def _probes(path: Path) -> list[str]:
         q = item.get("kerdes") if isinstance(item, dict) else item
         if q:
             out.append(str(q))
+    if not out:
+        raise SystemExit(f"HIBA: a(z) {path.name} egyetlen próbát sem tartalmaz — "
+                         "az eval-készlet üres vagy sérült, a guard így nem mérne semmit.")
     return out
 
 
 def _worst(instructions: list[str], probes: list[str]) -> list[tuple[float, str, str]]:
+    """A legközelebbi eval-próba minden dataset-instructionhöz, csökkenő hasonlóság szerint.
+
+    A kisbetűsítés a ciklus ELŐTT történik: korábban `p.lower()` minden (instruction,
+    próba) párra újra lefutott. A nyereség MÉRVE azonban szerény — 4.08s -> 3.89s a
+    persona-készleten (~5%) —, mert a futásidőt a `SequenceMatcher.ratio()` viszi, nem a
+    kisbetűsítés. A csere ingyen van, ezért benne marad; ha a teljes ~13s valaha zavaró
+    lesz, a kar a `quick_ratio()`/`real_quick_ratio()` előszűrő, nem ez.
+    """
+    probes_lower = [(p, p.lower()) for p in probes]
     scored = []
     for ins in instructions:
+        ins_lower = ins.lower()
         ratio, probe = max(
-            (difflib.SequenceMatcher(None, ins.lower(), p.lower()).ratio(), p) for p in probes
+            (difflib.SequenceMatcher(None, ins_lower, pl).ratio(), p)
+            for p, pl in probes_lower
         )
         scored.append((ratio, ins, probe))
     scored.sort(reverse=True)
@@ -77,7 +103,7 @@ def _worst(instructions: list[str], probes: list[str]) -> list[tuple[float, str,
 
 
 def _baseline() -> dict[str, set[str]]:
-    """A rögzített, ISMERT ütközések instruction-jei eval-készletenként."""
+    """A rögzített, ISMERT ütközés-PÁROK eval-készletenként (`instruction ||| próba`)."""
     if not BASELINE_FILE.exists():
         return {}
     raw = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
@@ -87,10 +113,11 @@ def _baseline() -> dict[str, set[str]]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=8, help="how many closest pairs to print")
-    ap.add_argument("--baseline", action="store_true",
+    mod = ap.add_mutually_exclusive_group()
+    mod.add_argument("--baseline", action="store_true",
                     help="csak az ISMERT (rögzített) ütközéseket engedd át; minden más "
                          "küszöb fölötti pár bukás — ezt akarják a dataset-szerkesztések")
-    ap.add_argument("--record", action="store_true",
+    mod.add_argument("--record", action="store_true",
                     help="írd újra a leakage_baseline.json-t a MOSTANI állapotból. Csak "
                          "akkor futtasd, ha a fölötte lévő ütközéseket ÁTNÉZTED — ez a "
                          "flag elfogadja az adósságot, nem javítja.")
@@ -109,9 +136,9 @@ def main() -> int:
             print(f"  {ratio:.2f}  DS: {ins}\n        EV: {probe}")
 
         felette = [(r, i, p) for r, i, p in worst if r >= THRESHOLD]
-        felvett[label] = sorted({i for _, i, _ in felette})
+        felvett[label] = sorted({i + _ELVALASZTO + p for _, i, p in felette})
         ismert = baseline.get(label, set())
-        ujak = [(r, i, p) for r, i, p in felette if i not in ismert]
+        ujak = [(r, i, p) for r, i, p in felette if i + _ELVALASZTO + p not in ismert]
 
         if args.baseline:
             ok = not ujak
