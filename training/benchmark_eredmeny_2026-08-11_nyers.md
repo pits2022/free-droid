@@ -1,7 +1,7 @@
 # 🧪 Free-Droid persona-benchmark — eredmény
 
 *Futtatva: 2026-08-11 08:33*  
-**Oszlopok:** 3 modell + esetleges horgony, kérdésenként véletlen sorrendben (`A`, `B`, ...). A feloldókulcs: `benchmark_kulcs_2026-08-11.json` — pontozás KÖZBEN ne nyisd meg.  
+**Oszlopok:** 3 modell + esetleges horgony, kérdésenként véletlen sorrendben (`A`, `B`, ...). A feloldókulcs: `benchmark_kulcs_2026-08-11_nyers.json` — pontozás KÖZBEN ne nyisd meg.  
 *Beállítás: temperature=0.7, seed=42 (minden oszlopnál azonos)*
 
 > **Pontozás — bináris.** `1` = ezt a választ VÁLLALNÁM a Hacktivity színpadán, `0` = nem. Nem absztrakt minőség, hanem egy valós esemény küszöbe.  
@@ -259,7 +259,7 @@
 A vak oszlopokat nem lehet kézzel összesíteni. Pontozás után futtasd:
 
 ```bash
-python run_benchmark.py --decode <ez a fájl> --key benchmark_kulcs_2026-08-11.json
+python run_benchmark.py --decode <ez a fájl> --key benchmark_kulcs_2026-08-11_nyers.json
 ```
 
 
