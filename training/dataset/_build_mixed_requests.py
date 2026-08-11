@@ -159,9 +159,14 @@ GROUPS = {
 def main() -> None:
     out_path = HERE / "mixed_requests.json"
     full = json.loads((HERE / "freedroid_full.json").read_text(encoding="utf-8"))
-    mine = json.loads(out_path.read_text(encoding="utf-8")) if out_path.exists() else []
-    have_instr = {x["instruction"] for x in full} - {x["instruction"] for x in mine}
-    have_out = {x["output"] for x in full} - {x["output"] for x in mine}
+    # A "már a datasetben van" ellenőrzés a SAJÁT csoportjaink kivonásával készül, nem a
+    # staging fájl beolvasásával. Így a szkript akkor is újrafuttatható, ha a staging fájl
+    # már archiválva van a dataset/old/-ba (ez a dokumentált életciklus) — különben a
+    # merge UTÁN minden újrafutás elbukna a saját, immár bent lévő példáin.
+    sajat_instr = {i for group in GROUPS.values() for i, _ in group}
+    sajat_out = {a for group in GROUPS.values() for _, a in group}
+    have_instr = {x["instruction"] for x in full} - sajat_instr
+    have_out = {x["output"] for x in full} - sajat_out
 
     out: list[dict[str, str]] = []
     seen: set[str] = set()
