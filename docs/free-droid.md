@@ -224,6 +224,18 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 ### 1. Operációs rendszer
 *   **OS:** Raspberry Pi OS 64-bit Lite (**Debian Bookworm** alapú – nem Ubuntu).
 *   **Telepítés:** RPi Imager (előre konfigurált Wi-Fi, SSH pubkey és user).
+*   **Hosztnév és elérés (a MŰKÖDŐ gépről, 2026-08-12):** a hosztnév **`free-droid-001`**
+    (a home DNS `free-droid-001.home`-ként szolgálja ki), a user **`creator`** — *nem* a
+    Raspberry Pi OS alapértelmezett `pi`-je, és nem a régi IaC-ból örökölt `child-001`. Az
+    elérés dedikált kulccsal megy:
+    `ssh -C -i ~/.ssh/free-droid -o IdentitiesOnly=yes creator@free-droid-001.home`.
+    Az `IdentitiesOnly=yes` kötelező: nélküle az SSH minden betöltött kulcsot felajánl, és
+    egy tele agent mellett a szerver „too many authentication failures"-szel eldob.
+    A Terraform ezt az inventory-t generálja (`edge_ansible_host` / `edge_ansible_user` /
+    `edge_ssh_key` változók), tehát az Ansible ugyanezen az úton érkezik.
+*   **A Pi-n NINCS kimenő SSH-kulcs** (mérve 2026-08-12: `~/.ssh` üres kulcsanyagtól). Ez
+    biztonsági *tulajdonság*, amit meg kell őrizni — egy ellopott robot így nem ad
+    hozzáférést se a `~/git` platformhoz, se GitHubhoz.
 
 ### 2. AI Modellek — DÖNTÉS: Llama (8B cloud / 3B edge)
 

@@ -1,7 +1,7 @@
 ---
 # The unprivileged user that owns and runs the robot software on the Pi
 # (matches the inventory's ansible_user for the edge host).
-robot_user: pi
+robot_user: creator
 robot_user_home: "/home/{{ robot_user }}"
 
 # Where the repo's robot/ project lives on the Pi. The orchestrator runs from here.
@@ -45,7 +45,7 @@ robot_firewall_enabled: false
 # rendel belőle) — IPv6-hoz a lenti külön lista van, különben szintaktikai hiba.
 # A konferencia-wifi is RFC1918, ezért NE tegyél be általános privát range-et.
 robot_ssh_allowed_sources:
-  - 10.0.0.0/24            # WireGuard (mother-001 <-> child-001) — a tartalék út
+  - 10.0.0.0/24            # WireGuard (mother-001 <-> free-droid-001) — a tartalék út
   - 192.168.1.0/24         # itthoni LAN (a tesztelés idejére; a demó előtt kivehető)
   - 192.168.111.0/24       # 4G wifi router (Wifi196) — a helyszíni helyi út
                            # ⚠️ a router IP-je 192.168.111.1 volt, az alhálózat MÉG

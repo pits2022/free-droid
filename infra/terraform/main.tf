@@ -60,10 +60,26 @@ variable "edge_ansible_host" {
   default     = "free-droid-001.home"
 }
 
+# See the cloud module's variables of the same name. The user is the Pi image's
+# (`creator`), the key is operator-specific.
+variable "edge_ansible_user" {
+  description = "SSH user on the Pi (`creator`, not the Raspberry Pi OS default `pi`)"
+  type        = string
+  default     = "creator"
+}
+
+variable "edge_ssh_key" {
+  description = "Private key path for the Pi (dedicated key)"
+  type        = string
+  default     = "~/.ssh/free-droid"
+}
+
 module "cloud" {
   source              = "./cloud"
   ssh_public_key_path = var.ssh_public_key_path
   cloud_server_type   = var.cloud_server_type
   cloud_location      = var.cloud_location
   edge_ansible_host   = var.edge_ansible_host
+  edge_ansible_user   = var.edge_ansible_user
+  edge_ssh_key        = var.edge_ssh_key
 }

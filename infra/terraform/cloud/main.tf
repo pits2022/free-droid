@@ -85,12 +85,17 @@ resource "local_file" "ansible_inventory" {
   mother-001 ansible_host=${hcloud_server.mother.ipv4_address} ansible_user=root vpn_ip=10.0.0.1
 
   [edge]
-  # Host comes from var.edge_ansible_host. When the robot is on mobile data the correct
-  # value is its WireGuard address (10.0.0.2) and SSH goes through the cloud as a jump
-  # host — the Pi sits behind carrier NAT, but it is the WireGuard initiator and wg0.conf
-  # sets PersistentKeepalive on the edge side, so the cloud can reach it at any time:
-  #   ansible_ssh_common_args='-o ProxyJump=root@${hcloud_server.mother.ipv4_address}'
-  child-001 ansible_host=${var.edge_ansible_host} ansible_user=pi vpn_ip=10.0.0.2
+  # Host/user/key come from vars. The user is `creator` (the Pi image's), NOT the Raspberry
+  # Pi OS default `pi` — the old hardcoded `pi` would have failed auth on every real run.
+  #
+  # When the robot is on mobile data the correct host is its WireGuard address (10.0.0.2)
+  # and SSH goes through the cloud as a jump host — the Pi sits behind carrier NAT, but it
+  # is the WireGuard initiator and wg0.conf sets PersistentKeepalive on the edge side, so
+  # the cloud can reach it at any time. FIGYELEM: az `ansible_ssh_common_args` egyetlen
+  # kulcs, tehát a ProxyJump-ot BELE kell fűzni, nem másodikként hozzáadni — két azonos
+  # kulcs esetén az INI az utolsót veszi, és az `IdentitiesOnly` némán elveszik:
+  #   ansible_ssh_common_args='-o IdentitiesOnly=yes -o ProxyJump=root@${hcloud_server.mother.ipv4_address}'
+  free-droid-001 ansible_host=${var.edge_ansible_host} ansible_user=${var.edge_ansible_user} ansible_ssh_private_key_file=${var.edge_ssh_key} ansible_ssh_common_args='-o IdentitiesOnly=yes' vpn_ip=10.0.0.2
   EOT
   filename = "${path.root}/../ansible/inventory.ini"
 }
@@ -120,7 +125,7 @@ resource "null_resource" "trigger_ansible" {
   }
 
   provisioner "local-exec" {
-    # Provision the cloud node. The edge (child-001) is provisioned separately so
+    # Provision the cloud node. The edge (free-droid-001) is provisioned separately so
     # `terraform apply` doesn't block on the Pi being online. Pass --private-key
     # explicitly (derived from the same var as the remote-exec key) so Terraform is
     # self-consistent even if ssh_public_key_path is overridden; ansible.cfg's
