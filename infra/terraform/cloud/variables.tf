@@ -27,3 +27,26 @@ variable "edge_ansible_host" {
   type        = string
   default     = "free-droid-001.home"
 }
+
+# A Pi-n futó user és a hozzá tartozó kulcs. MÉRVE 2026-08-12-én a működő gépen: a user
+# `creator`, nem `pi` — a korábbi `ansible_user=pi` MINDEN éles Ansible-futást elbuktatott
+# volna hitelesítésnél, és ez a fajta hiba csak a helyszínen derül ki.
+#
+# Az `IdentitiesOnly=yes` nem kozmetika: nélküle az SSH minden betöltött kulcsot felajánl,
+# és egy tele agent mellett a szerver "too many authentication failures"-szel eldobja a
+# kapcsolatot, még akkor is, ha a helyes kulcs is a listán van.
+#
+# A user a Pi-IMAGE tulajdonsága, ezért ritkán változik; a kulcs útvonala viszont
+# OPERÁTOR-specifikus, ezért mindkettő variable — ugyanaz az érv, mint az
+# `edge_ansible_host`-nál: nincs univerzális érték.
+variable "edge_ansible_user" {
+  description = "SSH user on the Pi (the image's user, `creator` — not the Raspberry Pi OS default `pi`)"
+  type        = string
+  default     = "creator"
+}
+
+variable "edge_ssh_key" {
+  description = "Private key path for the Pi (dedicated key — nothing else must be reachable with it)"
+  type        = string
+  default     = "~/.ssh/free-droid"
+}
