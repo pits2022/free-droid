@@ -17,14 +17,29 @@ import _hw
 
 from freedroid.config import gpio as G
 
-PWM_FREQ = 1000
+# A frekvencia és az "előre" logikai szint a configból jön, nem innen: azok
+# KALIBRÁCIÓS értékek (a motor bekötésén múlnak), és egy helyen kell élniük.
+PWM_FREQ = G.PWM_FREQ_HZ
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--duty", type=float, default=40.0, help="PWM duty %% (0-100)")
     ap.add_argument("--seconds", type=float, default=1.5, help="run time per direction")
+    # ELSŐ bekötésnél EGY motort hajts. Két motor egyszerre nem mondja meg, melyik a
+    # bal és melyik a jobb, sem azt, hogy az "előre" tényleg előre visz — és pont ez a
+    # két dolog az, amit a lábkiosztás NEM dönt el (lásd config/gpio.py kalibrációs
+    # jegyzetét). A `both` a regresszió-próba, ha már tudjuk, mi micsoda.
+    ap.add_argument("--motor", choices=("left", "right", "both"), default="both",
+                    help="melyik motort hajtsuk (első bekötésnél EGYET: --motor left)")
     args = ap.parse_args()
+
+    valasztott = {
+        "left":  [("BAL", G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR)],
+        "right": [("JOBB", G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR)],
+        "both":  [("BAL", G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR),
+                  ("JOBB", G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR)],
+    }[args.motor]
 
     import lgpio
 
@@ -46,16 +61,22 @@ def main() -> int:
         for pin in (G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR, G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR):
             lgpio.gpio_claim_output(h, pin, 0)
 
-        for label, direction in (("FORWARD", 0), ("BACKWARD", 1)):
-            print(f"{label} @ {args.duty:.0f}% for {args.seconds}s")
-            lgpio.gpio_write(h, G.LEFT_MOTOR_DIR, direction)
-            lgpio.gpio_write(h, G.RIGHT_MOTOR_DIR, direction)
-            lgpio.tx_pwm(h, G.LEFT_MOTOR_PWM, PWM_FREQ, args.duty)
-            lgpio.tx_pwm(h, G.RIGHT_MOTOR_PWM, PWM_FREQ, args.duty)
-            time.sleep(args.seconds)
-            stop_all()
-            time.sleep(0.5)
-        print("OK — both motors moved forward and backward")
+        for nev, pwm_pin, dir_pin in valasztott:
+            for label, szint in (("ELŐRE", G.FORWARD_LEVEL),
+                                 ("HÁTRA", 1 - G.FORWARD_LEVEL)):
+                print(f"{nev} / {label} @ {args.duty:.0f}% — {args.seconds}s "
+                      f"(PWM={pwm_pin}, DIR={dir_pin}={szint})")
+                # SORREND: előbb az irány, aztán a PWM. Fordítva egy pillanatra a
+                # KORÁBBI irányba indulna a motor, ami első bekötésnél épp azt a
+                # kérdést zavarja össze, amit mérni akarunk.
+                lgpio.gpio_write(h, dir_pin, szint)
+                lgpio.tx_pwm(h, pwm_pin, PWM_FREQ, args.duty)
+                time.sleep(args.seconds)
+                stop_all()
+                time.sleep(0.5)
+        print(f"OK — lefutott ({args.motor}). Amit most fel kell írni: melyik LÁNCTALP "
+              f"mozgott, és az 'ELŐRE' tényleg előre vitt-e. Ha nem, lásd a "
+              f"config/gpio.py kalibrációs jegyzetét (pár-csere / FORWARD_LEVEL).")
         return 0
     except KeyboardInterrupt:
         return 130
