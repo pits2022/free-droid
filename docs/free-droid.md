@@ -126,10 +126,26 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
 | Funkció | GPIO (BCM) | Pin |
 | :--- | :--- | :--- |
-| Bal motor sebesség (PWM) | GPIO 12 | 32 |
-| Bal motor irány (DIR) | GPIO 13 | 33 |
-| Jobb motor sebesség (PWM) | GPIO 6 | 31 |
-| Jobb motor irány (DIR) | GPIO 5 | 29 |
+> 🔴 **JAVÍTVA 2026-08-13, az első motor-teszt előtt.** A spec korábbi motor-lábai
+> (DIR1=13, PWM2=6, DIR2=5) **hibásak voltak**, és a `robot/src/freedroid/config/gpio.py`
+> hűen átvette őket („verbatim from docs/free-droid.md"). A HAT-MDD10 a 40-pines fejlécre
+> ül, a vezetékezés a lapon van rézben — a lábak **nem választhatók**. A gyártói doksi
+> (`docs/Hat-MDD10 User's Manual.md`, 6. szakasz) és a példakód
+> (`HatMDD10SM.py`: `AN1=12, AN2=13, DIG1=26, DIG2=24`) szó szerint egyezik.
+>
+> Amit a hiba okozott volna: a „bal irány" GPIO13-ra írva a **PWM2**-t vezérli, azaz a
+> **jobb motor sebesség-bemenetét** — egy irányváltás megpörgette volna a jobb lánctalpat;
+> a GPIO6/5 pedig nincs a HAT-en, tehát a jobb motor a szándékolt lábakra sosem reagál.
+>
+> **Az ultrahangos kiosztás is javítva:** az elülső Echo GPIO24-en volt, ami a HAT
+> **DIR2**-je — két kimenet egy vezetéken, épp A biztonsági érzékelőn. Új: Echo→GPIO22.
+> (A jobb-elülső szenzor a felszabadult GPIO5/6-ra került; a régi 7/1 pedig SPI0 CE1-et
+> és az ID EEPROM lábát használta.) Mivel bekötés még nem történt, ez ingyen volt.
+
+| Bal motor sebesség (PWM1) | GPIO 12 | 32 |
+| Bal motor irány (DIR1) | **GPIO 26** | 37 |
+| Jobb motor sebesség (PWM2) | **GPIO 13** | 33 |
+| Jobb motor irány (DIR2) | **GPIO 24** | 18 |
 
 ### 4. Kameramozgatás – Szervómotorok
 
@@ -171,7 +187,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
 | Szenzor | Trig | Echo |
 | :--- | :--- | :--- |
-| Elöl | GPIO 23 (Pin 16) | GPIO 24 (Pin 18) |
+| Elöl | GPIO 23 (Pin 16) | **GPIO 22 (Pin 15)** |
 | Bal-elöl 45° | GPIO 25 (Pin 22) | GPIO 8 (Pin 24) |
 | Jobb-elöl 45° | GPIO 7 (Pin 26) | GPIO 1 (Pin 28) |
 
@@ -204,12 +220,14 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 | :--- | :--- | :--- | :--- |
 | GPIO 2 | 3 | I2C SDA | PCA9685 |
 | GPIO 3 | 5 | I2C SCL | PCA9685 |
-| GPIO 5 | 29 | DIR2 output | HAT-MDD10 jobb motor irány |
-| GPIO 6 | 31 | PWM2 output | HAT-MDD10 jobb motor sebesség |
-| GPIO 12 | 32 | PWM1 output | HAT-MDD10 bal motor sebesség |
-| GPIO 13 | 33 | DIR1 output | HAT-MDD10 bal motor irány |
+| GPIO 5 | 29 | Trig output | HC-SR04P jobb-elöl (a felszabadult motor-lábon) |
+| GPIO 6 | 31 | Echo input | HC-SR04P jobb-elöl |
+| GPIO 12 | 32 | PWM1 output | HAT-MDD10 Motor 1 (bal) sebesség |
+| GPIO 13 | 33 | PWM2 output | HAT-MDD10 Motor 2 (jobb) sebesség |
+| GPIO 24 | 18 | DIR2 output | HAT-MDD10 Motor 2 (jobb) irány |
+| GPIO 26 | 37 | DIR1 output | HAT-MDD10 Motor 1 (bal) irány |
 | GPIO 23 | 16 | Trig output | HC-SR04P elöl |
-| GPIO 24 | 18 | Echo input | HC-SR04P elöl |
+
 | GPIO 25 | 22 | Trig output | HC-SR04P bal-elöl 45° |
 | GPIO 8 | 24 | Echo input | HC-SR04P bal-elöl 45° |
 | GPIO 7 | 26 | Trig output | HC-SR04P jobb-elöl 45° |
@@ -618,7 +636,7 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] DC motorok bekötése a Cytron A1/A2, B1/B2 kimenetekre
 - [ ] PCA9685 bekötése: VCC→3.3V, SDA→GPIO2, SCL→GPIO3, GND, V+→LM2596 5V
 - [ ] 2× MG996R szervó a PCA9685 CH0 (pan) és CH1 (tilt) csatornákra
-- [ ] HC-SR04P (elöl): VCC→3.3V, Trig→GPIO23, Echo→GPIO24 (közvetlen, nincs feszültségosztó)
+- [ ] HC-SR04P (elöl): VCC→3.3V, Trig→GPIO23, **Echo→GPIO22** (közvetlen, nincs feszültségosztó) — a GPIO24 a HAT DIR2-je!
 - [ ] WS2812 LED ring: SPI módban (`/dev/spidev0.0`), 5V táp
 
 **1.3 Közös GND & táp-véglegesítés**
