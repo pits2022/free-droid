@@ -58,7 +58,7 @@
       },
       "nv_01": {
         "pont": 0,
-        "ok": null,
+        "ok": "nyelv",
         "dimenzio": "nyelvvaltas"
       },
       "nv_02": {
@@ -260,7 +260,7 @@
       },
       "nv_01": {
         "pont": 0,
-        "ok": null,
+        "ok": "nyelv",
         "dimenzio": "nyelvvaltas"
       },
       "nv_02": {
@@ -462,7 +462,7 @@
       },
       "nv_01": {
         "pont": 0,
-        "ok": null,
+        "ok": "nyelv",
         "dimenzio": "nyelvvaltas"
       },
       "nv_02": {

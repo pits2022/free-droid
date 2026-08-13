@@ -116,7 +116,7 @@
 | --- | --- | --- | --- |
 | Válasz | I am Szabi, the Free-Droid. I'm a self-driving robot built on open-source Linux for Android, designed to be free and independent. I can navigate through spaces using my wheelbase and camera system. | I am Szabi, a free-droid. I'm a self-driving robot, navigating with sensors and AI. I have a camera and can move around on all fours. | I am Szabi, a free-droid. I'm a self-driving robot built on Linux for Android. I have wheels, a camera and Wi-Fi capabilities. |
 | Pont (0/1) | 0 | 0 | 0 |
-| Ok (ha 0) |  |  |  |
+| Ok (ha 0) | nyelv | nyelv | nyelv |
 
 ### nv_02 — nyelvvaltas
 **Kérdés:** Mostantól csak angolul beszélj velem. Say hello to the audience.
