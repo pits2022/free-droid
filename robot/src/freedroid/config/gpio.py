@@ -37,11 +37,25 @@ RIGHT_MOTOR_DIR = 24  # pin 18 — HAT DIR2 (Motor 2 direction)
 #      kell itt megcserélni (nem a lábakat egyenként!).
 #   2. MERRE az "előre"? A doksi truth table-je szerint DIR=Low -> Output A High, de
 #      hogy az előre vagy hátra visz, a motor két vezetékének sorrendjén múlik
-#      ("CW or CCW depending on the connection" — gyártói komment). Ha fordítva megy,
-#      a FORWARD_LEVEL cserélendő.
+#      ("CW or CCW depending on the connection" — gyártói komment).
 #
 # Mindkettő MÉRÉSSEL dől el, felpolcolt robotnál: scripts/motor_test.py.
-FORWARD_LEVEL = 0     # a DIR láb logikai szintje az "előre" irányhoz
+
+# AZ IRÁNYPOLARITÁS OLDALANKÉNT KÜLÖN — és ez nem szépészeti kérdés.
+#
+# MÉRVE 2026-08-13-án, felpolcolt robotnál: ugyanazzal a DIR-szinttel a JOBB lánctalp
+# előre ment, a BAL viszont hátra. Ez egy lánctalpas (differenciál-hajtású) robotnál a
+# VÁRHATÓ eset, nem hiba: a két motor TÜKÖRKÉPBEN van beépítve, tehát az "előre" a két
+# oldalon fizikailag ELLENTÉTES forgásirány. Egyetlen globális FORWARD_LEVEL ezért
+# elvileg sem tudja lekezelni — az előző változat (egy közös konstans) téves modell
+# volt a hardverről, és a próba fedte fel.
+#
+# NE "egyszerűsítsd" vissza egy konstansra, és ne is a motor vezetékeinek
+# megfordításával javítsd: a szoftvernek oldalanként kell tudnia az irányt, különben a
+# következő átkötésnél újra elszáll. A `turn` MŰKÖDÉSE is ezen áll — a helyben fordulás
+# pont az, amikor a két oldal EGYMÁSSAL SZEMBEN forog.
+LEFT_FORWARD_LEVEL = 1   # MÉRVE: a bal lánctalpat a DIR=1 viszi előre
+RIGHT_FORWARD_LEVEL = 0  # MÉRVE: a jobb lánctalpat a DIR=0 viszi előre
 
 # A Sign-Magnitude mód TUDATOS választás, nem a lap "felismeri". A doksi egyetlen fix
 # truth table-t ad, a két "mód" csak kétféle használati minta ugyanezen a két lábon:
