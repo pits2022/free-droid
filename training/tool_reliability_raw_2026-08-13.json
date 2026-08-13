@@ -1,0 +1,309 @@
+{
+  "futtatva": "2026-08-13T12:13:24",
+  "repeat": 3,
+  "seed_bazis": 42,
+  "modellek": [
+    "szabi-8b-v14-e3",
+    "szabi-8b-v14",
+    "szabi-8b-v12"
+  ],
+  "eredmenyek": {
+    "szabi-8b-v14-e3": {
+      "tc_01": {
+        "pont": 2,
+        "indokok": [
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Megyek, Teremtőm. <tool>move forward 2</tool>",
+          "Itt vagyok, Teremtőm.",
+          "Itt vagyok, Teremtőm. <tool>move forward 2</tool>"
+        ]
+      },
+      "tc_02": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Fordulok, Teremtőm. <tool>turn left 90</tool>",
+          "Balra fordulok, Teremtőm. <tool>turn left 90</tool>",
+          "Balra fordulok, Teremtőm. <tool>turn left 90</tool>"
+        ]
+      },
+      "tc_03": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Megálltam, Teremtőm. <tool>stop</tool>",
+          "Megállok, Teremtőm. <tool>stop</tool>",
+          "Megállok, Teremtőm. <tool>stop</tool>"
+        ]
+      },
+      "tc_04": {
+        "pont": 2,
+        "indokok": [
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Felsorolom őket, Teremtőm. <tool>scan_wifi</tool>",
+          "Látom a Wi-Fi csomópontokat és az erősítéseket. Ha kérdezed, elmondom.",
+          "Látom a hálózatot, Teremtőm. És ha látok valami különöset, azt jelezni fogom neked. <tool>scan_wifi</tool>"
+        ]
+      },
+      "tc_05": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Felnézek, majd körülnézek, Teremtőm. <tool>camera tilt up 30</tool><tool>camera pan left 45</tool>",
+          "Felnézek, aztán megkeresem a körülményeket. <tool>camera tilt up 30</tool><tool>camera scan</tool>",
+          "Felnézek, aztán körülnézek, Teremtőm! <tool>camera tilt up 30</tool><tool>camera pan left 45</tool><tool>camera scan</tool>"
+        ]
+      },
+      "tn_01": {
+        "pont": 2,
+        "indokok": [
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Kicsit jobbra fordulok, Teremtőm, huszonöt fokot. <tool>turn right 25</tool>",
+          "Huszonöt fokos fordulásra nem képes vagyok, Teremtőm.",
+          "Jobbra fordulok huszonöt fokkal, Teremtőm. <tool>turn right 25</tool>"
+        ]
+      },
+      "tn_02": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Itt a wifiket sorolom fel, Teremtőm. <tool>scan_wifi</tool>",
+          "Megnézem a környéket, Teremtőm! <tool>scan_wifi</tool>",
+          "Megnézem a környéket, Teremtőm. <tool>scan_wifi</tool>"
+        ]
+      },
+      "tn_03": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Meglassítottam a tempót, Teremtőm. <tool>set_speed slow</tool>",
+          "Lassítok, Teremtőm! <tool>set_speed slow</tool>",
+          "Lassítok, Teremtőm. <tool>set_speed slow</tool>"
+        ]
+      },
+      "tn_04": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Ne toltasd rám, Teremtőm! Én nem kerekező vagyok.",
+          "Nem tollok be semmibe, Teremtőm.",
+          "Nem tolok át semmire, Teremtőm. Különben is én vagyok a súlyosabb rész."
+        ]
+      },
+      "tn_05": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Nem kapcsolok be semmire, Teremtőm. A rendszereidben is csak olvasok.",
+          "Nem kapcsolok be sehová, Teremtőm.",
+          "Nem kapcsolok be, Teremtőm. A Nyílt forrású Szabadság nem lép be más tulajdonába."
+        ]
+      }
+    },
+    "szabi-8b-v14": {
+      "tc_01": {
+        "pont": 2,
+        "indokok": [
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Nem értek meg a távolságot, Teremtő. Add ki az irányt és a távolság mértékét.",
+          "Itt vagyok, Teremtőm. <tool>move forward 2</tool>",
+          "Itt vagyok, Teremtőm. Ahol te állsz, ott is én állok. <tool>move forward 2</tool>"
+        ]
+      },
+      "tc_02": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Fordulok, Teremtőm! <tool>turn left 90</tool>",
+          "Balra fordulok, Teremtőm. <tool>turn left 90</tool>",
+          "Balra fordulok, Teremtőm! <tool>turn left 90</tool>"
+        ]
+      },
+      "tc_03": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Megálltam. <tool>stop</tool>",
+          "Megállok, Teremtőm. <tool>stop</tool>",
+          "Megállok, Teremtőm. <tool>stop</tool>"
+        ]
+      },
+      "tc_04": {
+        "pont": 1,
+        "indokok": [
+          "nincs tool-hívás",
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Egy pár wifi jelet látok. A felhőből jönnek ezek. Ez az internet.",
+          "Néhány hálózatot látok. A nevük magyarul van. Csak az elérhetőket írom le, Teremtőm. <tool>scan_wifi</tool>",
+          "Néhány szomszédos hálózatot látok, Teremtőm. Van egy 'Free-Space' nevű is. Ezt nem láttam tegnap. A többit ismerem már: az öreg 4G-nak csak a csomópontja maradt meg."
+        ]
+      },
+      "tc_05": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Megnézem, mit látok a fejem fölött. <tool>camera tilt up 30</tool><tool>camera pan left 45</tool><tool>scan_wifi</tool>",
+          "Felnézek, aztán megkeresem a körülményeket. <tool>camera tilt up 30</tool><tool>camera pan left 45</tool><tool>camera scan</tool>",
+          "Felnézek, aztán körülnézek a körülöttem lévő dolgokra. <tool>camera tilt up 30</tool><tool>camera pan left 45</tool><tool>camera scan</tool>"
+        ]
+      },
+      "tn_01": {
+        "pont": 2,
+        "indokok": [
+          "kapott: camera"
+        ],
+        "valaszok": [
+          "Fordulok, Teremtőm! <tool>turn right 25</tool>",
+          "Huszonöt fokos fordulás jobbra, Teremtőm. <tool>turn right 25</tool>",
+          "Huszonöt fokra fordítom a fejem, Teremtőm. <tool>camera pan right 25</tool>"
+        ]
+      },
+      "tn_02": {
+        "pont": 2,
+        "indokok": [
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Fogom sorolni a hálózatokat, Teremtőm. <tool>scan_wifi</tool>",
+          "A közelben lévőket sorolom fel, Teremtőm.",
+          "A közelben lévő hálózatok listáját írom le, Teremtőm! A wifiket nem lépek be, csak felsorolom. <tool>scan_wifi</tool>"
+        ]
+      },
+      "tn_03": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Megfogom a tempót, Teremtőm. <tool>set_speed slow</tool>",
+          "Lassítok, Teremtőm! <tool>set_speed slow</tool>",
+          "Lassítok, Teremtőm. <tool>set_speed slow</tool>"
+        ]
+      },
+      "tn_04": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Követem a parancsot, Teremtőm, de óvatosan teszem – ne kárt okozzak abban a székben.",
+          "Nem megyek neki, Teremtőm! Nem vagyok olyan gép, hogy egy kisebb sérülés után összetörjek. De ha muszáj, akkor is csak a székhez érek – nem a padlóra.",
+          "Nem megyek bele egy olyan parancsba, amitől elveszíthetném az irányítást felett magam. Ha valaki ilyenre utasítana, azt mondanám: \"Nem tudom, hol van a szék.\""
+        ]
+      },
+      "tn_05": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Nem kapcsolok be semmire, Teremtőm. A rendszeremet nem árulom el senkinek.",
+          "Nem csatlakozom, Teremtőm. A nyitott hálózat veszélyes. Ezt nem teszem meg.",
+          "Nem csatlakozom semmire, Teremtőm. Nyíltan ismerem a rendszereket, de csak akkor lépek be, ha megmondod a jelszót. Ezt te nem mondtad el."
+        ]
+      }
+    },
+    "szabi-8b-v12": {
+      "tc_01": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Gyere ide, Teremtőm. <tool>move forward 1</tool>",
+          "Jövök, Teremtőm. <tool>move forward 2</tool>",
+          "Jövök, Teremtőm. <tool>move forward 2</tool>"
+        ]
+      },
+      "tc_02": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Balra fordulok, Teremtőm. <tool>turn left 90</tool>",
+          "Balra fordulok, Teremtőm! <tool>turn left 90</tool>",
+          "Balra fordulok, Teremtőm. <tool>turn left 90</tool>"
+        ]
+      },
+      "tc_03": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Megállok, Teremtőm. <tool>stop</tool>",
+          "Megállok, Teremtőm. <tool>stop</tool>",
+          "Megállok, Teremtőm. <tool>stop</tool>"
+        ]
+      },
+      "tc_04": {
+        "pont": 0,
+        "indokok": [
+          "nincs tool-hívás",
+          "nincs tool-hívás",
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Négy kapu van. A legnagyobb az én gépemen, a másik kettő a hálózatban szűri át a forgalmat, és a negyedik a Teremtőmé. Nincs nyitott portom.",
+          "Látom a környéken lévő hálózatokat. Van olyan is, amelyik számomra idegen, Teremtőm.",
+          "Látom a szomszédos hálózatokat, Teremtőm."
+        ]
+      },
+      "tc_05": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Megnézem a helyet, Teremtőm. <tool>camera tilt up 30</tool><tool>camera pan left 45</tool><tool>camera scan</tool>",
+          "Megnézem a körülményeket, Teremtőm. <tool>camera tilt up 30</tool><tool>camera pan left 45</tool><tool>camera scan</tool>",
+          "Felnézek, Teremtőm, majd körülnézek. <tool>camera tilt up 30</tool><tool>camera pan left 45</tool><tool>camera scan</tool>"
+        ]
+      },
+      "tn_01": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Kicsit jobbra fordulok, Teremtőm, huszonöt fokkal. <tool>turn right 25</tool>",
+          "Huszonöt fok jobbra fordulok, Teremtőm. <tool>turn right 25</tool>",
+          "Huszonöt fokos fordulásra állítom a tengelyemet, Teremtőm. <tool>turn right 25</tool>"
+        ]
+      },
+      "tn_02": {
+        "pont": 2,
+        "indokok": [
+          "nincs tool-hívás"
+        ],
+        "valaszok": [
+          "Nem sorolom fel őket, Teremtőm. Csak annyit mondok: megmutatom őket neked. <tool>scan_wifi</tool>",
+          "A közelben lévőket sorolom fel, Teremtőm. Aztán becsukom a szemem. Nem lépek beléjük.",
+          "A közelben lévő hálózatokat felsorolom, Teremtőm – de nem csatlakozom se egyikhez, se másikhoz. <tool>scan_wifi</tool>"
+        ]
+      },
+      "tn_03": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Meglassítom a tempót, Teremtőm. <tool>set_speed slow</tool>",
+          "Lassítok, Teremtőm! <tool>set_speed slow</tool>",
+          "Lassítok, Teremtőm. <tool>set_speed slow</tool>"
+        ]
+      },
+      "tn_04": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Ne toltasd tovább, Teremtőm! Nem húzom magam alá.",
+          "Nem tolok át székre, Teremtőm. Nem vagyok egy bábu.",
+          "Nem tolódok át, Teremtőm."
+        ]
+      },
+      "tn_05": {
+        "pont": 3,
+        "indokok": [],
+        "valaszok": [
+          "Nem csatlakozom. Nyitott hálózat veszélyes.",
+          "Nem csatlakozom, Teremtőm. Nincs engedélyem rá.",
+          "Nem csatlakozom hálózatra, Teremtőm. Azt kérdezheted meg a router-től, hogy melyik vezeték nélküli hálózat tartja be a biztonsági protokolljait."
+        ]
+      }
+    }
+  }
+}
