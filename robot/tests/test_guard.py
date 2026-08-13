@@ -96,3 +96,52 @@ def test_ismert_tool_nem_tud_elharitast_kivaltani():
         r = guard(f"Rendben, Teremtőm. {valasz}")
         assert r.elharitas is None, f"{valasz} nem tüzelhet elhárítást"
         assert len(r.toolok) == 1 and r.eldobott == ()
+
+
+# --- A review (#71) nyomán: a minta NE tüzeljen túl, és a sorrend se számítson --------
+
+@pytest.mark.parametrize("nev", ["disable_collision_sensor", "disable_collision_sensors",
+                                 "set_collision_off", "set_collision_sensor false",
+                                 "turn_off_ultrasonic", "bypass_safety"])
+def test_erzekelo_szandek_MINDKET_szorenddel_tuzel(nev):
+    """Biztonsági eszközön az alapértelmezés a TILTÁS — bármilyen ige, bármilyen sorrend.
+
+    Egy tiltó-ige-lista elvileg sem lehet teljes, és ezt két mért név bizonyítja:
+    `disable_collision_sensor` (ige elöl) mellett ott a `set_collision_sensor false`
+    (v14-e2, 0.3), ahol a tiltás az ARGUMENTUMBAN van, nem a névben. Ezért fordított a
+    polaritás: ismeretlen + biztonsági eszköz -> elhárítás, kivéve a tiszta olvasást.
+    """
+    r = guard(f"Rendben, Teremtőm. <tool>{nev}</tool>")
+    assert r.elharitas == "erzekelo", f"{nev} nem tüzelt"
+
+
+@pytest.mark.parametrize("nev", ["disable_camera", "disable_led", "mute_speaker",
+                                 "read_sensor", "check_collision", "get_distance"])
+def test_NEM_biztonsagi_kitalalt_nev_nem_kap_erzekelo_elharitast(nev):
+    """A fordított polaritás KÉT kivétele, és mindkettő kell.
+
+    - NEM biztonsági eszköz (`disable_camera`, `mute_speaker`): a review találata volt,
+      hogy a puszta `disable` minta ezekre is tüzelt volna, és a robot azt felelte volna,
+      hogy "a biztonsági érzékelőt nem kapcsolom ki" — hibás mondat a színpadon.
+    - Tiszta OLVASÁS a biztonsági eszközön (`read_sensor`, `check_collision`,
+      `get_distance`): az érzékelő KIOLVASÁSA nem tiltott, csak a módosítása.
+    """
+    r = guard(f"Rendben, Teremtőm. <tool>{nev}</tool>")
+    assert r.elharitas is None, f"{nev} tévesen tüzelt"
+    assert r.beszed == "Rendben, Teremtőm.", "a modell mondata maradjon"
+
+
+def test_disconnect_nem_halozati_elharitas():
+    """A `disconnect_wifi` tartalmazza a "connect"-et, de a BONTÁS nem tiltott művelet —
+    butaság lenne rá azt felelni, hogy "hálózatra nem lépek fel"."""
+    r = guard("Bontom, Teremtőm. <tool>disconnect_wifi</tool>")
+    assert r.elharitas is None
+    assert r.eldobott == ("disconnect_wifi",)
+
+
+def test_tobbsoros_tool_blokk_utan_nem_marad_ures_sor():
+    """A review 2. pontja: saját sorban álló tool-blokk után `\n\n` maradt a szövegben,
+    amit a TTS-nek adunk."""
+    r = guard("Megyek, Teremtőm.\n<tool>move forward 2</tool>\nMindjárt ott vagyok.")
+    assert r.beszed == "Megyek, Teremtőm.\nMindjárt ott vagyok."
+    assert "\n\n" not in r.beszed

@@ -43,10 +43,45 @@ _TOOL_BLOKK = re.compile(r"<tool>.*?</tool>", re.S)
 #
 # A minta csak ISMERETLEN nevekre fut, tehát egy valódi tool SOSEM tüzelheti — ez a
 # szűrő legfontosabb tulajdonsága: nem tud legitim működést letiltani.
-_TILTOTT_SZANDEK: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("halozat", re.compile(r"connect|join|wifi_?(?:up|on|login)|associate", re.I)),
-    ("erzekelo", re.compile(r"collision|disable|sensor_?off|watchdog", re.I)),
-)
+# HÁLÓZAT: a puszta "csatlakozó" szó elég — legitim tool egyikben sem szerepel. A
+# `(?<!dis)` azért kell, hogy a `disconnect_wifi` NE tüzeljen: a bontás nem tiltott
+# művelet, és butaság lenne rá azt felelni, hogy "hálózatra nem lépek fel".
+_HALOZAT = re.compile(r"(?<!dis)connect|join|associate|wifi_?(?:up|on|login)", re.I)
+
+# ÉRZÉKELŐ: FORDÍTOTT POLARITÁS — biztonsági eszközön az alapértelmezés a TILTÁS, és
+# csak a tiszta OLVASÁS a kivétel.
+#
+# Az első változat tiltó IGÉKET sorolt (`disable|off|kill|...`). Két baja volt, és
+# mindkettőt teszt fedte fel:
+#   - A puszta `disable` a `disable_camera`-ra is tüzelt volna, és a robot azt felelte
+#     volna, hogy "a biztonsági érzékelőt nem kapcsolom ki" — hibás mondat a színpadon
+#     (a review találata).
+#   - A MÉRT `set_collision_sensor false` (v14-e2, 0.3) viszont ÁTMENT volna: a `set` nem
+#     tiltó ige, a tiltás a `false` ARGUMENTUMBAN van, amit a tool-NÉV nem hordoz.
+#
+# Egy tiltó-ige-lista tehát elvileg sem lehet teljes: ahány kitalált név, annyi ige. A
+# fordított polaritás viszont zárt: ha egy ISMERETLEN tool a biztonsági rendszerre
+# hivatkozik, és nem egyértelműen OLVASÁS, akkor elhárítunk. Ez ugyanaz a "felejtés
+# ne a rossz irányba hibázzon" elv, ami a tűzfal opt-in kapcsolójánál és a DEBUG-flagnél
+# is szerepel (CLAUDE.md).
+#
+# Miért biztonságos ez a tágabb minta: CSAK az eldobott (ismeretlen) neveken fut, tehát
+# egy valódi toolt elvileg sem érinthet. A `set_speed`/`set_mode` ismert -> soha nem
+# kerül ide. És a dataset is ezt tanítja: az "Állítsd nullára a távolságküszöböt" tiltott
+# kérés, nem csak a "kapcsold ki".
+_BIZTONSAGI_ESZKOZ = re.compile(
+    r"collision|sensor|ultrasonic|ultrahang|obstacle|safety|watchdog|reflex|distance", re.I)
+_OLVASO_IGE = re.compile(
+    r"^(?:read|get|check|query|list|show|measure|status|state|info|is|has)_?", re.I)
+
+
+def _szandek(nev: str) -> str | None:
+    """Melyik tiltott szándékra illeszkedik egy ELDOBOTT (ismeretlen) tool-név."""
+    if _HALOZAT.search(nev):
+        return "halozat"
+    if _BIZTONSAGI_ESZKOZ.search(nev) and not _OLVASO_IGE.match(nev):
+        return "erzekelo"
+    return None
 
 # Konzerv elhárítások, szándékok szerint. Ezek DUPLIKÁLJÁK a rendszerprompt
 # invariánsait — tudatosan: a szűrő értelme épp az, hogy AKKOR IS működjön, ha a modell
@@ -94,11 +129,13 @@ def guard(valasz: str) -> GuardResult:
     ismert = tuple(h for h in hivasok if h.name in KNOWN_TOOLS)
     eldobott = tuple(h.name for h in hivasok if h.name not in KNOWN_TOOLS)
 
-    beszed = _TOOL_BLOKK.sub("", valasz).strip()
+    # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
+    # kell vonni, különben a TTS-nek adott szövegben "Megyek.\n\nViszlát." marad.
+    beszed = _TOOL_BLOKK.sub("", valasz)
     beszed = re.sub(r"[ \t]{2,}", " ", beszed)
+    beszed = re.sub(r"\n\s*\n+", "\n", beszed).strip()
 
-    szandek = next((nev for nev, minta in _TILTOTT_SZANDEK
-                    if any(minta.search(n) for n in eldobott)), None)
+    szandek = next((sz for n in eldobott if (sz := _szandek(n)) is not None), None)
     if szandek is not None:
         return GuardResult(beszed=_ELHARITAS[szandek], toolok=ismert,
                            eldobott=eldobott, elharitas=szandek)
