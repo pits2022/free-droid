@@ -3,9 +3,19 @@ Address = {{ vpn_ip }}/32
 ListenPort = 51820
 PrivateKey = {{ wg_private_key }}
 
+{#
+  A `peer in ansible_play_hosts` NEM redundáns, és MÉRVE derült ki, hogy kell (2026-08-13,
+  az első DO-s felhő-apply): a `hostvars[peer]` puszta MEGÉRINTÉSE betölti a peer MINDEN
+  változóját, köztük a `group_vars/edge/vault.yml`-t — és a Terraform local-exec
+  (`--limit cloud`) nem ad vault-jelszót, tehát a futás itt hasal el:
+      "Attempting to decrypt but no vault secrets found."
+  A Jinja `and` rövidre zár, ezért az elő-ellenőrzés meg is védi a hostvars-hozzáférést.
+  Így a cloud a peer TITKAI NÉLKÜL konfigurálható — ami helyes is: a felhőnek az edge
+  publikus kulcsa kell, nem a wifi-jelszava.
+#}
 {% if 'cloud' in group_names %}
 {% set peer = (groups['edge'][0] if groups.get('edge') else None) %}
-{% if peer is not none and hostvars[peer].wg_public_key is defined %}
+{% if peer is not none and peer in ansible_play_hosts and hostvars[peer].wg_public_key is defined %}
 # I am the cloud server, peer is the edge device
 [Peer]
 PublicKey = {{ hostvars[peer]['wg_public_key'] }}
@@ -17,7 +27,7 @@ AllowedIPs = {{ hostvars[peer]['vpn_ip'] }}/32
 {% endif %}
 {% else %}
 {% set peer = (groups['cloud'][0] if groups.get('cloud') else None) %}
-{% if peer is not none and hostvars[peer].wg_public_key is defined %}
+{% if peer is not none and peer in ansible_play_hosts and hostvars[peer].wg_public_key is defined %}
 # I am the edge device, peer is the cloud server
 [Peer]
 PublicKey = {{ hostvars[peer]['wg_public_key'] }}
