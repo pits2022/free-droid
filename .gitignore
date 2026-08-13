@@ -38,3 +38,9 @@ training/tests/
 training/dataset/persona_rewrites*.json
 
 szabi-logs/
+
+# A Terraform GENERÁLJA (local_file.ansible_inventory a gyökér-modulban), tehát nem
+# forrásfájl: minden apply átírja, a destroy pedig törli. 2026-08-13-án egy `git add
+# infra/` be is sodorta egy ÉLŐ droplet IP-jével — a fájl azóta követetlen.
+# Kézi Ansible-futáshoz a Terraform kimenete a forrás, vagy másolj egy sablont.
+infra/ansible/inventory.ini
