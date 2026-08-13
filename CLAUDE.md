@@ -350,13 +350,22 @@ Conscious gaps from the PR #4 review — not bugs, but things a future session s
   Harmless at home (LAN SSH); at the venue it is a lockout. **Keep a local fallback path:** a
   pre-configured known hotspot SSID the Pi joins (manual network setup — this does not violate
   the "never joins a network from a spoken command" invariant), plus HDMI + keyboard in the bag.
-- **`scripts/_hw.py` gpiochip detection** — on the Pi 5 the 40-pin bank may be `gpiochip0` or
-  `gpiochip4` and both open. We use a `FREEDROID_GPIOCHIP` env override + a diagnostic print, **not**
-  full RP1-label detection (couldn't verify on hardware). Finish the label-based pick once on a Pi.
+- **`scripts/_hw.py` gpiochip detection — CLOSED 2026-08-13, measured on the actual Pi.** The worry was
+  that `gpiochip0` and `gpiochip4` are different banks and opening the wrong one drives unrelated lines.
+  On this build (`free-droid-001`, Debian 13 trixie, kernel 6.12.47) they are **the same device**:
+  `/dev/gpiochip4` is a **symlink to `gpiochip0`**, and `lgpio.gpiochip_open()` succeeds on both. So the
+  try-0-then-4 fallback cannot pick a "wrong" chip here, and the label-based RP1 detection is **not
+  needed** — the first real motor run confirmed it (the motors moved on the pins the config names).
+  The `FREEDROID_GPIOCHIP` override stays as the safety valve for a different OS image, where the
+  symlink may not exist.
 - **`freedroid.health.check_orchestrator_service` is CRITICAL when down** — so before the `freedroid`
   orchestrator service exists (Phase 4.3), a real Pi reports unhealthy and enters safe-mode. This is
   **accepted/intended** (no orchestrator = not functional). The review only removed the *restart churn*
   (`remediate` no-ops when the unit isn't installed); do **not** "fix" the severity/skip — it's a decision.
+- **Unprivileged GPIO works — no sudo, no Ansible change needed (measured 2026-08-13).** `creator` is
+  already in `gpio`, `spi`, `i2c` (and `ollama`), and `/dev/gpiochip0` is `root:gpio 0660`, so the
+  Phase-4 orchestrator can drive motors as `creator` without privileges. This was an open worry when the
+  hardening landed; it needs no `usermod` task.
 - **Minor, left as-is:** `check_package_import` is a near-tautological venv-intact canary (cheap, fine);
   `tests/test_grammar.py`'s `KNOWN_TOOLS` is a hardcoded list (it mirrors the spec's tool set, not code).
 
