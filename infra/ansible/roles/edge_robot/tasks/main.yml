@@ -15,6 +15,16 @@
       - python3
       - python3-dev
       - build-essential   # native builds (e.g. lgpio)
+      # A `build-essential` NEM elég az `lgpio`-hoz, és ez MÉRVE derült ki a 2026-08-13-i
+      # éles futáson — két külön futás, két külön hiba, tehát MINDKETTŐ kell:
+      #   swig hiányában:         "error: command 'swig' failed: No such file or directory"
+      #                           (az lgpio sdist swiggel generálja a Python-wrappert)
+      #   liblgpio-dev hiányában: "/usr/bin/ld: cannot find -llgpio"
+      #                           (a python modul a rendszer liblgpio.so-jához linkel)
+      # A tudás megvolt — a robot/pyproject.toml maga írja, hogy "swig kell hozzá" —,
+      # csak a csomagok maradtak ki az apt-listáról, és a venv NÉLKÜLE nem épül fel.
+      - swig
+      - liblgpio-dev
     state: present
     update_cache: yes
 
@@ -46,6 +56,23 @@
   stat:
     path: "{{ robot_src_dir }}/pyproject.toml"
   register: robot_project
+
+# A CSENDES NO-OP ellen. Mérve 2026-08-13-án: alapértelmezésekkel (`robot_repo_url: ""`)
+# a futás `ok=19 changed=7 failed=0`-t adott — DE 15 task kimaradt, és a Pi-n se venv,
+# se health-timer nem lett. Egy ZÖLD FUTÁS NEM JELENT MŰKÖDŐ ROBOTOT, és pont ez a
+# fajta hiba derül ki a helyszínen. A `robot_repo_url: ""` default szándékos marad
+# (a kód jöhet rsync-kel vagy image-be sütve is), de a "sehogy nem jött" eset most
+# hangosan bukik, nem csendben kimarad.
+- name: Fail if the robot code was never delivered
+  assert:
+    that: robot_project.stat.exists
+    fail_msg: >-
+      Nincs kód a {{ robot_src_dir }} alatt (pyproject.toml nem található), és a
+      `robot_repo_url` is üres — így a venv, a health-timer és a teljes robot-réteg
+      KIMARADNA, miközben a futás zöldnek látszik. Adj meg `robot_repo_url`-t
+      (`-e robot_repo_url=https://github.com/pits2022/free-droid.git`), vagy szállítsd
+      a kódot máshogy (rsync / image) a futás ELŐTT.
+    success_msg: "A robot-projekt a helyén van: {{ robot_src_dir }}"
 
 - name: Sync the robot project venv with uv
   when: robot_project.stat.exists
