@@ -66,6 +66,26 @@ Minden réteg között minimum 1cm légrés, standoff oszlopokkal rögzítve.
 [Active Cooler]
 ```
 
+**A GPIO-fejléc fizikai összekötése (2026-08-13, ahogy tényleg meg van építve):**
+
+```
+[Raspberry Pi 5] ──40-pines szalagkábel── [Cytron HAT-MDD10] ──── [breakout]
+                                                                      │
+                                                                 [breadboard]
+                                                                  ← ide jönnek a
+                                                                    szenzorok / szervók
+```
+
+A HAT tehát **nem közvetlenül a Pi fejlécére ül**, hanem szalagkábellel; ugyanez a kábel
+vezet egy **breakout-hoz egy breadboardon**, és a többi periféria (HC-SR04, PCA9685) oda
+kapcsolódik. Két következménye van, és mindkettő számít:
+
+*   A HAT lábai **ettől függetlenül fixek** — a jelek a lapon rézben mennek, tehát a
+    PWM1=12 / DIR1=26 / PWM2=13 / DIR2=24 négyest a szalagkábel nem változtatja meg.
+*   A breadboard **minden GPIO-t elér**, tehát a lábütközéseket semmi nem akadályozza meg
+    fizikailag — a szoftveres kiosztás (`config/gpio.py`) az egyetlen védelem. Ezért kell
+    ott a duplikáció-teszt (`test_no_duplicate_gpio_assignments`).
+
 #### Standoff rögzítési terv
 
 | Réteg közötti rés | Standoff méret | Csavar típus | Mennyiség |
@@ -180,6 +200,24 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
 #### Ultrahang – HC-SR04P (3 db használatban, 5 db megrendelve, 10 db HC-SR04 tartalék)
 *   **Modell:** HC-SR04**P** – a "P" változat 3–5.5V között működik, így az Echo láb **közvetlenül köthető** az RPi 5 GPIO-ra, feszültségosztó nem szükséges.
+
+> ⚠️ **A MEGKAPOTT PANELEKEN `HC-SR04` a nyomtatás (nem `P`), a termékadatlap viszont
+> 3–5 V-ot ír** (2026-08-13). Klónoknál ez gyakori: P-típusú modul sima jelöléssel. A
+> címkét és az adatlapot NEM kell eldönteni, mert van FIZIKAI GARANCIA:
+>
+> **Kösd a VCC-t 3,3 V-ra.** Az Echo kimenet szintjét a tápfeszültség HATÁROLJA — 3,3 V-os
+> tápnál nem tud 3,3 V fölé menni, tehát feszültségosztó elvileg sem kell, akármi is van a
+> panelre írva. A kockázat KIZÁRÓLAG 5 V-os táp mellett áll fenn.
+>
+> A maradék kérdés nem biztonsági, hanem működési: a régi, 5 V-only HC-SR04 3,3 V-on
+> lehet, hogy nem trigger-el, vagy rövidebb a hatótávja. Ez MÉRÉSSEL dől el:
+>
+> 1. VCC → **3,3 V**, Echo → közvetlenül a GPIO-ra
+> 2. `ultrasonic_test.py` — ha értelmes távolságot ad (~2–400 cm), **kész**: se osztó, se 5 V
+> 3. ha nem mér, akkor 5 V-only panel → VCC → **5 V** ÉS **feszültségosztó az Echo-ra**
+>    (1 kΩ + 2 kΩ), mert onnantól az Echo 5 V-os szintet ad
+>
+> Ez a sorrend azért ez, mert a 2. lépés nem tud kárt tenni, a 3. viszont a Pi-t védi.
 *   **Elrendezés:** 3 szenzor — **elöl**, **bal-elöl 45°**, **jobb-elöl 45°**. Lefedi a haladási irányt és a sarkokat. Hátra nincs (a robot ritkán tolat, a demón a Teremtő felügyel).
 *   **Táp:** 3.3V vagy 5V.
 
@@ -188,8 +226,20 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 | Szenzor | Trig | Echo |
 | :--- | :--- | :--- |
 | Elöl | GPIO 23 (Pin 16) | **GPIO 22 (Pin 15)** |
-| Bal-elöl 45° | GPIO 25 (Pin 22) | GPIO 8 (Pin 24) |
-| Jobb-elöl 45° | GPIO 7 (Pin 26) | GPIO 1 (Pin 28) |
+| Bal-elöl 45° | **GPIO 27 (Pin 13)** | **GPIO 17 (Pin 11)** |
+| Jobb-elöl 45° | **GPIO 5 (Pin 29)** | **GPIO 6 (Pin 31)** |
+
+> 🔴 **A teljes kiosztás javítva 2026-08-13-án** (PR #67) — a régi tábla hatból NÉGY lábon
+> ütközött, és a `robot/src/freedroid/config/gpio.py` a hivatkozási pont, nem ez a doksi:
+> az elülső Echo a **HAT DIR2**-jén (GPIO 24) volt, a bal-elülső Echo az **SPI0 CE0**-n
+> (GPIO 8, amit a WS2812 foglal), a jobb-elülső Trig a **CE1**-en (GPIO 7), az Echo pedig
+> az **ID_SC**-n (GPIO 1 — a HAT-azonosító EEPROM lába, HAT-tal a fejlécen tilos).
+>
+> ⚠️ **`GPIO 17` ≠ `Pin 17`.** A bal-elülső Echo a GPIO 17 = **11-es** fizikai pin; a
+> **17-es** fizikai pin a **3,3 V táp**. Összekeverve az Echo kimenetet a tápsínre kötnéd.
+
+**Közös sínek:** VCC → 3,3 V (Pin 1 vagy 17), GND → Pin 6/9/14/20/25/30/34/39 bármelyike.
+Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 
 > ℹ️ **HC-SR04 (nem P) tartalék:** Ha mégis az eredeti 5V-os HC-SR04-et használod, az Echo lábra feszültségosztó kell (1kΩ + 2kΩ).
 
