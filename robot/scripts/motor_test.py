@@ -62,7 +62,7 @@ def main() -> int:
             lgpio.gpio_claim_output(h, pin, 0)
 
         for nev, pwm_pin, dir_pin, elore in valasztott:
-            for label, szint in (("ELŐRE", elore), ("HÁTRA", 1 - elore)):
+            for label, szint in (("ELŐRE", elore), ("HÁTRA", elore ^ 1)):
                 print(f"{nev} / {label} @ {args.duty:.0f}% — {args.seconds}s "
                       f"(PWM={pwm_pin}, DIR={dir_pin}={szint})")
                 # SORREND: előbb az irány, aztán a PWM. Fordítva egy pillanatra a
@@ -74,8 +74,9 @@ def main() -> int:
                 stop_all()
                 time.sleep(0.5)
         print(f"OK — lefutott ({args.motor}). Amit most fel kell írni: melyik LÁNCTALP "
-              f"mozgott, és az 'ELŐRE' tényleg előre vitt-e. Ha nem, lásd a "
-              f"config/gpio.py kalibrációs jegyzetét (pár-csere / FORWARD_LEVEL).")
+              f"mozgott, és az 'ELŐRE' tényleg előre vitt-e. Ha a rossz lánctalp mozgott, "
+              f"a config/gpio.py-ban a két PWM/DIR PÁRT cseréld; ha az irány fordított, "
+              f"a {'LEFT' if args.motor == 'left' else 'RIGHT'}_FORWARD_LEVEL-t.")
         return 0
     except KeyboardInterrupt:
         return 130
