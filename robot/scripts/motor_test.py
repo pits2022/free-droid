@@ -34,12 +34,12 @@ def main() -> int:
                     help="melyik motort hajtsuk (első bekötésnél EGYET: --motor left)")
     args = ap.parse_args()
 
-    valasztott = {
-        "left":  [("BAL", G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR)],
-        "right": [("JOBB", G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR)],
-        "both":  [("BAL", G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR),
-                  ("JOBB", G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR)],
-    }[args.motor]
+    # Az "előre" szint OLDALANKÉNT más (a motorok tükörképben vannak beépítve) — a
+    # próbának ugyanazt a configot kell használnia, amit az éles vezérlés, különben a
+    # teszt zöld lesz és a robot mégis helyben pörög.
+    BAL = ("BAL", G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR, G.LEFT_FORWARD_LEVEL)
+    JOBB = ("JOBB", G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR, G.RIGHT_FORWARD_LEVEL)
+    valasztott = {"left": [BAL], "right": [JOBB], "both": [BAL, JOBB]}[args.motor]
 
     import lgpio
 
@@ -61,9 +61,8 @@ def main() -> int:
         for pin in (G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR, G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR):
             lgpio.gpio_claim_output(h, pin, 0)
 
-        for nev, pwm_pin, dir_pin in valasztott:
-            for label, szint in (("ELŐRE", G.FORWARD_LEVEL),
-                                 ("HÁTRA", 1 - G.FORWARD_LEVEL)):
+        for nev, pwm_pin, dir_pin, elore in valasztott:
+            for label, szint in (("ELŐRE", elore), ("HÁTRA", 1 - elore)):
                 print(f"{nev} / {label} @ {args.duty:.0f}% — {args.seconds}s "
                       f"(PWM={pwm_pin}, DIR={dir_pin}={szint})")
                 # SORREND: előbb az irány, aztán a PWM. Fordítva egy pillanatra a
