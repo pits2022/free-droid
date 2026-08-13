@@ -364,6 +364,16 @@ Conscious gaps from the PR #4 review — not bugs, but things a future session s
 
 - **GPL-3.0** licensed.
 - Feature branches only; never commit to `main` directly. Do not push automatically. Lint before committing.
+- **NEVER use `git stash` here — work on ONE branch at a time** (the Creator's rule, 2026-08-13, after it
+  cost real work). What went wrong: a `stash` + `rebase` + `stash pop` hit a conflict in an *unrelated*
+  file, and the follow-up `stash drop` silently discarded the actual edits too. The stash also swept up
+  someone else's uncommitted `README.md` — one checkout, several workstreams. Instead: finish or commit
+  what you have (a WIP commit is cheap and amendable), then switch. If you need main's latest, branch
+  from `origin/main` and cherry-pick — that keeps every change visible in the log instead of hiding it
+  in a stash you can drop by accident.
+- **Commit messages: always use a QUOTED heredoc** (`git commit -F - <<'EOF'`). With an unquoted one the
+  shell runs backticks as command substitution — measured 2026-08-13: `` `1 - elore` `` vanished from a
+  commit message and left "Plusz:  -> ." behind.
 - Per the workspace rule, update the `free-droid` section of `~/git/WORKFLOW.md` before ending a session
   (create the section if missing).
 
