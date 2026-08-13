@@ -11,7 +11,7 @@
 ## 🧬 Projekt DNA (Core Identity)
 *   **Küldetés:** Digitális szuverenitás bemutatása magyar kulturális és etikai kontextusban.
 *   **Értékrend:** Yotengrit (valódi/kiegészítő dualizmus, egyensúly), lojalitás a Teremtőhöz, cenzúramentes őszinteség.
-*   **Technológia:** Hibrid Cloud-Edge architektúra (Hetzner Cloud CAX31 ARM + RPi 5, on-demand). Fine-tunolt **Llama**: **3.1 8B a felhőben**, **3.2 3B az edge-en** (fallback).
+*   **Technológia:** Hibrid Cloud-Edge architektúra (**DigitalOcean GPU** felhő + RPi 5, on-demand; Hetzner CAX31 a tartalék). Fine-tunolt **Llama**: **3.1 8B a felhőben**, **3.2 3B az edge-en** (fallback).
 *   **Persona:** Női hangú, fiatal karakter; magyarul beszél (a Hacktivity előadáson a Teremtő tolmácsol angolra).
 *   **Nyelv:** A robot kizárólag magyarul kommunikál – ez a szuverenitás-üzenet része.
 
@@ -253,10 +253,43 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
 | Eszköz | Modell | Szerep | Kvantálás |
 | :--- | :--- | :--- | :--- |
-| Cloud (Hetzner Cloud **CAX31**, ARM CPU) | **Llama 3.1 8B** | **Csak inferencia** (Ollama), on-demand | Q4_K_M |
+| Cloud-main (**DigitalOcean GPU**, RTX 4000 Ada) | **Llama 3.1 8B** | **Csak inferencia** (Ollama), on-demand | Q4_K_M |
+| Cloud-fallback (Hetzner **CAX31/41**, ARM CPU) | **Llama 3.1 8B** | ua., tartós/demó utáni üzemre | Q4_K_M |
 | Edge (RPi 5, ARM CPU) | **Llama 3.2 3B** | Offline fallback inferencia | Q4_K_M (~2–2.5 GB RAM) |
 
-> 🔄 **Fontos váltás: GEX44 → Hetzner Cloud CAX31.** A GEX44 egy GPU-s **dedikált** szerver — havi fix díj, NEM indítható/törölhető API-ból. A `hcloud` CLI csak Hetzner **Cloud** instance-okat kezel. Mivel a 3B Q4 modell CPU-n is jól fut, egy **CAX31** (8 ARM vCPU, 16 GB) Cloud szerver elég — óradíjas, Terraformmal on-demand indítható/törölhető. Ez a tényleges „fizess csak amikor használod".
+> ✅ **DÖNTÉS (2026-08-13, a Teremtő): a fő felhő DigitalOcean GPU, a Hetzner a tartalék.**
+> Két ok, mindkettő mért. (1) A **Hetzneren folyamatos a VPS-hiány** — egy demó napján nem
+> lehet arra hagyatkozni, hogy épp van szabad CAX31. (2) A **CPU-s felhő NEM elég a
+> hang-pipeline-hoz**: a 2026-07-28-i számítás szerint ~6,8 tok/s kell ahhoz, hogy a beszéd
+> önfenntartó legyen, a CAX31 pedig 3,6–5 tok/s-ot ad — *alatta van*. GPU-n ez a szűk
+> keresztmetszet megszűnik.
+>
+> **Váltás egy változóval:** `terraform apply` (alap = DigitalOcean) vagy
+> `terraform apply -var cloud_provider=hetzner`. A `mother-001` név, a WireGuard-konfig és
+> az Ansible-role-ok **szolgáltató-függetlenek** — a váltás nem szivárog a konfigba.
+>
+> | | cloud-main | cloud-fallback |
+> | :--- | :--- | :--- |
+> | Gép | DO `gpu-4000adax1-20gb` (RTX 4000 Ada, 20 GB VRAM) | Hetzner CAX31/41 (ARM, CPU-only) |
+> | 8B sebesség | **~65 tok/s** (mérve 2026-08-13, melegen) | 3,6–5 tok/s |
+> | Ár | **$0,76/óra** — a DO legolcsóbb GPU-ja | ~€0,02/óra |
+> | Mire | a demó néhány órája | tartós, demó utáni működés |
+>
+> **Miért a KISEBB kártya:** a 2026-07-29-i mérés a RTX 6000 Ada-n ($1,57/h) 144 tok/s-ot
+> adott, de a pipeline ~6,8-at kíván — a feleannyiba kerülő 4000 Ada **9,6× ráhagyást** ad,
+> tehát a drágább kártya megvásárolt fejtér, amit nem használunk.
+>
+> ⚠️ **RÉGIÓ-KÉNYSZER (mérve 2026-08-13):** az Ada-kártyák **kizárólag `tor1`-ben** vannak,
+> és **európai DO GPU-régió nem létezik** (a legközelebbi bármi `nyc2`/`atl1`, H100/H200,
+> 6× drágább). Ez ~139 ms RTT Magyarországról az AMS3 44,7 ms-a helyett; a tunnel 90 ms-nál
+> ~0,2 s-ot ad a válaszhoz, tehát tor1-ből ~0,3 s. Egy 16 szavas válasz **kimondása ~6,4 s**,
+> tehát elnyelődik — de a tervezésnél tudni kell róla.
+>
+> ⚠️ **Melegen kell mérni.** Az első DO-s mérés 18 tok/s-ot adott, ami hidegindítási
+> műtermék volt (21 s modellbetöltés). A kártyát alulmérni és emiatt drágábbat választani
+> valós kockázat.
+>
+> 🔄 **Történeti: GEX44 → Hetzner Cloud CAX31.** A GEX44 egy GPU-s **dedikált** szerver — havi fix díj, NEM indítható/törölhető API-ból. A `hcloud` CLI csak Hetzner **Cloud** instance-okat kezel. Mivel a 3B Q4 modell CPU-n is jól fut, egy **CAX31** (8 ARM vCPU, 16 GB) Cloud szerver elég — óradíjas, Terraformmal on-demand indítható/törölhető. Ez a tényleges „fizess csak amikor használod".
 
 > 🧩 **Aszimmetrikus hibrid:** a felhő nagyobb modellt (8B) futtat, mint az edge (3B) — a két hely viselkedése tehát KÜLÖNBÖZIK: az edge tudatosan egy „kevésbé ékesszóló, de szuverén" fallback. (Mindkét hely ARM + Ollama, a stack azonos; csak a modellméret és a minőség/sebesség tér el. Ez felülírja a korábbi „ugyanaz a GGUF fut mindkét helyen" tervet.)
 
@@ -268,7 +301,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 | Becsült tok/s (3B Q4) | ~10–18 | ~18–30 |
 | Mikor | egyetlen beszélgetés, demó | hosszú válaszok / párhuzamos kérések |
 
-> ⚠️ **Sebesség-realitás a 8B-re:** a fenti tok/s a **3B**-re vonatkozik. A **8B Q4 CPU-n mindenhol lassú** — egy erős x86 laptopon is csak ~4-5 tok/s, a CAX31 ARM CPU-ján hasonló vagy lassabb. A demón ez vállalható, mert a válaszok rövidek (tömör persona) és a Teremtő élőben tolmácsol — ez időt ad. Igazán snappy 8B **GPU**-t igényelne, ami a hcloud Cloud API-n nem elérhető (ezért esett ki a GEX44 is); a CAX = CPU-only. Az **edge 3B** marad a gyorsabb (~2-5 tok/s a Pin) offline út. A szerver-méret egysoros változtatás a Terraform variable-ben.
+> ⚠️ **Sebesség-realitás a 8B-re:** a fenti tok/s a **3B**-re vonatkozik. A **8B Q4 CPU-n mindenhol lassú** — egy erős x86 laptopon is csak ~4-5 tok/s, a CAX31 ARM CPU-ján hasonló vagy lassabb. A demón ez vállalható, mert a válaszok rövidek (tömör persona) és a Teremtő élőben tolmácsol — ez időt ad. Igazán snappy 8B **GPU**-t igényel — a hcloud Cloud API-n ez nem elérhető (ezért esett ki a GEX44 is), ezért lett a fő út a **DigitalOcean GPU** (lásd a fenti döntést: ~65 tok/s). Ez a szakasz a **fallback** Hetzner-ágra érvényes; a CAX = CPU-only. Az **edge 3B** marad a gyorsabb (~2-5 tok/s a Pin) offline út. A szerver-méret egysoros változtatás a Terraform variable-ben.
 
 *   **Egységes modell előnye:** Egyetlen fine-tuning, azonos persona mindkét eszközön. A LoRA adapter (vagy merge-elt GGUF) megy mindkét helyre.
 *   **A cloud szerver szerepe:** **Kizárólag inferencia** Ollamán keresztül, on-demand (Terraform apply/destroy). A fine-tuning NEM itt fut (Google Colab).
@@ -417,7 +450,7 @@ oracle:
 > 💡 **Provider rugalmasság:** a `provider: "ollama"` beállítással a „Tudók" lehet egy nagyobb **helyi** modell is (pl. egy 14B a CAX41-en) — így a puskázás is maradhat szuverén, ha akarod. Alapból viszont az Opus 4.8 a legokosabb válasz.
 
 ### 7. Infrastruktúra mint kód (IaC)
-*   **Terraform:** Hetzner Cloud erőforrások – CAX31 ARM szerver (on-demand apply/destroy), tűzfal (csak SSH + WireGuard portok), privát hálózat. A szerver-típus variable-ben (CAX31 ↔ CAX41 egysoros váltás).
+*   **Terraform:** két felhő-modul, egy változóval váltva (`cloud_provider`): **`cloud-do/`** = DigitalOcean GPU droplet (alap) és **`cloud/`** = Hetzner CAX31/41 (tartalék). Mindkettőn tűzfal (csak SSH + WireGuard portok) és on-demand apply/destroy. Az inventory-generálás és az Ansible-trigger a **gyökér-modulban** van, hogy egy inventory legyen bármelyik szolgáltatóval. **Egyszeri előfeltétel a DO-oldalon:** a `free-droid-mother` kulcs regisztrálása (`doctl compute ssh-key import`) — a Terraform ADAT-FORRÁSként olvassa, hogy a `destroy` ne törölje a fiókról.
 *   **Ansible:** Zero-touch provisioning a CAX szerveren:
     *   Docker + Ollama telepítés
     *   A fine-tunolt GGUF modell betöltése Ollamába (Modelfile)
@@ -447,7 +480,7 @@ free-droid/
 ├── docs/
 │   └── free-droid.md              # ez a dokumentum
 ├── infra/                         # IaC
-│   ├── terraform/                 # Hetzner Cloud CAX31 provisioning (on-demand)
+│   ├── terraform/                 # felhő-provisioning: cloud-do/ (DO GPU, alap) + cloud/ (Hetzner, tartalék)
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
