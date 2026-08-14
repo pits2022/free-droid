@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Phase 1.5 smoke test — print live distances from the 3 HC-SR04P sensors.
+"""Phase 1.5 smoke test — élő távolság a HC-SR04(P) szenzorokról.
 
-front / front_left / front_right, pins from freedroid.config.gpio. HC-SR04P is
-3.3 V-tolerant so Echo wires straight to the GPIO (no divider).
-Run on the Pi:  uv run python scripts/ultrasonic_test.py   (Ctrl-C to stop)
+Lábak a freedroid.config.gpio-ból (egyetlen forrás). A "P" változat 3,3 V-tűrő, tehát
+az Echo közvetlenül a GPIO-ra megy; sima 5 V-os panelnél 3,3 V-os TÁP mellett szintén
+biztonságos, mert a kimenet szintjét a táp határolja (lásd a spec döntési eljárását).
+
+    uv run python scripts/ultrasonic_test.py                  # mind a három
+    uv run python scripts/ultrasonic_test.py --sensor front   # csak az elülső
 """
 
 from __future__ import annotations
 
+import argparse
 import time
 
 import _hw
@@ -37,18 +41,30 @@ def _measure_cm(lgpio, h, trig: int, echo: int) -> float | None:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    # Bekötésnél EGY szenzort mérj. A BE NEM KÖTÖTT lábak lebegnek, és a lebegő Echo
+    # néha ad egy random impulzust — a kimenetben az megkülönböztethetetlen egy valódi
+    # méréstől. Egy szenzorra szűkítve a "--" egyértelműen azt jelenti: nincs visszhang.
+    ap.add_argument("--sensor", choices=(*G.ULTRASONIC, "all"), default="all",
+                    help="melyik szenzort mérjük (bekötésnél egyet: --sensor front)")
+    args = ap.parse_args()
+    valasztott = (dict(G.ULTRASONIC) if args.sensor == "all"
+                  else {args.sensor: G.ULTRASONIC[args.sensor]})
+
     import lgpio
 
     h = _hw.open_gpiochip()
 
     try:
-        for sensor in G.ULTRASONIC.values():
+        for nev, sensor in valasztott.items():
+            print(f"  {nev}: trig=GPIO{sensor['trig']}  echo=GPIO{sensor['echo']}")
             lgpio.gpio_claim_output(h, sensor["trig"], 0)
             lgpio.gpio_claim_input(h, sensor["echo"])
 
         while True:
             readings = []
-            for name, sensor in G.ULTRASONIC.items():
+            for name, sensor in valasztott.items():
                 cm = _measure_cm(lgpio, h, sensor["trig"], sensor["echo"])
                 readings.append(f"{name}={'--' if cm is None else f'{cm:5.1f}cm'}")
                 time.sleep(0.03)  # avoid cross-echo between sensors
