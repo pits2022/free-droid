@@ -194,7 +194,17 @@ def main() -> int:
         for nev, sensor in valasztott.items():
             print(f"  {nev}: trig=GPIO{sensor['trig']}  echo=GPIO{sensor['echo']}")
             lgpio.gpio_claim_output(h, sensor["trig"], 0)
-            lgpio.gpio_claim_input(h, sensor["echo"])
+            # EXPLICIT PULL-DOWN a foglalásnál, nem az alapértelmezésre hagyva.
+            #
+            # MÉRT ok (2026-08-14): a Pi pull-beállítása HARDVERES és TÚLÉLI a folyamatot.
+            # Egy korábbi futás felhúzás-próbája bekapcsolva hagyta a pull-upot, és
+            # onnantól MINDEN futás "az Echo VÉGIG magas" alapállapotot mért — a szkript
+            # pedig bekötési hibát jelzett (`az Echo a VCC-n van`) egy ÖNMAGA hagyta
+            # állapotra. Egy órányi hibakeresést vitt el.
+            #
+            # A tanulság általános: ha egy műszer állítja a hardver állapotát, akkor
+            # ISMERT ÁLLAPOTBÓL kell indulnia, nem az előző futáséból.
+            lgpio.gpio_claim_input(h, sensor["echo"], lgpio.SET_PULL_DOWN)
 
         if args.diag:
             for nev, sensor in valasztott.items():
