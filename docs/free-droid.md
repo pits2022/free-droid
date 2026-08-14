@@ -221,28 +221,27 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 *   **Elrendezés:** 3 szenzor — **elöl**, **bal-elöl 45°**, **jobb-elöl 45°**. Lefedi a haladási irányt és a sarkokat. Hátra nincs (a robot ritkán tolat, a demón a Teremtő felügyel).
 *   **Táp:** 3.3V vagy 5V.
 
-> 🔴 **MÉRVE 2026-08-14: a panel 3,3 V-on NEM MŰKÖDIK — a döntési eljárás 3. ágán vagyunk.**
-> A bekötött szenzor tíz egymás utáni triggerre (két futás, tápciklus után, pontos 12 µs-os
-> impulzussal) **egyszer sem** adott Echo-felfutást, miközben a logikája végig élt: a belső
-> felhúzás-próba szerint a panel **aktívan alacsonyan tartotta** az Echo lábat, tehát be volt
-> kötve és kapott tápot. A mikrokontroller tehát elindul 3,3 V-on, de a 40 kHz-es adóburst
-> és a vevő-erősítő nem kap elég feszültséget.
+> 🔬 **MÉRVE 2026-08-14 — a két változat KÜLÖNBÖZIK, és ez eldőlt hardveren:**
 >
-> **Ezért a HÁROM szenzor bekötése 5 V-ról megy, feszültségosztóval az Echo-n:**
+> | panel | 3,3 V-on | bekötés |
+> | :--- | :--- | :--- |
+> | **HC-SR04P** (a „P" felirattal) | ✅ **működik** | Echo **közvetlenül** a GPIO-ra |
+> | HC-SR04 (sima, `HC-SR04` felirattal) | ❌ **nem válaszol** | 5 V + osztó kellene |
 >
-> ```
-> VCC  → 5 V (2-es vagy 4-es fizikai pin)
-> Trig → közvetlenül a GPIO-ra          (a szenzor BEMENETE; a 3,3 V-os jel elég neki)
-> Echo → 1 kΩ ─┬─ GPIO                  ← OSZTÓ, NEM ELHAGYHATÓ
->              └─ 2 kΩ ─ GND
-> GND  → közös a Pi földjével
-> ```
+> A sima panel bizonyítéka elkülönítő, nem csak „nem megy": **tíz egymás utáni trigger**
+> (két futás, tápciklus után, busy-waites 12 µs-os impulzussal) **egyszer sem** adott
+> Echo-felfutást, MIKÖZBEN a logikája végig élt — a belső felhúzás-próba szerint aktívan
+> alacsonyan tartotta az Echo lábat, tehát be volt kötve és kapott tápot. A mikrokontroller
+> elindul 3,3 V-on, az adóburst és a vevő-erősítő nem. (A termékadatlapja 3–5 V-ot ír; a
+> mérés ezt cáfolja erre a példányra.)
 >
-> ⚠️ Az osztó nélkül az Echo 5 V-os szintet ad a Pi 3,3 V-os GPIO-jára — **ez a bekötés
-> egyetlen olyan lépése, ahol kárt lehet tenni.** Szenzoronként egy osztó kell (3 db).
+> **A P változatra cserélve, VÁLTOZATLAN bekötéssel azonnal mért:** 1189–1192 µs öt
+> egymás utáni triggerre, azaz **±3 µs szórás (~0,5 mm)**. A fenti „P változat,
+> közvetlenül köthető" állítás tehát **helyes — de csak a P panelekre.**
 >
-> A fenti "P változat, közvetlenül köthető" bekezdés tehát a MEGRENDELT alkatrészre igaz,
-> a KÉZHEZ KAPOTT panelekre nem. A hivatkozási pont a mérés.
+> **Következmény a bekötésre:** a három szenzor mind **HC-SR04P** legyen, 3,3 V-ról,
+> osztó nélkül. A 10 db sima HC-SR04 tartalék marad; ha valaha bekerül, **5 V + 1 kΩ/2 kΩ
+> osztó kell az Echo-ra** — osztó nélkül az 5 V-os Echo tönkreteheti a Pi GPIO-ját.
 
 **GPIO kiosztás (3 szenzor):**
 
