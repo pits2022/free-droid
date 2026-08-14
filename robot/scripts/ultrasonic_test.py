@@ -31,12 +31,25 @@ TIMEOUT_S = 0.06
 MAX_HATOTAV_CM = 450.0
 
 
-def _measure_cm(lgpio, h, trig: int, echo: int) -> float | None:
+def _trigger(lgpio, h, trig: int) -> None:
+    """~12 us-os trigger-impulzus, PONTOSAN időzítve (busy-wait, nem sleep).
+
+    A `time.sleep(1e-5)` Linuxon nem 10 us-ot alszik: a felébresztés szemcsézettsége
+    miatt tipikusan 60-100+ us lesz belőle. A datasheet 10 us MINIMUMOT ír, tehát a
+    hosszabb impulzus elvben rendben van — de a klónok itt eltérnek, és ez az egyetlen
+    változó, amit ingyen ki lehet zárni, mielőtt forrasztásra kerül a sor.
+    """
     lgpio.gpio_write(h, trig, 0)
     time.sleep(0.002)
     lgpio.gpio_write(h, trig, 1)
-    time.sleep(1e-5)  # 10 µs trigger
+    veg = time.perf_counter() + 12e-6
+    while time.perf_counter() < veg:
+        pass
     lgpio.gpio_write(h, trig, 0)
+
+
+def _measure_cm(lgpio, h, trig: int, echo: int) -> float | None:
+    _trigger(lgpio, h, trig)
 
     start = time.perf_counter()
     while lgpio.gpio_read(h, echo) == 0:
@@ -117,13 +130,10 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
         return
     print("  -> a lábat valami AKTÍVAN alacsonyan tartja: a szenzor bekötve ÉS táp alatt")
 
-    # 2. Trigger után: felfut-e egyáltalán?
-    for i in range(3):
-        lgpio.gpio_write(h, trig, 0)
-        time.sleep(0.002)
-        lgpio.gpio_write(h, trig, 1)
-        time.sleep(1e-5)
-        lgpio.gpio_write(h, trig, 0)
+    # 2. Trigger után: felfut-e egyáltalán? Öt próba, mert a 3,3 V-on marginálisan
+    # működő szenzor SZAKASZOSAN válaszol — három próba még mutathat véletlen nullát.
+    for i in range(5):
+        _trigger(lgpio, h, trig)
 
         t0 = time.perf_counter()
         felfutott = False
