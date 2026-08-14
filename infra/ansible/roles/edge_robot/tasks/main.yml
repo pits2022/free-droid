@@ -7,6 +7,40 @@
 # `uv sync` fails creating .venv. We therefore pin user/home explicitly rather
 # than relying on ansible_env.HOME (which is /root under become).
 
+# ── Hardver-interfészek engedélyezése ────────────────────────────────────────
+# MÉRT hiány (2026-08-14, a szervó-teszt előtt): a role telepítette a teljes
+# szoftver-stacket, de az I2C és az SPI KERNEL-oldalon nem volt bekapcsolva —
+# `/dev/i2c-*` egyáltalán nem létezett. A Python-csomagok (board, busio,
+# adafruit_pca9685) hibátlanul importálnak, tehát a hiány CSAK a hardver-próbán
+# derül ki, és úgy néz ki, mintha a PCA9685 lenne rossz.
+#
+# A health-check ezt eddig is WARNING-ként jelezte (`i2c_bus`, `spi_bus`), csak
+# senki nem tette meg a következő lépést — ez az.
+#
+# Az I2C a PCA9685-höz (szervók), az SPI a WS2812 LED-gyűrűhöz kell.
+- name: Enable I2C and SPI in the boot config
+  lineinfile:
+    path: "{{ robot_boot_config }}"
+    regexp: "^#?\\s*{{ item.kulcs }}="
+    line: "{{ item.kulcs }}={{ item.ertek }}"
+    state: present
+  loop:
+    - { kulcs: "dtparam=i2c_arm", ertek: "on" }
+    - { kulcs: "dtparam=spi", ertek: "on" }
+  register: hw_interfeszek
+
+# SZÁNDÉKOSAN NEM indítunk újra magunktól. Egy távoli újraindítás a demó előtt (vagy
+# a helyszínen) rosszabb, mint egy figyelmeztetés: a Teremtő tudja, mikor teheti meg.
+# A HIBÁS irány az lenne, ha a role csendben átírná a configot, és a következő
+# hardver-próba megint "a PCA9685 rossz" tünettel jönne.
+- name: Warn that the hardware interfaces need a reboot
+  debug:
+    msg: >-
+      A(z) {{ robot_boot_config }} módosult (I2C/SPI). A /dev/i2c-* és /dev/spidev*
+      CSAK ÚJRAINDÍTÁS UTÁN jelenik meg — addig a szervó- és LED-próba elhasal.
+      Újraindítás: sudo reboot
+  when: hw_interfeszek is changed
+
 - name: Install system prerequisites
   apt:
     name:
