@@ -57,7 +57,7 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
     """
     print(f"\n=== diagnosztika: {nev} (trig=GPIO{trig}, echo=GPIO{echo}) ===")
 
-    # 1. Alapállapot trigger NÉLKÜL: egy nyugvó HC-SR04 Echo lába stabil ALACSONY.
+    # 1. Alapállapot trigger NÉLKÜL.
     minta = [lgpio.gpio_read(h, echo) for _ in range(200) if not time.sleep(0.005)]
     magas = sum(minta)
     print(f"trigger nélkül 200 mintából MAGAS: {magas}")
@@ -65,9 +65,34 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
         print("  -> az Echo VÉGIG magas: valószínűleg a VCC-re van kötve, vagy Trig/Echo cserélve")
         return
     if 0 < magas < len(minta):
-        print("  -> az Echo BILLEG trigger nélkül: a láb valószínűleg LEBEG (nincs bekötve)")
+        print("  -> az Echo BILLEG trigger nélkül: zajos vagy rosszul érintkező vezeték")
         return
-    print("  -> alapállapot rendben (stabil alacsony)")
+
+    # 1b. PULL-UP PRÓBA — ez dönti el, hogy a láb HOZZÁ VAN-E KÖTVE bármihez.
+    #
+    # A fenti "stabil alacsony" ÖNMAGÁBAN SEMMIT NEM BIZONYÍT, és ezen 2026-08-14-én
+    # elcsúsztunk: a Pi-n a GPIO 9-27 lábakon ALAPBÓL BELSŐ PULL-DOWN van, tehát egy
+    # BE NEM KÖTÖTT láb is stabil 0-t ad. A GPIO22 és GPIO23 is ide esik.
+    #
+    # Belső FELHÚZÁSSAL viszont szétválik a két eset:
+    #   felhúzva MAGAS  -> a lábon nincs semmi: LEBEG (nincs vezeték, vagy a szenzor
+    #                      nem kap tápot, tehát a kimenete nagy impedanciás)
+    #   felhúzva ALACSONY -> valami AKTÍVAN alacsonyan tartja: a szenzor be van kötve
+    #                      ÉS kap tápot (nyugalmi Echo = 0)
+    lgpio.gpio_free(h, echo)
+    lgpio.gpio_claim_input(h, echo, lgpio.SET_PULL_UP)
+    time.sleep(0.01)
+    felhuzva = [lgpio.gpio_read(h, echo) for _ in range(50) if not time.sleep(0.002)]
+    lgpio.gpio_free(h, echo)
+    lgpio.gpio_claim_input(h, echo)
+    print(f"belső FELHÚZÁSSAL 50 mintából magas: {sum(felhuzva)}")
+    if sum(felhuzva) > len(felhuzva) // 2:
+        print("  -> a láb LEBEG: nincs rajta vezeték, VAGY a szenzor nem kap tápot")
+        print("     (a szenzor kimenete táp nélkül nagy impedanciás — ugyanígy néz ki)")
+        print("     ELLENŐRIZD: VCC, GND (KÖZÖS a Pi földjével!), és hogy a vezeték")
+        print("     tényleg erre a fizikai pinre megy-e.")
+        return
+    print("  -> a lábat valami AKTÍVAN alacsonyan tartja: a szenzor bekötve ÉS táp alatt")
 
     # 2. Trigger után: felfut-e egyáltalán?
     for i in range(3):
