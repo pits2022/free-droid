@@ -221,6 +221,29 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 *   **Elrendezés:** 3 szenzor — **elöl**, **bal-elöl 45°**, **jobb-elöl 45°**. Lefedi a haladási irányt és a sarkokat. Hátra nincs (a robot ritkán tolat, a demón a Teremtő felügyel).
 *   **Táp:** 3.3V vagy 5V.
 
+> 🔴 **MÉRVE 2026-08-14: a panel 3,3 V-on NEM MŰKÖDIK — a döntési eljárás 3. ágán vagyunk.**
+> A bekötött szenzor tíz egymás utáni triggerre (két futás, tápciklus után, pontos 12 µs-os
+> impulzussal) **egyszer sem** adott Echo-felfutást, miközben a logikája végig élt: a belső
+> felhúzás-próba szerint a panel **aktívan alacsonyan tartotta** az Echo lábat, tehát be volt
+> kötve és kapott tápot. A mikrokontroller tehát elindul 3,3 V-on, de a 40 kHz-es adóburst
+> és a vevő-erősítő nem kap elég feszültséget.
+>
+> **Ezért a HÁROM szenzor bekötése 5 V-ról megy, feszültségosztóval az Echo-n:**
+>
+> ```
+> VCC  → 5 V (2-es vagy 4-es fizikai pin)
+> Trig → közvetlenül a GPIO-ra          (a szenzor BEMENETE; a 3,3 V-os jel elég neki)
+> Echo → 1 kΩ ─┬─ GPIO                  ← OSZTÓ, NEM ELHAGYHATÓ
+>              └─ 2 kΩ ─ GND
+> GND  → közös a Pi földjével
+> ```
+>
+> ⚠️ Az osztó nélkül az Echo 5 V-os szintet ad a Pi 3,3 V-os GPIO-jára — **ez a bekötés
+> egyetlen olyan lépése, ahol kárt lehet tenni.** Szenzoronként egy osztó kell (3 db).
+>
+> A fenti "P változat, közvetlenül köthető" bekezdés tehát a MEGRENDELT alkatrészre igaz,
+> a KÉZHEZ KAPOTT panelekre nem. A hivatkozási pont a mérés.
+
 **GPIO kiosztás (3 szenzor):**
 
 | Szenzor | Trig | Echo |
