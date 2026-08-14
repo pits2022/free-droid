@@ -77,7 +77,11 @@ def _diagnosztika(i2c, cim: int, csatorna: int) -> None:
         print("       2. V+ (szervó-táp) tényleg ott van a CSATORNA-tűsoron? A sorkapocs és")
         print("          a csatornák V+-a ugyanaz a hálózat — mérd a csatorna középső tűjén.")
         print("       3. A szervó jelvezetéke a 3 tűs csoport HELYES tűjén van-e")
-        print("          (barna/fekete=GND, piros=V+, narancs/sárga=jel).")(description=__doc__,
+        print("          (barna/fekete=GND, piros=V+, narancs/sárga=jel).")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--channel", choices=("pan", "tilt", "both"), default="both",
                     help="melyik szervót mozgassuk (elsőre egyet)")
