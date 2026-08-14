@@ -20,7 +20,15 @@ import _hw
 from freedroid.config import gpio as G
 
 SOUND_CM_PER_S = 34300.0
-TIMEOUT_S = 0.04  # ~6.8 m ceiling
+# A HC-SR04 "nincs visszhang" jelzése egy ~38 ms-os MAGAS impulzus (datasheet). A régi
+# 40 ms-os ablak ezt épphogy elvágta, és a szkript a saját időtúllépését számolta
+# távolsággá: "40002 us -> 686.0 cm". 60 ms-mal a 38 ms-os impulzus BEFEJEZETTKÉNT
+# látszik, tehát megkülönböztethető a valódi méréstől.
+TIMEOUT_S = 0.06
+# A szenzor fizikai hatótávja ~4 m. Ami e fölött jönne, az NEM mérés, hanem a "nincs
+# visszhang" jelzés félreolvasása — ezért a mérés inkább None-t ad, mint egy hihető,
+# de hamis számot.
+MAX_HATOTAV_CM = 450.0
 
 
 def _measure_cm(lgpio, h, trig: int, echo: int) -> float | None:
@@ -38,7 +46,8 @@ def _measure_cm(lgpio, h, trig: int, echo: int) -> float | None:
     while lgpio.gpio_read(h, echo) == 1:
         if time.perf_counter() - rise > TIMEOUT_S:
             return None
-    return (time.perf_counter() - rise) * SOUND_CM_PER_S / 2.0
+    cm = (time.perf_counter() - rise) * SOUND_CM_PER_S / 2.0
+    return None if cm > MAX_HATOTAV_CM else cm
 
 
 def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
@@ -62,8 +71,20 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
     magas = sum(minta)
     print(f"trigger nélkül 200 mintából MAGAS: {magas}")
     if magas == len(minta):
-        print("  -> az Echo VÉGIG magas: valószínűleg a VCC-re van kötve, vagy Trig/Echo cserélve")
-        return
+        # NEM lépünk ki azonnal: némelyik HC-SR04 klón az Echo-t a KÖVETKEZŐ TRIGGERIG
+        # magasan tartja, ha nem jött vissza visszhang (a datasheet 38 ms-ot ír, a klónok
+        # gyakran örökké). Egy trigger kioldja a latchet — e nélkül a diagnosztika egy
+        # ÖNMAGA OKOZTA állapotra mondaná, hogy "az Echo a VCC-re van kötve".
+        print("  -> az Echo magas; egy triggerrel próbálom kioldani (latch?)")
+        lgpio.gpio_write(h, trig, 1)
+        time.sleep(1e-5)
+        lgpio.gpio_write(h, trig, 0)
+        time.sleep(0.1)
+        ujra = sum(lgpio.gpio_read(h, echo) for _ in range(20) if not time.sleep(0.005))
+        if ujra == 20:
+            print("     -> továbbra is magas: az Echo tényleg a VCC-n van, vagy Trig/Echo cserélve")
+            return
+        print("     -> kioldódott: LATCH volt, nem bekötési hiba")
     if 0 < magas < len(minta):
         print("  -> az Echo BILLEG trigger nélkül: zajos vagy rosszul érintkező vezeték")
         return
@@ -84,7 +105,9 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
     time.sleep(0.01)
     felhuzva = [lgpio.gpio_read(h, echo) for _ in range(50) if not time.sleep(0.002)]
     lgpio.gpio_free(h, echo)
-    lgpio.gpio_claim_input(h, echo)
+    # A Pi pull-beállítása HARDVERES és TÚLÉLI a folyamatot — ha felhúzva hagynánk, a
+    # KÖVETKEZŐ futás alapállapot-mérése hamis képet adna. Explicit visszaállítás.
+    lgpio.gpio_claim_input(h, echo, lgpio.SET_PULL_DOWN)
     print(f"belső FELHÚZÁSSAL 50 mintából magas: {sum(felhuzva)}")
     if sum(felhuzva) > len(felhuzva) // 2:
         print("  -> a láb LEBEG: nincs rajta vezeték, VAGY a szenzor nem kap tápot")
@@ -115,12 +138,28 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
         while lgpio.gpio_read(h, echo) == 1 and time.perf_counter() - rise < TIMEOUT_S:
             pass
         szeles_us = (time.perf_counter() - rise) * 1e6
-        print(f"  {i+1}. trigger: Echo impulzus {szeles_us:8.0f} us "
-              f"-> {szeles_us * 34300e-6 / 2:.1f} cm")
+        cm = szeles_us * SOUND_CM_PER_S * 1e-6 / 2
+        if szeles_us > TIMEOUT_S * 1e6 * 0.98:
+            # Az impulzus a saját ablakunkig tartott: NEM mérés, hanem elakadás.
+            print(f"  {i+1}. trigger: az Echo {szeles_us:.0f} us után SEM futott le "
+                  f"(a mérőablak vége) -> beragadt magasan")
+        elif 30000 < szeles_us < 45000:
+            print(f"  {i+1}. trigger: {szeles_us:8.0f} us = a datasheet ~38 ms-os "
+                  f"NINCS-VISSZHANG jelzése (a szenzor VÁLASZOL, de nem kap vissza jelet)")
+        elif cm > MAX_HATOTAV_CM:
+            print(f"  {i+1}. trigger: {szeles_us:8.0f} us -> {cm:.0f} cm, ami a ~4 m-es "
+                  f"hatótáv FÖLÖTT van: nem valódi mérés")
+        else:
+            print(f"  {i+1}. trigger: Echo impulzus {szeles_us:8.0f} us -> {cm:5.1f} cm")
         time.sleep(0.07)   # a datasheet 60 ms-ot kér két mérés közé
     else:
         return
 
+    print("\nOLVASAT:")
+    print("  Ha ~38 ms-os NINCS-VISSZHANG jelzés jött: a szenzor LOGIKÁJA MŰKÖDIK (a")
+    print("  triggerre válaszol), csak nem kap vissza jelet. Ha van tárgy 4 m-en belül,")
+    print("  akkor az ADÓ gyenge — tipikusan 5 V-only panel 3,3 V-on. Ez a spec döntési")
+    print("  eljárásának 3. lépése: VCC -> 5 V, ÉS FESZÜLTSÉGOSZTÓ AZ ECHO-RA (1k + 2k).")
     print("\nHA EGYIK TRIGGERRE SEM FUTOTT FEL az Echo, a sorrend:")
     print("  a) VCC és GND tényleg be van kötve? (közös föld a Pi-vel!)")
     print("  b) Trig/Echo nincs felcserélve? (a szkript fent kiírja, melyik láb melyik)")
