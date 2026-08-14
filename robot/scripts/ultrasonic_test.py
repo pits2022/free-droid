@@ -115,6 +115,9 @@ def main() -> int:
                     help="melyik szenzort mérjük (bekötésnél egyet: --sensor front)")
     ap.add_argument("--diag", action="store_true",
                     help="ha csak `--` jön: megkülönbözteti a lehetséges okokat")
+    ap.add_argument("--swap", action="store_true",
+                    help="a Trig és Echo szerepét MEGCSERÉLI (csak --diag mellett): "
+                         "ha így megszólal, a két vezeték fel van cserélve")
     args = ap.parse_args()
     valasztott = (dict(G.ULTRASONIC) if args.sensor == "all"
                   else {args.sensor: G.ULTRASONIC[args.sensor]})
@@ -131,7 +134,23 @@ def main() -> int:
 
         if args.diag:
             for nev, sensor in valasztott.items():
-                _diagnosztika(lgpio, h, nev, sensor["trig"], sensor["echo"])
+                trig, echo = sensor["trig"], sensor["echo"]
+                if args.swap:
+                    # A SZEREPEK cseréje szoftverből: ha a két VEZETÉK van felcserélve,
+                    # így megszólal a szenzor — hardverhez nyúlni sem kell hozzá.
+                    #
+                    # ⚠️ RÖVID ÜTKÖZÉS: ha a bekötés MÉGIS helyes, akkor most a szenzor
+                    # Echo-KIMENETÉRE hajtunk 10 us-ig. Mindkét oldal áramkorlátos, és
+                    # a jelen mért állapotban az Echo VÉGIG ALACSONY (3/3 trigger), tehát
+                    # a magas impulzusunk alatt sincs mit ellene hajtania — ezért
+                    # vállalható. Tartós hajtásra NE használd.
+                    trig, echo = echo, trig
+                    lgpio.gpio_free(h, sensor["trig"])
+                    lgpio.gpio_free(h, sensor["echo"])
+                    lgpio.gpio_claim_output(h, trig, 0)
+                    lgpio.gpio_claim_input(h, echo)
+                    print(f"\n[SWAP] most trig=GPIO{trig}, echo=GPIO{echo}")
+                _diagnosztika(lgpio, h, nev, trig, echo)
             return 0
 
         while True:
