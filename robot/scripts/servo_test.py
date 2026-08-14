@@ -59,7 +59,29 @@ def _diagnosztika(i2c, cim: int, csatorna: int) -> None:
     print(f"MODE2    = {mode2:#04x}   kimenet={'totem-pole' if mode2 & 0x04 else 'OPEN-DRAIN'}"
           f"  INVRT={'IGEN' if mode2 & 0x10 else 'nem'}")
     print(f"PRESCALE = {prescale}      (50 Hz-hez 121 körül kell lennie)")
-    print(f"CH{csatorna} OFF   = {off}      (1,5 ms középhez ~4915)")
+    # A REGISZTER 12 BITES, a könyvtár `duty_cycle` tulajdonsága 16 bites: 16-tal osztva
+    # ír. 1,5 ms 50 Hz-en = 7,5% = 0,075 * 4096 = 307. (Az első változatom itt 4915-öt
+    # várt — 16 bites értéket hasonlított 12 bites regiszterhez, és HELYES beállításra
+    # mondta volna, hogy hibás.)
+    print(f"CH{csatorna} OFF   = {off}      (1,5 ms középhez 307 a 12 bites regiszterben)")
+
+    # A BUSZ MEGBÍZHATÓSÁGA — ezt kell ELŐSZÖR nézni, mert egy szakaszos kapcsolat
+    # MINDEN további leletet meghamisít: a félbeszakadt írástól a MODE1 tetszőleges
+    # értéket vehet fel (pl. beragadt SLEEP bit), és a szoftvert okoljuk érte.
+    # MÉRVE 2026-08-14: a chip előbb hibátlanul válaszolt, majd `OSError: [Errno 121]
+    # Remote I/O`-t adott, végül a busz be is akadt — miközben a kód nem változott.
+    hiba = 0
+    for _ in range(30):
+        try:
+            olvas(_MODE1)
+        except OSError:
+            hiba += 1
+    print(f"busz-próba: 30 olvasásból HIBÁS: {hiba}")
+    if hiba:
+        print("  -> SZAKASZOS AZ I2C-KAPCSOLAT. Minden lenti lelet gyanús: egy félbeszakadt")
+        print("     írás a MODE1-et is elállíthatja. Előbb a VEZETÉKEKET nézd (SDA/SCL")
+        print("     jumperek ülése, breadboard-sorok), csak utána a szoftvert.")
+        return
 
     if mode1 & 0x10:
         print("\n  -> A CHIP ALSZIK: a kimenetek nem működnek. A frekvencia-állítás után")
