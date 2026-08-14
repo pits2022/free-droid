@@ -128,7 +128,16 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
         print("     ELLENŐRIZD: VCC, GND (KÖZÖS a Pi földjével!), és hogy a vezeték")
         print("     tényleg erre a fizikai pinre megy-e.")
         return
-    print("  -> a lábat valami AKTÍVAN alacsonyan tartja: a szenzor bekötve ÉS táp alatt")
+    # ⚠️ EZ A KÖVETKEZTETÉS CSAK OSZTÓ NÉLKÜL ÉRVÉNYES, és 2026-08-14-én emiatt tévedtem.
+    # Az 5 V-os bekötéshez feszültségosztó kell (10k az Echo felől, 20k a földre). A 20k a
+    # Pi belső felhúzása ELLEN dolgozik: 3,3 V * 20/(50+20) ~ 0,94 V, ami a logikai küszöb
+    # ALATT van — tehát a láb AKKOR IS alacsonyat ad, ha a szenzor TÁP NÉLKÜL van és a
+    # kimenete nagy impedanciás. A próba osztóval NEM tudja megkülönböztetni a "bekötve és
+    # táp alatt" esetet a "nincs tápja" esettől.
+    print("  -> a láb alacsonyan van a felhúzás ellenében.")
+    print("     OSZTÓ NÉLKÜL ez azt jelenti: a szenzor bekötve ÉS táp alatt.")
+    print("     OSZTÓVAL viszont SEMMIT NEM JELENT — a földre menő ellenállás magától is")
+    print("     leviszi a lábat. Ilyenkor a szenzor tápját KÜLÖN kell ellenőrizni.")
 
     # 2. Trigger után: felfut-e egyáltalán? Öt próba, mert a 3,3 V-on marginálisan
     # működő szenzor SZAKASZOSAN válaszol — három próba még mutathat véletlen nullát.
