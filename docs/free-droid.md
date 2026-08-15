@@ -221,6 +221,40 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 *   **Elrendezés:** 3 szenzor — **elöl**, **bal-elöl 45°**, **jobb-elöl 45°**. Lefedi a haladási irányt és a sarkokat. Hátra nincs (a robot ritkán tolat, a demón a Teremtő felügyel).
 *   **Táp:** 3.3V vagy 5V.
 
+> 🔬 **MÉRVE 2026-08-14 — ami TÉNYLEGESEN be van kötve: sima `HC-SR04`, 5 V-ról,
+> feszültségosztóval.** A „P változat, közvetlenül köthető" bekezdés a MEGRENDELT
+> alkatrészre vonatkozik; a beépített panel más.
+>
+> | panel | 3,3 V-on | ami be van kötve |
+> | :--- | :--- | :--- |
+> | **HC-SR04** (sima, ez van beépítve) | ❌ **nem válaszol** | **5 V + 10 kΩ/20 kΩ osztó az Echo-n** ✅ |
+> | HC-SR04P (tartalék, 2 db) | ✅ működne | Echo közvetlenül a GPIO-ra |
+>
+> A 3,3 V-os kizárás bizonyítéka elkülönítő, nem csak „nem megy": **tíz egymás utáni
+> trigger** (két futás, tápciklus után, busy-waites 12 µs-os impulzussal) **egyszer sem**
+> adott Echo-felfutást, MIKÖZBEN a logika végig élt — a belső felhúzás-próba szerint a
+> panel aktívan alacsonyan tartotta az Echo lábat, tehát be volt kötve és kapott tápot.
+> A mikrokontroller elindul 3,3 V-on, az adóburst és a vevő-erősítő nem. **A panel
+> termékadatlapja 3–5 V-ot ígért — a mérés ezt cáfolta. A felirat és a mérés dönt.**
+>
+> **5 V-ra kötve, 10 kΩ/20 kΩ osztóval azonnal mért:** 1189–1192 µs öt egymás utáni
+> triggerre, azaz **±3 µs szórás (~0,5 mm)**.
+>
+> **A tényleges bekötés (elülső szenzor, 2026-08-14):**
+>
+> ```
+> VCC  → 5 V (2. fizikai pin)
+> Trig → GPIO 23 közvetlenül        (a szenzor BEMENETE; a 3,3 V-os jel elég neki)
+> Echo → 10 kΩ ─┬─ GPIO 22          ← a GPIO a KÉT ellenállás KÖZÖTT csapol
+>               └─ 20 kΩ ─ GND
+> GND  → közös a Pi földjével
+> ```
+>
+> ⚠️ Az osztó **nem elhagyható**, és a két ellenállás **nem cserélhető fel**: fordítva
+> 5 V × 10/(10+20) = **1,67 V** jutna a GPIO-ra, ami a magas-küszöb alatt van — a Pi nem
+> venné észre az Echo-t, és pontosan ugyanaz a „nem fut fel" kép jönne vissza.
+> A két 45°-os szenzor ugyanígy, saját osztóval (összesen 3 osztó).
+
 **GPIO kiosztás (3 szenzor):**
 
 | Szenzor | Trig | Echo |
