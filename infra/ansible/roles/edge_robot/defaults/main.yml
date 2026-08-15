@@ -68,3 +68,18 @@ robot_ssh_allowed_sources_v6: []
 robot_hotspot_ssid: "Wifi196"
 robot_hotspot_psk: ""            # SOHA ne kerüljön a repóba: --extra-vars vagy vault
 robot_hotspot_priority: 50       # nmcli autoconnect-priority; a magasabb nyer
+
+# ── Hang: melyik ALSA-kártya az alapértelmezett ──────────────────────────────
+# MÉRT ok (2026-08-15): `.asoundrc`/`asound.conf` híján az ALSA defaultja a
+# card 0, ami a Pi 5-ön a **HDMI**. A robotra nincs monitor dugva, tehát minden
+# lejátszás `audio open error: Unknown error 524` (ENOTSUPP) — miközben az USB
+# hangszóró ép, csak nem ő a default. A hiba a HANG-stack elhasalásaként jelenik
+# meg, pedig csak útválasztás.
+#
+# NÉV szerint hivatkozunk, NEM kártyaszámmal: az USB-felsorolás sorrendje
+# újraindításnál/újradugásnál elcsúszhat, és ez a robot a konferencián kerül
+# újra bedugásra. A nevet az `aplay -L` / `arecord -L` adja (CARD=... rész).
+robot_alsa_playback_card: "UACDemoV10"   # USB sztereó hangszóró (Jieli 4c4a:4155)
+robot_alsa_capture_card: "U20"           # a webkamera beépített mikrofonja
+                                         # (Jieli 1224:2a25 "USB PHY 2.0" — egy
+                                         # összetett eszköz: UVC videó + audio)

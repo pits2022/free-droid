@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+#
+# Alapértelmezett ALSA-eszközök a robothoz. E nélkül a default a card 0 = HDMI,
+# amire nincs monitor dugva, és MINDEN lejátszás ENOTSUPP-pal (524) elhasal.
+#
+# NÉV szerinti hivatkozás, nem kártyaszám: az USB-sorrend nem stabil.
+# A `plug` réteg intézi a mintavétel/formátum-konverziót, hogy a hívó
+# (Piper TTS, Whisper.cpp, openWakeWord) ne a kártya natív formátumához kelljen
+# igazodjon.
+
+pcm.!default {
+    type asym
+    playback.pcm {
+        type plug
+        slave.pcm "hw:CARD={{ robot_alsa_playback_card }},DEV=0"
+    }
+    capture.pcm {
+        type plug
+        slave.pcm "hw:CARD={{ robot_alsa_capture_card }},DEV=0"
+    }
+}
+
+# Az `amixer`/`alsamixer` -c kapcsoló nélkül is a hangszóróra menjen.
+ctl.!default {
+    type hw
+    card "{{ robot_alsa_playback_card }}"
+}
