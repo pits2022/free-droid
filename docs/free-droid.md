@@ -233,7 +233,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 >    (1 kΩ + 2 kΩ), mert onnantól az Echo 5 V-os szintet ad
 >
 > Ez a sorrend azért ez, mert a 2. lépés nem tud kárt tenni, a 3. viszont a Pi-t védi.
-*   **Elrendezés:** 3 szenzor — **elöl**, **bal-elöl 45°**, **jobb-elöl 45°**. Lefedi a haladási irányt és a sarkokat. Hátra nincs (a robot ritkán tolat, a demón a Teremtő felügyel).
+*   **Elrendezés:** 2 szenzor — **elöl** és **hátul** (2026-08-16; a 45°-osakat a mechanika nem fogadja be). A haladási irányt mindkét irányban lefedi, a SARKOKAT viszont NEM — lásd a GPIO-kiosztásnál a lefedettségi figyelmeztetést.
 *   **Táp:** 3.3V vagy 5V.
 
 > 🔬 **MÉRVE 2026-08-14 — ami TÉNYLEGESEN be van kötve: sima `HC-SR04`, 5 V-ról,
@@ -268,7 +268,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 > ⚠️ Az osztó **nem elhagyható**, és a két ellenállás **nem cserélhető fel**: fordítva
 > 5 V × 10/(10+20) = **1,67 V** jutna a GPIO-ra, ami a magas-küszöb alatt van — a Pi nem
 > venné észre az Echo-t, és pontosan ugyanaz a „nem fut fel" kép jönne vissza.
-> A két 45°-os szenzor ugyanígy, saját osztóval (összesen 3 osztó).
+> A hátsó szenzor ugyanígy, saját osztóval (összesen 2 osztó).
 >
 > 🔴 **A HASÍTOTT TÁPSÍN — ez vitt el egy napot (2026-08-15).** A 830 pontos MB-102
 > breadboard **tápsínjei középen meg vannak szakítva**: nem 2, hanem **4 sín-szakasz** van
@@ -284,13 +284,27 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 > **A forrasztott lapra átültetéskor ez a legfontosabb tétel:** a földet **csillagpontra**
 > kösd, vastag vezetékkel, és a sín-szakaszokat **kösd át** — ne a lap mintázatára bízd.
 
-**GPIO kiosztás (3 szenzor):**
+**GPIO kiosztás (2 szenzor):**
 
 | Szenzor | Trig | Echo |
 | :--- | :--- | :--- |
 | Elöl | GPIO 23 (Pin 16) | **GPIO 22 (Pin 15)** |
-| Bal-elöl 45° | **GPIO 27 (Pin 13)** | **GPIO 17 (Pin 11)** |
-| Jobb-elöl 45° | **GPIO 5 (Pin 29)** | **GPIO 6 (Pin 31)** |
+| Hátul | **GPIO 27 (Pin 13)** | **GPIO 17 (Pin 11)** |
+
+> 🔴 **HÁROM HELYETT KETTŐ, és nem 45°-osak (2026-08-16, a Teremtő):** a mechanika nem
+> fogadja be a két 45°-os szenzort. A kiosztás **1 előre + 1 hátra**; a hátsó a régi
+> bal-elülső, már ütközésmentesre javított lábpárját örökli (GPIO 27 / 17), a jobb-elülső
+> pár (GPIO 5 / 6) felszabadul.
+>
+> **Ez nem mennyiségi változás — két dolgot érint érdemben:**
+>
+> 1. **A watchdog szabálya megfordul** (lásd lentebb): három ELŐRE néző szenzornál a
+>    „bármelyik küszöb alatt → stop" helyes volt; hátsó szenzorral **hibás**.
+> 2. **Elveszik az oldalirányú lefedettség.** A HC-SR04 nyalábja ~15°, tehát egy
+>    szenzorral a robot **csak azt látja, ami pontosan előtte van** — egy asztalláb vagy
+>    egy cipő néhány fokkal oldalt LÁTHATATLAN. Ezt a demó narratívájában is így kell
+>    kezelni: Szabi nem „kikerüli az akadályokat", hanem **megáll az előtte lévő előtt**.
+>    A standon szabad sáv és a Teremtő mint végső biztosíték kell hozzá.
 
 > 🔴 **A teljes kiosztás javítva 2026-08-13-án** (PR #67) — a régi tábla hatból NÉGY lábon
 > ütközött, és a `robot/src/freedroid/config/gpio.py` a hivatkozási pont, nem ez a doksi:
@@ -298,15 +312,37 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 > (GPIO 8, amit a WS2812 foglal), a jobb-elülső Trig a **CE1**-en (GPIO 7), az Echo pedig
 > az **ID_SC**-n (GPIO 1 — a HAT-azonosító EEPROM lába, HAT-tal a fejlécen tilos).
 >
-> ⚠️ **`GPIO 17` ≠ `Pin 17`.** A bal-elülső Echo a GPIO 17 = **11-es** fizikai pin; a
+> ⚠️ **`GPIO 17` ≠ `Pin 17`.** A HÁTSÓ Echo a GPIO 17 = **11-es** fizikai pin; a
 > **17-es** fizikai pin a **3,3 V táp**. Összekeverve az Echo kimenetet a tápsínre kötnéd.
 
-**Közös sínek:** VCC → 3,3 V (Pin 1 vagy 17), GND → Pin 6/9/14/20/25/30/34/39 bármelyike.
+**Közös sínek:** VCC → **5 V** (Pin 2 vagy 4 — a beépített panelek sima HC-SR04-ek, lásd
+fentebb), GND → Pin 6/9/14/20/25/30/34/39 bármelyike.
+
+> 🔴 **ÉS KÖSD ÁT A BREADBOARD TÁPSÍN-SZAKASZAIT.** A 830 pontos lapon a sín középen meg
+> van szakítva (4 szakasz, nem 2). Ez 2026-08-15-én egy napot vitt el: a szenzor földje
+> nem ért a Pi földjéhez, és a szenzor némán nem válaszolt.
 Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 
 > ℹ️ **HC-SR04 (nem P) tartalék:** Ha mégis az eredeti 5V-os HC-SR04-et használod, az Echo lábra feszültségosztó kell (1kΩ + 2kΩ).
 
-> 📌 **Watchdog:** Mindhárom szenzort a `safety/` modul olvassa külön szálon. Bármelyik küszöb alatt → azonnali `stop()`.
+> 📌 **Watchdog:** Mindkét szenzort a `safety/` modul olvassa külön szálon.
+>
+> 🔴 **A megállás IRÁNY-FÜGGŐ — ez a hátsó szenzor következménye, és a régi
+> „bármelyik küszöb alatt → stop" szabály HIBÁS lenne (2026-08-16).** Egy fal a robot
+> MÖGÖTT nem ok a megállásra előremenetben: azzal a szabállyal a robot egy standon,
+> háttal a falnak, **meg sem tudna indulni** — és egy watchdog, ami mindig tilt, az a
+> demó előtti órában kerül kikapcsolásra. Ezért:
+>
+> | haladási irány | melyik szenzor állít meg |
+> | :--- | :--- |
+> | előre | `front` |
+> | hátra | `rear` |
+> | helyben fordul | EGYIK SEM fedi a súrolt ívet — ismert vak eset |
+> | áll / ismeretlen irány | **MINDKETTŐ** (fail-safe alapértelmezés) |
+>
+> Az irányt a `safety/` a `motion/` vezérlőjétől olvassa (egyetlen forrás, nem saját
+> nyilvántartás), és **ha az irány ismeretlen, a szigorúbb szabály él** — a hiba a
+> felesleges fékezés felé essen, ne a mozgás felé.
 
 > 🔴 **MÉRVE 2026-08-15: a Python busy-wait ÖNMAGÁBAN nem elég — 3 mérés `min()`-e kell.**
 > Ez volt a projekt legrégebbi nyitott kockázata, és most van száma.
@@ -383,18 +419,14 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 | :--- | :--- | :--- | :--- |
 | GPIO 2 | 3 | I2C SDA | PCA9685 |
 | GPIO 3 | 5 | I2C SCL | PCA9685 |
-| GPIO 5 | 29 | Trig output | HC-SR04P jobb-elöl (a felszabadult motor-lábon) |
-| GPIO 6 | 31 | Echo input | HC-SR04P jobb-elöl |
 | GPIO 12 | 32 | PWM1 output | HAT-MDD10 Motor 1 (bal) sebesség |
 | GPIO 13 | 33 | PWM2 output | HAT-MDD10 Motor 2 (jobb) sebesség |
 | GPIO 24 | 18 | DIR2 output | HAT-MDD10 Motor 2 (jobb) irány |
 | GPIO 26 | 37 | DIR1 output | HAT-MDD10 Motor 1 (bal) irány |
-| GPIO 23 | 16 | Trig output | HC-SR04P elöl |
-
-| GPIO 25 | 22 | Trig output | HC-SR04P bal-elöl 45° |
-| GPIO 8 | 24 | Echo input | HC-SR04P bal-elöl 45° |
-| GPIO 7 | 26 | Trig output | HC-SR04P jobb-elöl 45° |
-| GPIO 1 | 28 | Echo input | HC-SR04P jobb-elöl 45° |
+| GPIO 23 | 16 | Trig output | HC-SR04 **elöl** (5 V + 10k/20k osztó az Echo-n) |
+| GPIO 22 | 15 | Echo input | HC-SR04 **elöl** |
+| GPIO 27 | 13 | Trig output | HC-SR04 **hátul** (5 V + osztó) |
+| GPIO 17 | 11 | Echo input | HC-SR04 **hátul** |
 | SPI0 (GPIO 10) | 19 | SPI MOSI | WS2812 LED ring |
 | – | JST fan | PWM fan | Active Cooler |
 

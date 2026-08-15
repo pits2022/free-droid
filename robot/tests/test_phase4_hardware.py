@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from freedroid.config import gpio
 from freedroid.health.probe import is_pi
 from freedroid.motion import CytronMotionController
 from freedroid.motion.types import Direction, TurnDir
@@ -31,7 +32,7 @@ def test_turn_accepts_grammar_enums():
 
 
 @pytest.mark.xfail(reason="Phase 4.1: ultrasonic watchdog not implemented", strict=True)
-def test_watchdog_reads_three_distances():
+def test_watchdog_reports_every_configured_sensor():
     triggered = []
     wd = UltrasonicWatchdog(on_obstacle=lambda: triggered.append(True))
-    assert set(wd.distances_cm()) == {"front", "front_left", "front_right"}
+    assert set(wd.distances_cm()) == set(gpio.ULTRASONIC)
