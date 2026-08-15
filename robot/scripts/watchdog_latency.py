@@ -29,7 +29,9 @@ Egyetlen 0,3 ms-os ütemezési kimaradás elég. Egy Linux ütemezési kvantum
 from __future__ import annotations
 
 import argparse
-import statistics
+import gc
+import os
+import signal
 import subprocess
 import time
 
@@ -39,44 +41,72 @@ from freedroid.config import gpio as G
 from freedroid.config.settings import SafetySettings
 
 SOUND_CM_PER_S = 34300.0
+# A lépésköz-hisztogram 1 µs-os vödrökben, 0..20 ms; a fölötte lévő a túlcsordulás.
+VODOR_DB = 20000
 # Egy G másodperces kihagyás ennyi cm túlbecslést okoz (oda-vissza út miatt /2).
 CM_PER_S_HIBA = SOUND_CM_PER_S / 2.0
 
 
-def _gap_minta(lgpio, h, pin: int, masodperc: float) -> list[float]:
+def _gap_minta(lgpio, h, pin: int, masodperc: float) -> tuple[list[int], float, int]:
     """A mérőciklus lépésköz-eloszlása — pontosan az a ciklus, amit `_measure_cm` futtat.
 
     Szenzor NEM kell hozzá: a vizsgált mennyiség a Python + ütemező viselkedése,
     nem a szenzoré. Ezért ez a mérés akkor is érvényes, ha épp nincs bekötve panel.
+
+    A MŰSZER NEM GYÁRTHATJA AZT A JELENSÉGET, AMIT MÉR. Az első változat minden
+    lépésben `list.append()`-elt: 30 s alatt ~15 millió Python-float (~félgigányi
+    memória), tehát a ciklusba beleépült egy `realloc` és a ciklikus GC — vagyis a
+    mért TÜSKÉK egy része maga a mérőeszköz lehetett, nem az ütemező. Márpedig ennek
+    a mérésnek pont a tüskék a tárgya.
+
+    Ezért: FIX méretű hisztogram (1 µs-os vödrök), semmi allokáció a ciklusban, és a
+    ciklikus GC kikapcsolva az ablak idejére. A maximumot külön, pontosan visszük.
     """
-    gapek = []
-    veg = time.perf_counter() + masodperc
-    elozo = time.perf_counter()
-    while elozo < veg:
-        lgpio.gpio_read(h, pin)
-        most = time.perf_counter()
-        gapek.append(most - elozo)
-        elozo = most
-    return gapek
+    hist = [0] * (VODOR_DB + 1)          # az utolsó vödör a túlcsordulás gyűjtője
+    legnagyobb = 0.0
+    n = 0
+    gc.disable()
+    try:
+        veg = time.perf_counter() + masodperc
+        elozo = time.perf_counter()
+        while elozo < veg:
+            lgpio.gpio_read(h, pin)
+            most = time.perf_counter()
+            gap = most - elozo
+            us = int(gap * 1e6)
+            hist[us if us < VODOR_DB else VODOR_DB] += 1
+            if gap > legnagyobb:
+                legnagyobb = gap
+            n += 1
+            elozo = most
+    finally:
+        gc.enable()
+    return hist, legnagyobb, n
 
 
-def _stat(gapek: list[float], kuszob_cm: float) -> dict:
-    rendezett = sorted(gapek)
-    n = len(rendezett)
+def _stat(minta: tuple[list[int], float, int], kuszob_cm: float) -> dict:
+    hist, legnagyobb, n = minta
 
-    def p(q: float) -> float:
-        return rendezett[min(n - 1, int(q * n))]
+    def kvantilis(q: float) -> float:
+        """Kumulatív hisztogramból, 1 µs felbontással — a farokhoz bőven elég."""
+        cel, futo = q * n, 0
+        for us, db in enumerate(hist):
+            futo += db
+            if futo >= cel:
+                return float(us)
+        return float(VODOR_DB)
 
     # Mekkora kihagyás kell ahhoz, hogy a küszöb-hibát okozza (lásd a modul-doksit)?
     veszelyes_gap = kuszob_cm / CM_PER_S_HIBA
+    veszelyes_us = int(veszelyes_gap * 1e6)
     return {
         "n": n,
-        "median_us": statistics.median(rendezett) * 1e6,
-        "p99_us": p(0.99) * 1e6,
-        "p999_us": p(0.999) * 1e6,
-        "max_us": rendezett[-1] * 1e6,
-        "max_hiba_cm": rendezett[-1] * CM_PER_S_HIBA,
-        "veszelyes_db": sum(1 for g in rendezett if g >= veszelyes_gap),
+        "median_us": kvantilis(0.5),
+        "p99_us": kvantilis(0.99),
+        "p999_us": kvantilis(0.999),
+        "max_us": legnagyobb * 1e6,
+        "max_hiba_cm": legnagyobb * CM_PER_S_HIBA,
+        "veszelyes_db": sum(hist[min(veszelyes_us, VODOR_DB):]),
         "veszelyes_gap_us": veszelyes_gap * 1e6,
     }
 
@@ -98,8 +128,12 @@ def _terheles_indit(mod: str, model: str) -> subprocess.Popen | None:
         return None
     if mod == "stress":
         print("terhelés: stress-ng --cpu 4")
+        # SAJÁT FOLYAMATCSOPORT: a `stress-ng` négy worker-gyereket forkol, és a
+        # főfolyamatnak küldött SIGTERM őket ÁRVÁN hagyná — a mérés után is terhelnék
+        # a Pi-t, csendben meghamisítva minden következő mérést.
         return subprocess.Popen(["stress-ng", "--cpu", "4"],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                start_new_session=True)
     # Az ollama a HŰ terhelés: ez fut majd élesben, és a memória-sávszélességet is
     # eszi, nem csak a magokat — a szintetikus CPU-pörgetés ezt alábecsüli.
     print(f"terhelés: ollama run {model}")
@@ -115,7 +149,8 @@ def _terheles_indit(mod: str, model: str) -> subprocess.Popen | None:
     return subprocess.Popen(
         ["ollama", "run", model,
          "Sorold fel részletesen, mit csinálsz egy hosszú napon. Írj sokat."],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True)
 
 
 def _cpu_ido() -> tuple[float, float]:
@@ -224,7 +259,11 @@ def main() -> int:
         return 130
     finally:
         if terheles is not None:
-            terheles.terminate()
+            # A TELJES csoportnak, nem csak a főfolyamatnak — lásd `_terheles_indit`.
+            try:
+                os.killpg(os.getpgid(terheles.pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                terheles.terminate()
         lgpio.gpiochip_close(h)
 
 
