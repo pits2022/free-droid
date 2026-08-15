@@ -31,6 +31,15 @@ TIMEOUT_S = 0.06
 MAX_HATOTAV_CM = 450.0
 
 
+def _minta(lgpio, h, pin: int, db: int, koz_s: float) -> list[int]:
+    """`db` darab mintavétel a lábról, `koz_s` szünettel — a lista a nyers 0/1 értékek."""
+    ki = []
+    for _ in range(db):
+        time.sleep(koz_s)
+        ki.append(lgpio.gpio_read(h, pin))
+    return ki
+
+
 def _trigger(lgpio, h, trig: int) -> None:
     """~12 us-os trigger-impulzus, PONTOSAN időzítve (busy-wait, nem sleep).
 
@@ -80,7 +89,7 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
     print(f"\n=== diagnosztika: {nev} (trig=GPIO{trig}, echo=GPIO{echo}) ===")
 
     # 1. Alapállapot trigger NÉLKÜL.
-    minta = [lgpio.gpio_read(h, echo) for _ in range(200) if not time.sleep(0.005)]
+    minta = _minta(lgpio, h, echo, 200, 0.005)
     magas = sum(minta)
     print(f"trigger nélkül 200 mintából MAGAS: {magas}")
     if magas == len(minta):
@@ -93,7 +102,7 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
         time.sleep(1e-5)
         lgpio.gpio_write(h, trig, 0)
         time.sleep(0.1)
-        ujra = sum(lgpio.gpio_read(h, echo) for _ in range(20) if not time.sleep(0.005))
+        ujra = sum(_minta(lgpio, h, echo, 20, 0.005))
         if ujra == 20:
             print("     -> továbbra is magas: az Echo tényleg a VCC-n van, vagy Trig/Echo cserélve")
             return
@@ -116,7 +125,7 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
     lgpio.gpio_free(h, echo)
     lgpio.gpio_claim_input(h, echo, lgpio.SET_PULL_UP)
     time.sleep(0.01)
-    felhuzva = [lgpio.gpio_read(h, echo) for _ in range(50) if not time.sleep(0.002)]
+    felhuzva = _minta(lgpio, h, echo, 50, 0.002)
     lgpio.gpio_free(h, echo)
     # A Pi pull-beállítása HARDVERES és TÚLÉLI a folyamatot — ha felhúzva hagynánk, a
     # KÖVETKEZŐ futás alapállapot-mérése hamis képet adna. Explicit visszaállítás.
@@ -171,8 +180,6 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
         else:
             print(f"  {i+1}. trigger: Echo impulzus {szeles_us:8.0f} us -> {cm:5.1f} cm")
         time.sleep(0.07)   # a datasheet 60 ms-ot kér két mérés közé
-    else:
-        return
 
     print("\nOLVASAT:")
     print("  Ha ~38 ms-os NINCS-VISSZHANG jelzés jött: a szenzor LOGIKÁJA MŰKÖDIK (a")
@@ -241,7 +248,8 @@ def main() -> int:
                     lgpio.gpio_free(h, sensor["trig"])
                     lgpio.gpio_free(h, sensor["echo"])
                     lgpio.gpio_claim_output(h, trig, 0)
-                    lgpio.gpio_claim_input(h, echo)
+                    # Ismert állapotból: a pull HARDVERES és túléli a folyamatot (lásd fent).
+                    lgpio.gpio_claim_input(h, echo, lgpio.SET_PULL_DOWN)
                     print(f"\n[SWAP] most trig=GPIO{trig}, echo=GPIO{echo}")
                 _diagnosztika(lgpio, h, nev, trig, echo)
             return 0
