@@ -138,7 +138,7 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
         print("     OSZTÓVAL viszont EGYÉRTELMŰ, és a FÖLD felé mutat:")
         print("       a 20k a földre AKKOR IS lehúzná ezt a lábat, ha a szenzornak nincs")
         print("       tápja — tehát a táphiány mint egyedüli ok KIZÁRVA. Ami marad: a")
-        print("       GPIO22 -> 20k -> GND út valahol SZAKADT.")
+        print(f"       GPIO{echo} -> 20k -> GND út valahol SZAKADT.")
         print("     MÉRD EBBEN A SORRENDBEN: 1. szenzor GND <-> Pi GND folytonosság")
         print("     (fő gyanúsított), 2. VCC <-> GND ~5 V, 3. osztó közepe <-> a GPIO-láb.")
         return
