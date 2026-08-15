@@ -1,6 +1,11 @@
 ---
 # The unprivileged user that owns and runs the robot software on the Pi
 # (matches the inventory's ansible_user for the edge host).
+# A boot-config helye. Bookworm/trixie óta /boot/firmware/config.txt; a régebbi
+# képeken /boot/config.txt. Változó, mert egy rossz útvonalra írt dtparam CSENDBEN
+# hatástalan — a fájl létrejön, a hardver nem kapcsol be.
+robot_boot_config: /boot/firmware/config.txt
+
 robot_user: creator
 robot_user_home: "/home/{{ robot_user }}"
 
