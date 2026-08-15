@@ -310,14 +310,20 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 
 > 🔴 **MÉRVE 2026-08-15: a Python busy-wait ÖNMAGÁBAN nem elég — 3 mérés `min()`-e kell.**
 > Ez volt a projekt legrégebbi nyitott kockázata, és most van száma.
-> (`scripts/watchdog_latency.py`, `--load ollama`, 30 s ablakok, CPU 62% igazolva.)
+> (`scripts/watchdog_latency.py`, `--load ollama`, 30 s ablakok, CPU 64% igazolva.)
+>
+> A mérőeszköz maga is javításon esett át, mielőtt ezek a számok születtek: az első
+> változat a mérőciklusban allokált (`list.append`, ~15 millió float), tehát a saját
+> `realloc`-ja és ciklikus GC-je **beleépült a mért tüskékbe**. Fix hisztogramra +
+> `gc.disable()`-re cserélve az ÜRESJÁRATI p99.9 4 µs-ról 2 µs-ra esett — vagyis a
+> különbség tényleg a műszer volt. A szélső farok viszont maradt: az az ütemezőé.
 >
 > | | üresjárat | terhelés alatt (`szabi-3b` inferál) |
 > | :--- | ---: | ---: |
-> | medián lépésköz | 1,9 µs | **1,9 µs** |
-> | p99.9 | ~4 µs | 6,9 µs |
-> | legrosszabb | 148 µs → 2,5 cm | **7398 µs → 126,9 cm** |
-> | veszélyes kihagyás | 0 | 13 db / 30 s |
+> | medián lépésköz | 2,0 µs | **2,0 µs** |
+> | p99.9 | 2,0 µs | 6,0 µs |
+> | legrosszabb | 198 µs → 3,4 cm | **4283 µs → 73,5 cm** |
+> | veszélyes kihagyás | 0 | 23 db / 30 s |
 >
 > **A medián VÁLTOZATLAN.** Bármilyen átlag- vagy szórás-alapú ellenőrzés azt mondaná,
 > hogy nincs baj: a hiba teljes egészében a farokban ül. Ezt külön ki kell mondani, mert
@@ -329,15 +335,19 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 > a mért legrosszabb ennek a **huszonötszöröse**.
 >
 > **Gyakoriság:** a sérülékeny ablak az Echo-impulzus a küszöbnél (1,46 ms), a veszélyes
-> kihagyások rátája 0,4/s → mérésenként **0,06%**. A `poll_interval_s = 0,05` (20 Hz)
-> mellett ez **~79 másodpercenként EGY hamis „szabad az út"** — egy mozgó demóban
+> kihagyások rátája 0,8/s → mérésenként **0,11%**. A `poll_interval_s = 0,05` (20 Hz)
+> mellett ez **~45 másodpercenként EGY hamis „szabad az út"** — egy mozgó demóban
 > nem vállalható.
+>
+> ⚠️ **A farok NEM reprodukálható futásról futásra.** Négy futás legrosszabb kihagyása:
+> 7398 / 6138 / 4636 / 4283 µs. Ez önmagában érv a SZERKEZETI védelem (min(3)) mellett
+> a küszöb-hangolás helyett: nincs olyan szám, amire be lehetne állni.
 >
 > **A DÖNTÉS: 3 egymás utáni mérés `min()`-e, nem átírás.** A megoldás azért ilyen olcsó,
 > mert a hiba **egyirányú**: a megszakítás csak HOSSZABBNAK mutathatja az impulzust
 > (ha a felfutó él előtt szakít meg, az RÖVIDEBB mérés lesz — az a biztonságos irány,
 > felesleges fékezés). A `min()` tehát pontosan a veszélyes kilengéseket dobja el, és
-> mindháromnak egyszerre kellene elromlania: **2,5 × 10⁻¹⁰**. Ára 3 × ~60 ms mérés
+> mindháromnak egyszerre kellene elromlania: **1,4 × 10⁻⁹**. Ára 3 × ~60 ms mérés
 > döntésenként, ami egy lánctalpas roboton bőven belefér.
 >
 > ⚠️ **Amit ez a mérés NEM fed le:** a watchdog élesben SZÁLKÉNT fut az orchestrátor
