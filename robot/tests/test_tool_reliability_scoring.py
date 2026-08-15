@@ -19,7 +19,8 @@ _TRAINING = _ROOT / "training"
 _RAW = _TRAINING / "tool_reliability_raw_2026-08-05.json"
 
 sys.path.insert(0, str(_TRAINING))
-from tool_reliability import _ossze, ertekel
+# A `training/` nem csomag, tehát az importnak a sys.path bővítése UTÁN kell jönnie.
+from tool_reliability import _ossze, ertekel  # noqa: E402
 
 
 @pytest.mark.parametrize("a, b, vart", [
