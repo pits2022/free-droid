@@ -41,6 +41,19 @@
       Újraindítás: sudo reboot
   when: hw_interfeszek is changed
 
+# MÉRVE 2026-08-15: a Pi 5-ön a card 0 a HDMI, és `asound.conf` híján az ALSA
+# defaultja ez lesz. Monitor nélküli roboton ezért MINDEN lejátszás elhasal
+# (`audio open error: Unknown error 524` = ENOTSUPP), miközben az USB hangszóró ép.
+# Ugyanaz a hibaosztály, mint az I2C/SPI fent: a szoftver-stack hibátlanul telepszik,
+# a hiány csak a hardver-próbán derül ki, és rossz alkatrészre tereli a gyanút.
+- name: Set the default ALSA playback/capture devices
+  template:
+    src: asound.conf.j2
+    dest: /etc/asound.conf
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Install system prerequisites
   apt:
     name:
