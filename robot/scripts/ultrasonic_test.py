@@ -132,10 +132,15 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
     lgpio.gpio_claim_input(h, echo, lgpio.SET_PULL_DOWN)
     print(f"belső FELHÚZÁSSAL 50 mintából magas: {sum(felhuzva)}")
     if sum(felhuzva) > len(felhuzva) // 2:
-        print("  -> a láb LEBEG: nincs rajta vezeték, VAGY a szenzor nem kap tápot")
-        print("     (a szenzor kimenete táp nélkül nagy impedanciás — ugyanígy néz ki)")
-        print("     ELLENŐRIZD: VCC, GND (KÖZÖS a Pi földjével!), és hogy a vezeték")
-        print("     tényleg erre a fizikai pinre megy-e.")
+        print("  -> a láb LEBEG: semmi nem húzza a belső felhúzás ellenében.")
+        print("     OSZTÓ NÉLKÜL ez kétféle lehet: nincs ott a vezeték, VAGY a szenzor")
+        print("     nem kap tápot (a kimenete táp nélkül nagy impedanciás — ugyanígy néz ki).")
+        print("     OSZTÓVAL viszont EGYÉRTELMŰ, és a FÖLD felé mutat:")
+        print("       a 20k a földre AKKOR IS lehúzná ezt a lábat, ha a szenzornak nincs")
+        print("       tápja — tehát a táphiány mint egyedüli ok KIZÁRVA. Ami marad: a")
+        print(f"       GPIO{echo} -> 20k -> GND út valahol SZAKADT.")
+        print("     MÉRD EBBEN A SORRENDBEN: 1. szenzor GND <-> Pi GND folytonosság")
+        print("     (fő gyanúsított), 2. VCC <-> GND ~5 V, 3. osztó közepe <-> a GPIO-láb.")
         return
     # ⚠️ EZ A KÖVETKEZTETÉS CSAK OSZTÓ NÉLKÜL ÉRVÉNYES, és 2026-08-14-én emiatt tévedtem.
     # Az 5 V-os bekötéshez feszültségosztó kell (10k az Echo felől, 20k a földre). A 20k a
@@ -143,6 +148,11 @@ def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
     # ALATT van — tehát a láb AKKOR IS alacsonyat ad, ha a szenzor TÁP NÉLKÜL van és a
     # kimenete nagy impedanciás. A próba osztóval NEM tudja megkülönböztetni a "bekötve és
     # táp alatt" esetet a "nincs tápja" esettől.
+    #
+    # A FORDÍTOTT IRÁNY VISZONT OSZTÓVAL IS ÉRVÉNYES, és ezt 2026-08-15-én mértük ki: ha a
+    # láb felhúzva MAGAS marad, az osztó jelenlétében BIZONYÍTÉK, hogy a 20k nem éri el a
+    # földet (különben 0,94 V-ot, azaz alacsonyat adna). A "lebeg" ág üzenete ezért osztó
+    # mellett a FÖLDRE mutat, nem a tápra — lásd fent.
     print("  -> a láb alacsonyan van a felhúzás ellenében.")
     print("     OSZTÓ NÉLKÜL ez azt jelenti: a szenzor bekötve ÉS táp alatt.")
     print("     OSZTÓVAL viszont SEMMIT NEM JELENT — a földre menő ellenállás magától is")
