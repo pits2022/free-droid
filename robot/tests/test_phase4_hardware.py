@@ -34,4 +34,4 @@ def test_turn_accepts_grammar_enums():
 def test_watchdog_reads_three_distances():
     triggered = []
     wd = UltrasonicWatchdog(on_obstacle=lambda: triggered.append(True))
-    assert set(wd.distances_cm()) == {"front", "front_left", "front_right"}
+    assert set(wd.distances_cm()) == {"front", "rear"}

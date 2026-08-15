@@ -80,7 +80,14 @@ PAN_CHANNEL = 0       # CH0
 TILT_CHANNEL = 1      # CH1
 
 # --- Ultrasonic: HC-SR04P (trig, echo), BCM pins ---
-# Front + front-left 45° + front-right 45°. No rear sensor (spec decision).
+# ELÖL + HÁTUL, két szenzor. (2026-08-16, a Teremtő: a 45°-os szenzorokat a mechanika
+# nem fogadja be.) A `rear` a régi `front_left` ütközésmentes lábpárját örökli.
+#
+# ⚠️ EZ MEGVÁLTOZTATJA A WATCHDOG SZABÁLYÁT, nem csak a szenzorok számát: három ELŐRE
+# néző szenzornál a "bármelyik küszöb alatt -> stop" helyes volt. Hátsó szenzorral NEM:
+# egy fal a robot MÖGÖTT nem ok a megállásra előremenetben — azzal a szabállyal a robot
+# egy standon (háttal a falnak) MEG SEM TUDNA INDULNI. A watchdog ezért irány-függő,
+# lásd a spec 5. szakaszát és a `safety/` modult.
 #
 # ⚠️ FELÜLVIZSGÁLANDÓ, MIELŐTT BEKÖTIK (2026-08-13, még egy szenzor sincs bekötve).
 # A régi kiosztás hat lábból NÉGYEN ütközik, és mindegyik más eszközzel:
@@ -98,9 +105,8 @@ TILT_CHANNEL = 1      # CH1
 # (0/1). MIVEL MÉG EGY SZENZOR SEM VAN BEKÖTVE, ez most ingyen van — de a bekötésnél EZEK
 # a számok érvényesek, nem a spec régi táblája.
 ULTRASONIC = {
-    "front":      {"trig": 23, "echo": 22},   # pins 16 / 15
-    "front_left": {"trig": 27, "echo": 17},   # pins 13 / 11
-    "front_right": {"trig": 5, "echo": 6},    # pins 29 / 31  (a régi, hibás motor-lábak)
+    "front": {"trig": 23, "echo": 22},   # pins 16 / 15  — bekötve és MÉRVE 2026-08-15
+    "rear":  {"trig": 27, "echo": 17},   # pins 13 / 11  — a régi front_left lábpárja
 }
 
 # --- WS2812 status LED ring: SPI0 MOSI ---
