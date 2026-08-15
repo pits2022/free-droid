@@ -38,7 +38,7 @@ def test_gpio_pins_in_valid_bcm_range():
         assert 0 <= p <= 27, f"BCM pin out of range: {p}"
 
 
-def test_three_ultrasonic_sensors_with_distinct_trig_echo():
+def test_ultrasonic_sensors_have_distinct_trig_echo():
     assert set(gpio.ULTRASONIC) == {"front", "rear"}
     for name, s in gpio.ULTRASONIC.items():
         assert s["trig"] != s["echo"], f"{name} trig==echo"
