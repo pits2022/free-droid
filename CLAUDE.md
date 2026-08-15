@@ -388,9 +388,17 @@ Conscious gaps from the PR #4 review — not bugs, but things a future session s
 
 ## Project timeline / deadlines
 
-- Hardware deployed: 2026. aug. 20.
+- Hardware deployed: **2026. aug. 31.** (was aug. 20. — slipped 2026-08-15: the two MG996R
+  servos on hand turned out to be the **"360 Degrees" continuous-rotation** variant, where the
+  pulse sets *speed*, not angle. Unusable for pan/tilt; positional 180° units re-ordered. The
+  measurement and the buying trap are in `docs/free-droid.md` §4.)
 - LLM fine-tune: 2026. aug. 31.
 - Cloud server: 2026. aug. 31.
+  > ⚠️ **Aug. 31. is now a three-way deadline** (hardware + fine-tune + cloud). The slip did
+  > not create new work, but it removed the buffer: nothing hardware-dependent can be
+  > *scheduled* before the servos arrive. The parts of Phase 4 that need no servo (motion,
+  > ultrasonic, voice, orchestrator) are the ones to pull forward — the pan/tilt handler is
+  > the only piece actually blocked.
 - Software/code: 2026. sept. 30.
 - Integration tests: 2026. sept. 30.
 - **Talk preparation: 2026. sept. 1. → sept. 30. — owner: the Creator.** Slides + **3 timed

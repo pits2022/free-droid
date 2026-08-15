@@ -170,6 +170,21 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 ### 4. Kameramozgatás – Szervómotorok
 
 *   **Szervók (2 db):** MG996R, 13kg/cm torque, Metal Gear Digital, 3.0–7.2V, JR/Futaba csatlakozó.
+    *   🔴 **POZICIONÁLÓ (180°) változat kell — a „360 Degrees" NEM jó.** Ugyanazon az
+        `MG996R` néven a boltok kétféle motort árulnak, és a különbség nem méretbeli:
+        a folyamatos forgású (continuous rotation, „360°") változatban **az impulzus
+        SEBESSÉGET vezérel, nem szöget** — 1,5 ms = „állj", nem „középállás". Pan/tilthez
+        használhatatlan: nincs olyan szög, amit meg lehetne parancsolni.
+    *   **MÉRVE 2026-08-15**, két egybevágó jel a hibás daraboknál:
+        1. a `servo_test.py` sweepje **szimmetrikus** (1,35 → 1,5 → 1,65 → **1,5**), tehát
+           pozicionáló szervónak pontosan ott kell végeznie, ahol indult — helyette
+           270°-kal odébb állt meg;
+        2. a PCA9685 közben végig **1,50 ms-ot adott mindkét csatornán** (`CH0 OFF = CH1
+           OFF = 307`, MODE1=0x00, PRESCALE=121) — a chip tehát hibátlan volt.
+
+        Egy hobbi pozicionáló szervó fizikailag ~180°-ig megy: a **270° magában elárulja**.
+        Vásárláskor a terméknév „**- 360 Degrees**" toldaléka az egyetlen jelzés — a kép,
+        a nyomaték és a fotó azonos. Ez a tétel vitte a hardver-határidőt aug. 20-ról 31-re.
 *   **Vezérlő:** PCA9685 16-csatornás PWM driver, I2C interfész.
     *   Időalap: 50Hz (20ms periódus), 0.5ms–2.5ms pulse – illeszkedik az MG996R specifikációhoz.
     *   Felbontás: 12-bit (~4µs lépés).
@@ -625,7 +640,7 @@ free-droid/
 | Aluminum lánctalpas váz + 2× DC motor 12V | ✅ Megvan |
 | Raspberry Pi 5 (8GB) + Active Cooler | ✅ Megvan |
 | PCA9685 16-ch PWM driver | ✅ Megvan |
-| MG996R szervómotor (2 db) | ✅ Megvan |
+| MG996R szervómotor (2 db) | ❌ **ROSSZ TÍPUS — „360 Degrees" (folyamatos forgású).** Megvan, de pan/tilthez használhatatlan (sebesség-, nem szögvezérlés). Lásd a 4. szakaszt. |
 | HC-SR04 ultrahang szenzor (10 db, 5V) | ✅ Megvan – tartalék, feszültségosztóval használható |
 | HC-SR04P ultrahang szenzor (5 db, 3–5.5V) | ✅ Megérkezett |
 | LM2596 DC-DC Step-down (voltmérős) | ✅ Megvan |
@@ -649,6 +664,7 @@ free-droid/
 | WS2812 5050 RGB LED ring | ✅ Megvan |
 | MX1508 motorvezérlő (6 db) | ✅ Megvan – ⚠️ NEM használható 11.1V LiPo-val (max 10V), kis motorokra félretéve |
 | **Cytron HAT-MDD10 motorvezérlő** | ✅ Megérkezett – 25mm goldpin strip mellékelve |
+| **MG996R szervó, POZICIONÁLÓ 180° (2 db)** | ❌ **MEGRENDELVE 2026-08-15** – a meglévő pár „360 Degrees" (folyamatos forgású), pan/tilthez használhatatlan. Keresésnél a terméknévben NE legyen „360 Degrees"; a „180°" vagy a puszta „MG996R" a jó. Ez tolta a hardver-határidőt aug. 31-re. |
 | **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` |
 | ~~USB LTE modem (Huawei E3372 HiLink)~~ | ✅ **KIVÁLTVA (2026-08-10, a Teremtő): a saját 4G wifi router (`Wifi196`) adja a helyszíni netet.** Nem kell megrendelni – lekerül a kritikus útról. Ráadásul jobb: a router a robotot és a Teremtő laptopját UGYANARRA a hálózatra teszi, tehát a helyszíni SSH LAN-on megy, VPN és CGNAT nélkül – ez a tartalék belépési út (lásd `edge_robot`/`robot_hotspot_ssid`). |
 
