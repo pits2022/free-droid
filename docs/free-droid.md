@@ -269,6 +269,20 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 > 5 V × 10/(10+20) = **1,67 V** jutna a GPIO-ra, ami a magas-küszöb alatt van — a Pi nem
 > venné észre az Echo-t, és pontosan ugyanaz a „nem fut fel" kép jönne vissza.
 > A két 45°-os szenzor ugyanígy, saját osztóval (összesen 3 osztó).
+>
+> 🔴 **A HASÍTOTT TÁPSÍN — ez vitt el egy napot (2026-08-15).** A 830 pontos MB-102
+> breadboard **tápsínjei középen meg vannak szakítva**: nem 2, hanem **4 sín-szakasz** van
+> a lapon. A szenzor a lap egyik felére került, a Pi földje a másikra, és a két
+> föld-szakasz **nem ért össze** — a szenzor így nem kapott zárt áramkört. A sín végig
+> egybefüggőnek LÁTSZIK, a hiba csak multiméterrel derült ki.
+>
+> Ez szoftverből is levezethető volt, és a `--diag` mostantól ide is mutat: ha az Echo-láb
+> **belső felhúzással MAGAS marad** az osztó jelenlétében, akkor a `GPIO → 20k → GND` út
+> szakadt — mert a 20k a szenzor tápjától FÜGGETLENÜL lehúzná a lábat. A táphiba és a
+> szakadt Echo-ág ezzel egyszerre kizárható; ami marad, az a **közös föld**.
+>
+> **A forrasztott lapra átültetéskor ez a legfontosabb tétel:** a földet **csillagpontra**
+> kösd, vastag vezetékkel, és a sín-szakaszokat **kösd át** — ne a lap mintázatára bízd.
 
 **GPIO kiosztás (3 szenzor):**
 
@@ -751,12 +765,33 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] Akku rögzítése velcro pánttal a váz közepén
 
 **1.5 Hardver smoke-test (szoftver nélkül)**
-- [ ] Motor teszt: egyszerű GPIO szkript, mindkét motor előre/hátra
-- [ ] Szervó teszt: PCA9685 sweep CH0/CH1
-- [ ] HC-SR04P teszt: távolságmérés kiírása
-- [ ] USB eszközök felismerése: `lsusb`, `arecord -l`, `aplay -l`
-- [ ] USB LTE modem teszt: HiLink stick felmegy-e (virtuális ethernet), van-e net a SIM-en
-- [ ] Mikrofon-választás: webcam vs. omnidirekcionális (tesztelés, a jobbik marad; másik letiltása ALSA-ban)
+- [x] Motor teszt: egyszerű GPIO szkript, mindkét motor előre/hátra — **kész** (a bal motor
+      fordított polaritása javítva)
+- [~] Szervó teszt: PCA9685 sweep CH0/CH1 — **a vezérlés kész, a szervó rossz típus.** A chip
+      hibátlan (`CH0/CH1 OFF = 307` = 1,50 ms, MODE1=0x00, PRESCALE=121), de a meglévő pár
+      **folyamatos forgású (360°)**, lásd a 4. szakaszt. Pozicionáló párra vár.
+- [x] HC-SR04(P) teszt: távolságmérés kiírása — **kész**. Két, egymást követő fizikai hiba
+      után: 5 V + osztó kell a sima panelhez, és a breadboard **tápsínje hasított** (830-as
+      lapon 4 sín-szakasz), ezért a szenzor földje nem ért a Pi földjéhez.
+- [x] USB eszközök felismerése: `lsusb`, `arecord -l`, `aplay -l` — **kész**
+- [ ] USB LTE modem teszt — **KIVÁLTVA** a saját 4G wifi routerrel (`Wifi196`), lásd a
+      beszerzési táblát. Nem kritikus út.
+- [x] **Mikrofon: a webkamera BEÉPÍTETT mikrofonja — DÖNTÉS 2026-08-15 (a Teremtő).**
+      Az eredeti terv A/B-t írt (webkamera vs. omnidirekcionális), de **jelenleg egyetlen
+      felvevő eszköz van**: a `1224:2a25 "USB PHY 2.0"` egy **összetett** USB-eszköz —
+      2 Video (uvcvideo) + 2 Audio interfész —, tehát a kamera és a mikrofon UGYANAZ a
+      hardver. Egy eszköz, egy kábel, egy hibalehetőség: ez a jobb kiindulás.
+      > **A külön omni mikrofon a TARTALÉK, és mérhető kiváltó feltétele van.** Nem „ha
+      > rosszul szól" — az nem eldönthető —, hanem: **a Whisper.cpp magyar átirata a
+      > beszélő távolságából, terem-zajban.** A demón a Teremtő ~1-2 m-ről beszél egy
+      > zajos konferenciateremben, a beépített kameramikrofon pedig közeli beszédre van
+      > hangolva. A gate tehát a Phase 4 beszéd-tesztjén dől el, nem hallgatásra: ha az
+      > ébresztőszó vagy az átirat ott bukik, JÖN az omni mikrofon. Addig egy eszközzel
+      > kevesebb van a láncban.
+- [x] Hang-kimenet: USB sztereó hangszóró — **kész**. ⚠️ Az `/etc/asound.conf` KÖTELEZŐ:
+      nélküle az ALSA alapértelmezése a card 0 = **HDMI**, amire a roboton nincs monitor,
+      és minden lejátszás `ENOTSUPP (524)`-gyel elhasal. Ansible-ből megy, **név szerint**
+      (`hw:CARD=...`), mert az USB-kártyaszám újradugásnál elcsúszhat.
 
 ### FÁZIS 2 — Fine-tuning (Google Colab)
 > 🔗 *Indítható azonnal (dataset kész). Párhuzamos a teljes hardver ággal és F3-mal. Csak laptop + net kell.*
