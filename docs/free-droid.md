@@ -308,6 +308,46 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 
 > 📌 **Watchdog:** Mindhárom szenzort a `safety/` modul olvassa külön szálon. Bármelyik küszöb alatt → azonnali `stop()`.
 
+> 🔴 **MÉRVE 2026-08-15: a Python busy-wait ÖNMAGÁBAN nem elég — 3 mérés `min()`-e kell.**
+> Ez volt a projekt legrégebbi nyitott kockázata, és most van száma.
+> (`scripts/watchdog_latency.py`, `--load ollama`, 30 s ablakok, CPU 62% igazolva.)
+>
+> | | üresjárat | terhelés alatt (`szabi-3b` inferál) |
+> | :--- | ---: | ---: |
+> | medián lépésköz | 1,9 µs | **1,9 µs** |
+> | p99.9 | ~4 µs | 6,9 µs |
+> | legrosszabb | 148 µs → 2,5 cm | **7398 µs → 126,9 cm** |
+> | veszélyes kihagyás | 0 | 13 db / 30 s |
+>
+> **A medián VÁLTOZATLAN.** Bármilyen átlag- vagy szórás-alapú ellenőrzés azt mondaná,
+> hogy nincs baj: a hiba teljes egészében a farokban ül. Ezt külön ki kell mondani, mert
+> a kézenfekvő mérés (átlagos ciklusidő) pont ezt a hibát NEM látja.
+>
+> **A hiba iránya a rossz.** Egy `G` másodperces kihagyás `G × 17150` cm távolság-
+> TÚLbecslést okoz, tehát „szabad az út" irányba téved. A 25 cm-es `stop_threshold_cm`
+> mellett már **291 µs** elég ahhoz, hogy egy 20 cm-es akadály 25 cm fölé csússzon —
+> a mért legrosszabb ennek a **huszonötszöröse**.
+>
+> **Gyakoriság:** a sérülékeny ablak az Echo-impulzus a küszöbnél (1,46 ms), a veszélyes
+> kihagyások rátája 0,4/s → mérésenként **0,06%**. A `poll_interval_s = 0,05` (20 Hz)
+> mellett ez **~79 másodpercenként EGY hamis „szabad az út"** — egy mozgó demóban
+> nem vállalható.
+>
+> **A DÖNTÉS: 3 egymás utáni mérés `min()`-e, nem átírás.** A megoldás azért ilyen olcsó,
+> mert a hiba **egyirányú**: a megszakítás csak HOSSZABBNAK mutathatja az impulzust
+> (ha a felfutó él előtt szakít meg, az RÖVIDEBB mérés lesz — az a biztonságos irány,
+> felesleges fékezés). A `min()` tehát pontosan a veszélyes kilengéseket dobja el, és
+> mindháromnak egyszerre kellene elromlania: **2,5 × 10⁻¹⁰**. Ára 3 × ~60 ms mérés
+> döntésenként, ami egy lánctalpas roboton bőven belefér.
+>
+> ⚠️ **Amit ez a mérés NEM fed le:** a watchdog élesben SZÁLKÉNT fut az orchestrátor
+> Python-folyamatában, tehát a GIL-ért is versenyez majd a saját folyamatán belül.
+> Itt csak KÜLSŐ folyamat terhelt. A valós farok ezért **rosszabb** lehet, nem jobb —
+> a `min(3)`-at emiatt sem szabad elhagyni. Újramérendő, ha az orchestrátor összeáll.
+>
+> Ha a `min(3)` sem lenne elég: a következő lépcső a watchdog szál `SCHED_FIFO`
+> prioritása (`os.sched_setscheduler`), és csak azután jöhet szóba külön MCU.
+
 ### 6. LED ring
 *   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V.
 *   **Vezérlés:** SPI módban (`/dev/spidev0.0`) – konfliktus-mentes az RPi 5-ön (elkerüli a PWM/DMA ütközést az audio és motorvezérlővel).
