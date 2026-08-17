@@ -42,20 +42,47 @@ class MotionSettings:
     default_speed: float = 0.5      # 0.0–1.0 duty
     pwm_frequency_hz: int = 1000
 
-    # ⚠️ KALIBRÁCIÓS ÉRTÉKEK, MÉG NINCSENEK MÉRVE (2026-08-17). A `move 2` / `turn 90`
-    # ebből számol menetidőt, tehát amíg ezek becslések, a megtett út is becslés — a
-    # mozgás IRÁNYA és a megállás viszont NEM ezeken múlik, azok mérve vannak.
+    # MÉRVE 2026-08-17, padlón, a trimmel együtt: 100 cm-es parancsra a robot 222 cm-t
+    # tett meg, tehát a korábbi 30.0-s BECSLÉS a valós sebesség kevesebb mint felét
+    # mondta — a robot minden utat több mint kétszer hosszabbra hajtott volna.
     #
-    # Mérés (felpolcolva NEM megy, ez padlón mérendő): teljes kitöltéssel egyenesen
-    # 3 másodperc, mérőszalag; `deg` ugyanígy egy 360°-os helyben fordulás ideje.
+    # ⚠️ A szám a TRIMMEL EGYÜTT érvényes (a trim lassítja az egyik oldalt, tehát az
+    # átlagsebességet is). Ha a trim változik, ezt újra kell mérni.
+    #
     # A duty→sebesség viszonyt LINEÁRISnak vesszük, ami alacsony kitöltésnél nem igaz
     # (holtsáv) — ha a `move 0.5` rendre rövidebb lesz a kelleténél, ott kezdd.
-    cm_per_s_at_full: float = 30.0
-    deg_per_s_at_full: float = 90.0
+    cm_per_s_at_full: float = 66.6
+    # MÉRVE 2026-08-17: a 90.0-s becslés a valós fordulási sebesség HARMADÁT mondta —
+    # egy 90 fokos fordulás 2.0 s helyett 0.64 s. Helyben forduláskor a két lánctalp
+    # egymással szemben forog, tehát a szögsebesség jóval nagyobb, mint amit az
+    # egyenes menetből "arányosítva" várnánk; ezt tényleg meg kellett mérni.
+    deg_per_s_at_full: float = 280.0
 
     # Deadman: távolság nélküli `move` (pl. `move forward until obstacle`) sem futhat
     # örökké. Ha a watchdog szála elhal, ez az utolsó határ, ami leállítja a robotot.
     max_run_s: float = 30.0
+
+    # OLDALANKÉNTI TRIM — a robot NEM megy egyenesen azonos kitöltésen (MÉRVE
+    # 2026-08-17: balra húz, ~2 m után a folyosó falának fordul). Ez differenciál-
+    # hajtásnál a VÁRT eset, nem hiba: a két motor/hajtómű/lánctalp sosem azonos.
+    # Enkóder nincs, tehát nincs visszacsatolás — marad a kimért szorzó.
+    #
+    # A GYORSABB oldalt LASSÍTSD (szorzó < 1), ne a lassabbat gyorsítsd: teljes
+    # kitöltésen már nincs hová gyorsítani, és a trim csendben hatástalan lenne.
+    # MÉRVE 2026-08-17: ezekkel az értékekkel a robot 222 cm-t ment EGYENESEN.
+    # A jobb oldal a gyorsabb, 8%-kal — mérés: scripts/calibrate_motion.py.
+    left_duty_trim: float = 1.0
+    right_duty_trim: float = 0.92
+
+    # A két lánctalp KÖZÉPVONALÁNAK távolsága. Csak a trim kiszámításához kell
+    # (az oldalirányú elsodródásból ebből jön ki a szögelfordulás).
+    # MÉRVE 2026-08-17, mérőszalaggal.
+    track_width_cm: float = 21.0
+
+    def _validate_trim(self, name: str, value: float) -> None:
+        if not 0.0 < value <= 1.0:
+            raise ValueError(f"{name} must be within (0.0, 1.0] — lassítani lehet, "
+                             f"gyorsítani nem")
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.default_speed <= 1.0:
@@ -68,6 +95,10 @@ class MotionSettings:
             raise ValueError("deg_per_s_at_full must be > 0")
         if self.max_run_s <= 0:
             raise ValueError("max_run_s must be > 0")
+        self._validate_trim("left_duty_trim", self.left_duty_trim)
+        self._validate_trim("right_duty_trim", self.right_duty_trim)
+        if self.track_width_cm <= 0:
+            raise ValueError("track_width_cm must be > 0")
 
 
 @dataclass(frozen=True)

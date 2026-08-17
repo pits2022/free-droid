@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,10 @@ from freedroid.health.probe import is_pi
 from freedroid.tools.parser import ParsedTool, parse_tools
 
 IS_PI = is_pi()
+
+# A `scripts/` nem csomag, de számol: a kalibrációs script geometriája pont az a fajta
+# képlet, ami csendben rossz értéket ad. Az importálhatóság ára két sor.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 # repo root: robot/tests/conftest.py -> parents[2]
 _DATASET = Path(__file__).resolve().parents[2] / "training" / "dataset" / "freedroid_full.json"

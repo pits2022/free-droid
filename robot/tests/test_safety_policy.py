@@ -134,6 +134,92 @@ def test_a_stop_utan_a_menet_el_sem_indul():
     assert m.heading is None
 
 
+class TestTrim:
+    """A robot balra húz (MÉRVE 2026-08-17) — a trim ezt fogja vissza."""
+
+    def _pwm(self, fake: FakeLgpio) -> dict[int, float]:
+        return {c[1]: c[2] for c in fake.calls if c[0] == "pwm" and c[2] > 0}
+
+    def test_a_trim_oldalankent_kulon_hat(self):
+        fake = FakeLgpio()
+        m = _bare_motion(fake)
+        m._cfg = MotionSettings(left_duty_trim=1.0, right_duty_trim=0.9)
+        m._run(1, 0, 0.5, 0.01, Direction.FORWARD, False)
+
+        pwm = self._pwm(fake)
+        assert pwm[G.LEFT_MOTOR_PWM] == pytest.approx(50.0)
+        assert pwm[G.RIGHT_MOTOR_PWM] == pytest.approx(45.0)
+
+    def test_a_kitoltes_100_folott_levagodik(self):
+        # Enélkül egy elszállt trim némán telítődne, és a robot ugyanúgy húzna,
+        # miközben a config szerint "kalibrálva" van.
+        fake = FakeLgpio()
+        m = _bare_motion(fake)
+        m._run(1, 0, 1.0, 0.01, Direction.FORWARD, False)
+        assert max(self._pwm(fake).values()) <= 100.0
+
+    def test_a_gyorsitas_nem_engedheto(self):
+        # 1.0 fölötti trim = a lassabb oldal gyorsítása, ami teljes kitöltésen
+        # lehetetlen — inkább hangosan bukjon, mint csendben hatástalan legyen.
+        with pytest.raises(ValueError):
+            MotionSettings(right_duty_trim=1.2)
+
+
+class TestTrimSzamitas:
+    """A kalibrációs geometria (`scripts/calibrate_motion.py`)."""
+
+    def _cfg(self, bal: float = 1.0, jobb: float = 1.0):
+        # A trimet KIFEJEZETTEN megadjuk, nem a defaultot használjuk: a default a
+        # MÉRT érték (jobb=0.92), és akkor ezek a tesztek a következő kalibrációtól
+        # dőlnének el — miközben a geometriáról szólnak, nem a robot aktuális
+        # állapotáról.
+        return MotionSettings(track_width_cm=21.0,
+                              left_duty_trim=bal, right_duty_trim=jobb)
+
+    def test_balra_huzas_a_jobb_oldalt_lassitja(self):
+        from calibrate_motion import _trim
+        bal, jobb = _trim(self._cfg(), hossz_cm=200, oldal_cm=40)
+        assert bal == 1.0
+        assert jobb < 1.0
+
+    def test_jobbra_huzas_a_bal_oldalt_lassitja(self):
+        from calibrate_motion import _trim
+        bal, jobb = _trim(self._cfg(), hossz_cm=200, oldal_cm=-40)
+        assert bal < 1.0
+        assert jobb == 1.0
+
+    def test_egyenes_menet_MEGTARTJA_a_mostani_trimet(self):
+        """0 elsodródás NEM azt jelenti, hogy 1.0/1.0-ra kell állni.
+
+        A robot azért ment egyenesen, MERT a mostani trim jó — visszaállítani
+        1.0/1.0-ra pont a kalibrációt dobná el, és újra húzni kezdene.
+        """
+        from calibrate_motion import _trim
+        assert _trim(self._cfg(jobb=0.92), hossz_cm=222, oldal_cm=0) == (1.0, 0.92)
+
+    def test_a_nyomtavnal_rovidebb_ut_nem_szamolhato(self):
+        # Ez teszi a képletet TOTÁLISSÁ: a nevező (hossz^2 + oldal*nyomtáv) csak
+        # nagyon rövid úton tudna nullára/negatívra futni, és egy a saját nyomtávjánál
+        # kevesebbet haladt robotnál amúgy sincs értelme "egyenességről" beszélni.
+        from calibrate_motion import _trim
+        assert _trim(self._cfg(), hossz_cm=15, oldal_cm=-3) is None
+        assert _trim(self._cfg(), hossz_cm=0, oldal_cm=0) is None
+
+    def test_tul_nagy_elsodrodas_nem_szamolhato(self):
+        # A képlet kis szögre érvényes; e fölött a szám hihető lenne, de hamis.
+        from calibrate_motion import _trim
+        assert _trim(self._cfg(), hossz_cm=100, oldal_cm=90) is None
+        assert _trim(self._cfg(), hossz_cm=100, oldal_cm=-90) is None
+
+    def test_az_eredmeny_mindig_ervenyes_trim(self):
+        # A MotionSettings (0.0, 1.0] tartományt vár — érvénytelen érték csak a
+        # robot indulásakor bukna ki, ami a legrosszabb pillanat.
+        from calibrate_motion import _trim
+        for oldal in (-25, -10, -1, 0, 1, 10, 25):
+            bal, jobb = _trim(self._cfg(), hossz_cm=100, oldal_cm=oldal)
+            MotionSettings(left_duty_trim=bal, right_duty_trim=jobb)
+
+
 def _bare_watchdog(on_obstacle) -> UltrasonicWatchdog:
     wd = object.__new__(UltrasonicWatchdog)
     wd._stop_flag = threading.Event()
