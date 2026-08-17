@@ -32,8 +32,17 @@ from freedroid.safety import UltrasonicWatchdog
 
 
 def _szam_bekeres(kerdes: str) -> float | None:
-    """Számot kér az operátortól. Üres/érvénytelen válasz -> None (kihagyjuk)."""
-    valasz = input(kerdes).strip().replace(",", ".")
+    """Számot kér az operátortól. Üres/érvénytelen/EOF válasz -> None (kihagyjuk).
+
+    Az EOF (Ctrl+D, vagy TTY nélküli futtatás) itt kihagyást jelent. A MEGERŐSÍTŐ
+    kérdésnél SZÁNDÉKOSAN nincs ilyen kezelés: ott az EOF megszakítja a futást,
+    mielőtt a robot elindulna — egy TTY nélküli környezetben nincs, aki azt mondja,
+    hogy szabad az út, tehát ott a leállás a helyes válasz, nem a folytatás.
+    """
+    try:
+        valasz = input(kerdes).strip().replace(",", ".")
+    except EOFError:
+        return None
     if not valasz:
         return None
     try:
@@ -65,7 +74,14 @@ def _trim(cfg, hossz_cm: float, oldal_cm: float) -> tuple[float, float] | None:
     kitöltésen már nincs hová gyorsítani. Végül visszanormáljuk, hogy a gyorsabb
     oldal 1.0 legyen — különben minden kör lassítaná a robotot.
     """
-    if hossz_cm <= 0 or abs(oldal_cm) > MAX_ELSODRODAS_ARANY * hossz_cm:
+    # A nevező (hossz^2 + oldal*nyomtáv) elvben nullára vagy negatívra futhat. Nem
+    # algebrai ellenőrzést teszünk elé, hanem FIZIKAIT: a robot legalább a saját
+    # nyomtávjánál hosszabb utat tegyen meg, különben nincs mit egyenességnek nevezni.
+    # Ez egyben BIZONYÍTHATÓAN elég: hossz > nyomtáv és |oldal| <= hossz/4 mellett
+    # |oldal*nyomtáv| < hossz^2, tehát a nevező és a számláló is szigorúan pozitív.
+    if hossz_cm <= cfg.track_width_cm:
+        return None
+    if abs(oldal_cm) > MAX_ELSODRODAS_ARANY * hossz_cm:
         return None
 
     q = oldal_cm * cfg.track_width_cm
@@ -91,18 +107,24 @@ def main() -> int:
                     help="a két lánctalp KÖZÉPVONALÁNAK távolsága cm-ben (mérőszalaggal, "
                          "egyszer). Az egyenesség-trim egyetlen ismeretlene.")
     args = ap.parse_args()
+    if args.meters <= 0 or args.degrees <= 0:
+        # Rögtön a beolvasás után, MINDEN kiírás és hardver-nyitás előtt: a `--degrees 0`
+        # egyébként lefuttatna egy értelmetlen menetet, és csak a mérés VÉGÉN osztana
+        # nullával — miután a robot már mozgott.
+        ap.error("--meters és --degrees is nagyobb kell legyen nullánál")
 
     cfg = load_settings().motion
     if args.track_width is not None:
         cfg = replace(cfg, track_width_cm=args.track_width)
     else:
-        print(f"⚠️  A nyomtáv BECSÜLT ({cfg.track_width_cm:.0f} cm) — mérd meg és add meg "
-              f"a --track-width kapcsolóval, különben a trim is becslés lesz.")
+        print(f"ℹ️  Nyomtáv a configból: {cfg.track_width_cm:.0f} cm "
+              f"(--track-width felülírja).")
     print(f"Jelenlegi (BECSÜLT) értékek: cm_per_s_at_full={cfg.cm_per_s_at_full}, "
           f"deg_per_s_at_full={cfg.deg_per_s_at_full}")
     print(f"Menet-kitöltés: {cfg.default_speed:.0%}\n")
 
     motion = CytronMotionController()
+    watchdog = None
     megallitasok: list[str] = []
 
     def akadaly() -> None:
@@ -110,13 +132,15 @@ def main() -> int:
         motion.stop()
         megallitasok.append("stop")
 
-    watchdog = UltrasonicWatchdog(
-        on_obstacle=akadaly,
-        heading_source=lambda: (motion.heading, motion.is_turning),
-    )
-
     eredmenyek: dict[str, float] = {}
     try:
+        # A watchdog létrehozása a try-on BELÜL: ha itt száll el (pl. foglalt GPIO),
+        # a `motion` már nyitva van, és a lábai lefoglalva maradnának — a KÖVETKEZŐ
+        # futás hasalna el tőle, egy egészen máshová mutató hibaüzenettel.
+        watchdog = UltrasonicWatchdog(
+            on_obstacle=akadaly,
+            heading_source=lambda: (motion.heading, motion.is_turning),
+        )
         watchdog.start()
 
         # --- 1. Távolság ---
@@ -191,7 +215,8 @@ def main() -> int:
     finally:
         # SORREND: előbb a motorok állnak le, csak utána engedjük el a watchdogot.
         motion.close()
-        watchdog.close()
+        if watchdog is not None:
+            watchdog.close()
 
     if not eredmenyek:
         print("\nNem született használható érték.")

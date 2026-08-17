@@ -197,6 +197,14 @@ class TestTrimSzamitas:
         from calibrate_motion import _trim
         assert _trim(self._cfg(jobb=0.92), hossz_cm=222, oldal_cm=0) == (1.0, 0.92)
 
+    def test_a_nyomtavnal_rovidebb_ut_nem_szamolhato(self):
+        # Ez teszi a képletet TOTÁLISSÁ: a nevező (hossz^2 + oldal*nyomtáv) csak
+        # nagyon rövid úton tudna nullára/negatívra futni, és egy a saját nyomtávjánál
+        # kevesebbet haladt robotnál amúgy sincs értelme "egyenességről" beszélni.
+        from calibrate_motion import _trim
+        assert _trim(self._cfg(), hossz_cm=15, oldal_cm=-3) is None
+        assert _trim(self._cfg(), hossz_cm=0, oldal_cm=0) is None
+
     def test_tul_nagy_elsodrodas_nem_szamolhato(self):
         # A képlet kis szögre érvényes; e fölött a szám hihető lenne, de hamis.
         from calibrate_motion import _trim
