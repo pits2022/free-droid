@@ -42,15 +42,17 @@ class MotionSettings:
     default_speed: float = 0.5      # 0.0–1.0 duty
     pwm_frequency_hz: int = 1000
 
-    # ⚠️ KALIBRÁCIÓS ÉRTÉKEK, MÉG NINCSENEK MÉRVE (2026-08-17). A `move 2` / `turn 90`
-    # ebből számol menetidőt, tehát amíg ezek becslések, a megtett út is becslés — a
-    # mozgás IRÁNYA és a megállás viszont NEM ezeken múlik, azok mérve vannak.
+    # MÉRVE 2026-08-17, padlón, a trimmel együtt: 100 cm-es parancsra a robot 222 cm-t
+    # tett meg, tehát a korábbi 30.0-s BECSLÉS a valós sebesség kevesebb mint felét
+    # mondta — a robot minden utat több mint kétszer hosszabbra hajtott volna.
     #
-    # Mérés (felpolcolva NEM megy, ez padlón mérendő): teljes kitöltéssel egyenesen
-    # 3 másodperc, mérőszalag; `deg` ugyanígy egy 360°-os helyben fordulás ideje.
+    # ⚠️ A szám a TRIMMEL EGYÜTT érvényes (a trim lassítja az egyik oldalt, tehát az
+    # átlagsebességet is). Ha a trim változik, ezt újra kell mérni.
+    #
     # A duty→sebesség viszonyt LINEÁRISnak vesszük, ami alacsony kitöltésnél nem igaz
     # (holtsáv) — ha a `move 0.5` rendre rövidebb lesz a kelleténél, ott kezdd.
-    cm_per_s_at_full: float = 30.0
+    cm_per_s_at_full: float = 66.6
+    # ⚠️ EZ MÉG BECSLÉS — a fordulás-mérés (`--skip-turn` nélkül) nem futott le.
     deg_per_s_at_full: float = 90.0
 
     # Deadman: távolság nélküli `move` (pl. `move forward until obstacle`) sem futhat
@@ -64,14 +66,15 @@ class MotionSettings:
     #
     # A GYORSABB oldalt LASSÍTSD (szorzó < 1), ne a lassabbat gyorsítsd: teljes
     # kitöltésen már nincs hová gyorsítani, és a trim csendben hatástalan lenne.
-    # Mérés: scripts/calibrate_motion.py.
+    # MÉRVE 2026-08-17: ezekkel az értékekkel a robot 222 cm-t ment EGYENESEN.
+    # A jobb oldal a gyorsabb, 8%-kal — mérés: scripts/calibrate_motion.py.
     left_duty_trim: float = 1.0
-    right_duty_trim: float = 1.0
+    right_duty_trim: float = 0.92
 
     # A két lánctalp KÖZÉPVONALÁNAK távolsága. Csak a trim kiszámításához kell
-    # (az oldalirányú elsodródásból ebből jön ki a szögelfordulás). Mérőszalaggal,
-    # egyszer. ⚠️ MÉG NINCS MÉRVE — a scriptben ez a képlet egyetlen ismeretlene.
-    track_width_cm: float = 20.0
+    # (az oldalirányú elsodródásból ebből jön ki a szögelfordulás).
+    # MÉRVE 2026-08-17, mérőszalaggal.
+    track_width_cm: float = 21.0
 
     def _validate_trim(self, name: str, value: float) -> None:
         if not 0.0 < value <= 1.0:

@@ -115,8 +115,14 @@ def main() -> int:
 
         megallitasok.clear()
         motion.move(direction=Direction.FORWARD, distance=args.meters)
+        # AZONNAL rögzítjük, a beolvasás ELŐTT. A watchdog ugyanis tovább fut, amíg az
+        # operátor mér és gépel: a robot ilyenkor ÁLL, tehát `heading=None`, tehát a
+        # fail-safe ág fut, tehát MINDKÉT szenzor figyel — egy fal a robot mögött
+        # percekig termeli a megállításokat, és eldobná a JÓ mérést. (MÉRVE
+        # 2026-08-17: pontosan ez történt, a 222 cm-es futás így veszett el.)
+        megallt_menetben = bool(megallitasok)
 
-        if megallitasok:
+        if megallt_menetben:
             print("   ⚠️  A WATCHDOG MEGÁLLÍTOTT — a robot nem tette meg a teljes utat.\n"
                   "       A menetidő (cm_per_s) ebből NEM számolható, az EGYENESSÉG igen:\n"
                   "       ahhoz a ténylegesen megtett út és az oldalirányú elsodródás kell.")
@@ -124,7 +130,7 @@ def main() -> int:
         mert = _szam_bekeres("   Mért TÉNYLEGES előrehaladás (cm): ")
         oldal = _szam_bekeres("   Oldalirányú elsodródás (cm; BALRA = +, JOBBRA = -): ")
 
-        if mert is not None and mert > 0 and not megallitasok:
+        if mert is not None and mert > 0 and not megallt_menetben:
             # t = várt_cm / (c_régi * duty), és a tényleges út = c_valódi * duty * t,
             # amiből a duty és a t kiesik: c_valódi = c_régi * tényleges / várt.
             vart_cm = args.meters * 100.0
