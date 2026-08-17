@@ -57,6 +57,27 @@ class MotionSettings:
     # örökké. Ha a watchdog szála elhal, ez az utolsó határ, ami leállítja a robotot.
     max_run_s: float = 30.0
 
+    # OLDALANKÉNTI TRIM — a robot NEM megy egyenesen azonos kitöltésen (MÉRVE
+    # 2026-08-17: balra húz, ~2 m után a folyosó falának fordul). Ez differenciál-
+    # hajtásnál a VÁRT eset, nem hiba: a két motor/hajtómű/lánctalp sosem azonos.
+    # Enkóder nincs, tehát nincs visszacsatolás — marad a kimért szorzó.
+    #
+    # A GYORSABB oldalt LASSÍTSD (szorzó < 1), ne a lassabbat gyorsítsd: teljes
+    # kitöltésen már nincs hová gyorsítani, és a trim csendben hatástalan lenne.
+    # Mérés: scripts/calibrate_motion.py.
+    left_duty_trim: float = 1.0
+    right_duty_trim: float = 1.0
+
+    # A két lánctalp KÖZÉPVONALÁNAK távolsága. Csak a trim kiszámításához kell
+    # (az oldalirányú elsodródásból ebből jön ki a szögelfordulás). Mérőszalaggal,
+    # egyszer. ⚠️ MÉG NINCS MÉRVE — a scriptben ez a képlet egyetlen ismeretlene.
+    track_width_cm: float = 20.0
+
+    def _validate_trim(self, name: str, value: float) -> None:
+        if not 0.0 < value <= 1.0:
+            raise ValueError(f"{name} must be within (0.0, 1.0] — lassítani lehet, "
+                             f"gyorsítani nem")
+
     def __post_init__(self) -> None:
         if not 0.0 <= self.default_speed <= 1.0:
             raise ValueError("default_speed must be in [0.0, 1.0]")
@@ -68,6 +89,10 @@ class MotionSettings:
             raise ValueError("deg_per_s_at_full must be > 0")
         if self.max_run_s <= 0:
             raise ValueError("max_run_s must be > 0")
+        self._validate_trim("left_duty_trim", self.left_duty_trim)
+        self._validate_trim("right_duty_trim", self.right_duty_trim)
+        if self.track_width_cm <= 0:
+            raise ValueError("track_width_cm must be > 0")
 
 
 @dataclass(frozen=True)

@@ -22,6 +22,15 @@ if TYPE_CHECKING:
     from freedroid.config.settings import MotionSettings, Settings
 
 
+def _pct(duty: float, trim: float) -> float:
+    """Kitöltés százalékban, oldalankénti trimmel — 0-100 közé vágva.
+
+    A vágás nem elméleti: egy 1.0 fölé csúszott trim némán 100%-nál telítődne, és a
+    robot ugyanúgy húzna, miközben a config szerint "kalibrálva" van.
+    """
+    return min(100.0, max(0.0, duty * trim * 100.0))
+
+
 def run_seconds(amount: float, per_second_at_full: float, duty: float) -> float:
     """Mennyi ideig hajtsunk `amount` egységnyi utat/szöget `duty` kitöltéssel.
 
@@ -189,9 +198,13 @@ class CytronMotionController:
             self._turning = turning
             self._lgpio.gpio_write(self._h, G.LEFT_MOTOR_DIR, left_level)
             self._lgpio.gpio_write(self._h, G.RIGHT_MOTOR_DIR, right_level)
-            pct = duty * 100.0
-            self._lgpio.tx_pwm(self._h, G.LEFT_MOTOR_PWM, self._cfg.pwm_frequency_hz, pct)
-            self._lgpio.tx_pwm(self._h, G.RIGHT_MOTOR_PWM, self._cfg.pwm_frequency_hz, pct)
+            # Az OLDALANKÉNTI trim itt kerül rá, egyetlen helyen: a `move` és a `turn`
+            # ugyanazon az úton megy, tehát a kimért szorzó mindkettőre érvényes.
+            freq = self._cfg.pwm_frequency_hz
+            self._lgpio.tx_pwm(self._h, G.LEFT_MOTOR_PWM, freq,
+                               _pct(duty, self._cfg.left_duty_trim))
+            self._lgpio.tx_pwm(self._h, G.RIGHT_MOTOR_PWM, freq,
+                               _pct(duty, self._cfg.right_duty_trim))
         try:
             # Megszakítható alvás, a záron KÍVÜL: a watchdog `stop()`-ja azonnal
             # visszaadja a vezérlést, és közben nem kell a zárra várnia.

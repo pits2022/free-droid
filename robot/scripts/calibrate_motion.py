@@ -23,6 +23,7 @@ Kell hozzá: mérőszalag, és legalább `--meters` + 1 m szabad hely a robot EL
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 
 from freedroid.config.settings import load_settings
 from freedroid.motion import CytronMotionController
@@ -42,6 +43,31 @@ def _szam_bekeres(kerdes: str) -> float | None:
         return None
 
 
+def _trim(cfg, hossz_cm: float, oldal_cm: float) -> tuple[float, float]:
+    """Új oldalankénti trim az elsodródásból. `oldal_cm` > 0 = balra húzott.
+
+    A geometria: `hossz_cm` út alatt `oldal_cm` oldalirányú eltérés kis szögnél
+    theta ~ 2*oldal/hossz szögelfordulást jelent, amit a két lánctalp úthossz-
+    különbsége okoz: s_jobb - s_bal = theta * nyomtáv. Innen az arányuk:
+
+        s_bal / s_jobb = (hossz^2 - oldal*nyomtáv) / (hossz^2 + oldal*nyomtáv)
+
+    A LASSABB oldalhoz igazítunk (a gyorsabbat fogjuk vissza), mert teljes
+    kitöltésen már nincs hová gyorsítani. Végül visszanormáljuk, hogy a gyorsabb
+    oldal 1.0 legyen — különben minden kör lassítaná a robotot.
+    """
+    q = oldal_cm * cfg.track_width_cm
+    arany = (hossz_cm**2 - q) / (hossz_cm**2 + q)
+
+    bal, jobb = cfg.left_duty_trim, cfg.right_duty_trim
+    if arany < 1.0:
+        jobb *= arany       # balra húz -> a jobb oldal a gyorsabb
+    else:
+        bal /= arany        # jobbra húz -> a bal oldal a gyorsabb
+    legnagyobb = max(bal, jobb)
+    return bal / legnagyobb, jobb / legnagyobb
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--meters", type=float, default=1.0,
@@ -49,9 +75,17 @@ def main() -> int:
     ap.add_argument("--degrees", type=float, default=360.0,
                     help="mekkora fordulást parancsoljunk (fok)")
     ap.add_argument("--skip-turn", action="store_true", help="csak a távolságot mérjük")
+    ap.add_argument("--track-width", type=float, default=None,
+                    help="a két lánctalp KÖZÉPVONALÁNAK távolsága cm-ben (mérőszalaggal, "
+                         "egyszer). Az egyenesség-trim egyetlen ismeretlene.")
     args = ap.parse_args()
 
     cfg = load_settings().motion
+    if args.track_width is not None:
+        cfg = replace(cfg, track_width_cm=args.track_width)
+    else:
+        print(f"⚠️  A nyomtáv BECSÜLT ({cfg.track_width_cm:.0f} cm) — mérd meg és add meg "
+              f"a --track-width kapcsolóval, különben a trim is becslés lesz.")
     print(f"Jelenlegi (BECSÜLT) értékek: cm_per_s_at_full={cfg.cm_per_s_at_full}, "
           f"deg_per_s_at_full={cfg.deg_per_s_at_full}")
     print(f"Menet-kitöltés: {cfg.default_speed:.0%}\n")
@@ -83,17 +117,27 @@ def main() -> int:
         motion.move(direction=Direction.FORWARD, distance=args.meters)
 
         if megallitasok:
-            print("   ⚠️  A WATCHDOG MEGÁLLÍTOTT — a robot nem tette meg a teljes utat,\n"
-                  "       tehát ez a mérés ÉRVÉNYTELEN. Több szabad hely kell.")
-        else:
-            mert = _szam_bekeres("   Mért TÉNYLEGES út (cm): ")
-            if mert is not None and mert > 0:
-                # t = várt_cm / (c_régi * duty), és a tényleges út = c_valódi * duty * t,
-                # amiből a duty és a t kiesik: c_valódi = c_régi * tényleges / várt.
-                vart_cm = args.meters * 100.0
-                eredmenyek["cm_per_s_at_full"] = cfg.cm_per_s_at_full * (mert / vart_cm)
-                print(f"   Várt {vart_cm:.0f} cm, mért {mert:.0f} cm "
-                      f"({mert / vart_cm:.0%}).")
+            print("   ⚠️  A WATCHDOG MEGÁLLÍTOTT — a robot nem tette meg a teljes utat.\n"
+                  "       A menetidő (cm_per_s) ebből NEM számolható, az EGYENESSÉG igen:\n"
+                  "       ahhoz a ténylegesen megtett út és az oldalirányú elsodródás kell.")
+
+        mert = _szam_bekeres("   Mért TÉNYLEGES előrehaladás (cm): ")
+        oldal = _szam_bekeres("   Oldalirányú elsodródás (cm; BALRA = +, JOBBRA = -): ")
+
+        if mert is not None and mert > 0 and not megallitasok:
+            # t = várt_cm / (c_régi * duty), és a tényleges út = c_valódi * duty * t,
+            # amiből a duty és a t kiesik: c_valódi = c_régi * tényleges / várt.
+            vart_cm = args.meters * 100.0
+            eredmenyek["cm_per_s_at_full"] = cfg.cm_per_s_at_full * (mert / vart_cm)
+            print(f"   Várt {vart_cm:.0f} cm, mért {mert:.0f} cm ({mert / vart_cm:.0%}).")
+
+        if mert is not None and mert > 0 and oldal:
+            bal, jobb = _trim(cfg, hossz_cm=mert, oldal_cm=oldal)
+            eredmenyek["left_duty_trim"] = bal
+            eredmenyek["right_duty_trim"] = jobb
+            merre = "balra" if oldal > 0 else "jobbra"
+            print(f"   {mert:.0f} cm alatt {abs(oldal):.0f} cm-t húzott {merre} "
+                  f"(nyomtáv {cfg.track_width_cm:.0f} cm).")
 
         # --- 2. Fordulás ---
         if not args.skip_turn:
@@ -129,7 +173,10 @@ def main() -> int:
     print("\n" + "=" * 68)
     print("Írd be ezeket a robot/src/freedroid/config/settings.py MotionSettings-be:")
     for kulcs, ertek in eredmenyek.items():
-        print(f"    {kulcs}: float = {ertek:.1f}")
+        # A trim századokon múlik (3% eltérés 2 m alatt fél métert visz) — ott több
+        # tizedes kell, mint a menetidőnél.
+        print(f"    {kulcs}: float = {ertek:.3f}" if "trim" in kulcs
+              else f"    {kulcs}: float = {ertek:.1f}")
     print("=" * 68)
     print("Utána FUTTASD ÚJRA: a robotnak most már a parancsolt utat kell megtennie.\n"
           "Ha másodszorra is elcsúszik, a duty->sebesség viszony nem lineáris\n"
