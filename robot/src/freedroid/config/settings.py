@@ -52,8 +52,11 @@ class MotionSettings:
     # A duty→sebesség viszonyt LINEÁRISnak vesszük, ami alacsony kitöltésnél nem igaz
     # (holtsáv) — ha a `move 0.5` rendre rövidebb lesz a kelleténél, ott kezdd.
     cm_per_s_at_full: float = 66.6
-    # ⚠️ EZ MÉG BECSLÉS — a fordulás-mérés (`--skip-turn` nélkül) nem futott le.
-    deg_per_s_at_full: float = 90.0
+    # MÉRVE 2026-08-17: a 90.0-s becslés a valós fordulási sebesség HARMADÁT mondta —
+    # egy 90 fokos fordulás 2.0 s helyett 0.64 s. Helyben forduláskor a két lánctalp
+    # egymással szemben forog, tehát a szögsebesség jóval nagyobb, mint amit az
+    # egyenes menetből "arányosítva" várnánk; ezt tényleg meg kellett mérni.
+    deg_per_s_at_full: float = 280.0
 
     # Deadman: távolság nélküli `move` (pl. `move forward until obstacle`) sem futhat
     # örökké. Ha a watchdog szála elhal, ez az utolsó határ, ami leállítja a robotot.
