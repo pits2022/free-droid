@@ -81,6 +81,12 @@ class CytronMotionController:
         # szála a `stop()`-pal azonnal kirántja a menetből a `move()`-ot, ahelyett hogy
         # az kialudná a hátralévő menetidőt egy akadály előtt.
         self._interrupt = threading.Event()
+        # A lábak állítása és az állapot együtt, ATOMIAN. Enélkül van egy ablak, amiben
+        # a watchdog megállít, a `_run` pedig UTÁNA adja ki a PWM-et — azaz a robot a
+        # megállítás után indul el. Pont az az ablak, aminek a lezárása a watchdog
+        # egyetlen feladata. A zárban SOHA nincs alvás (a menetidőt a `wait()` tölti,
+        # a záron kívül), tehát a watchdog szála nem tud rajta beragadni.
+        self._lock = threading.Lock()
 
         self._h = open_gpiochip()
         for pin in (G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR, G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR):
@@ -144,15 +150,18 @@ class CytronMotionController:
         a megállás oldalanként EGY írás egy lábra — nincs olyan köztes állapot, amiben
         egy félig lefutott `stop()` mozgást hagyna hátra.
         """
+        # A jelzés a záron KÍVÜL, ELSŐKÉNT: így egy épp induló `_run` a záron belül már
+        # beállítva látja, és el sem indítja a motorokat.
         self._interrupt.set()
-        self._heading = None
-        self._turning = False
-        for pwm in (G.LEFT_MOTOR_PWM, G.RIGHT_MOTOR_PWM):
-            # Oldalanként külön try: az egyik láb hibája nem hagyhatja járni a másikat.
-            try:
-                self._lgpio.tx_pwm(self._h, pwm, self._cfg.pwm_frequency_hz, 0)
-            except Exception:  # noqa: BLE001 — a megállás best-effort, de mindkét oldalra
-                pass
+        with self._lock:
+            self._heading = None
+            self._turning = False
+            for pwm in (G.LEFT_MOTOR_PWM, G.RIGHT_MOTOR_PWM):
+                # Oldalanként külön try: az egyik láb hibája nem hagyhatja járni a másikat.
+                try:
+                    self._lgpio.tx_pwm(self._h, pwm, self._cfg.pwm_frequency_hz, 0)
+                except Exception:  # noqa: BLE001 — best-effort, de MINDKÉT oldalra
+                    pass
 
     def set_speed(self, speed: Speed) -> None:
         self._duty = SPEED_DUTY[speed]
@@ -169,17 +178,23 @@ class CytronMotionController:
     def _run(self, left_level: int, right_level: int, duty: float, seconds: float,
              heading: Direction | None, turning: bool) -> None:
         self._interrupt.clear()
-        self._heading = heading
-        self._turning = turning
-        try:
+        with self._lock:
+            # Amíg a zárat vártuk, a watchdog megállíthatott. Akkor EL SEM INDULUNK —
+            # különben a `stop()` utáni PWM-írásunk visszaindítaná a robotot.
+            if self._interrupt.is_set():
+                return
             # SORREND: előbb az irány, aztán a PWM — fordítva a motor egy pillanatra a
             # KORÁBBI irányba indulna el.
+            self._heading = heading
+            self._turning = turning
             self._lgpio.gpio_write(self._h, G.LEFT_MOTOR_DIR, left_level)
             self._lgpio.gpio_write(self._h, G.RIGHT_MOTOR_DIR, right_level)
             pct = duty * 100.0
             self._lgpio.tx_pwm(self._h, G.LEFT_MOTOR_PWM, self._cfg.pwm_frequency_hz, pct)
             self._lgpio.tx_pwm(self._h, G.RIGHT_MOTOR_PWM, self._cfg.pwm_frequency_hz, pct)
-            # Megszakítható alvás: a watchdog `stop()`-ja azonnal visszaadja a vezérlést.
+        try:
+            # Megszakítható alvás, a záron KÍVÜL: a watchdog `stop()`-ja azonnal
+            # visszaadja a vezérlést, és közben nem kell a zárra várnia.
             self._interrupt.wait(min(seconds, self._cfg.max_run_s))
         finally:
             self.stop()

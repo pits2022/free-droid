@@ -13,6 +13,7 @@ Két döntés van beleöntve, mindkettő mérés/tapasztalat után, a specben (5
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import TYPE_CHECKING, Callable, Protocol
 
@@ -24,6 +25,8 @@ from freedroid.safety.ranging import measure_cm_min3
 
 if TYPE_CHECKING:
     from freedroid.config.settings import Settings
+
+log = logging.getLogger(__name__)
 
 FRONT = "front"
 REAR = "rear"
@@ -82,6 +85,7 @@ class UltrasonicWatchdog:
         self._heading_source = heading_source or (lambda: (None, False))
         self._distances: dict[str, float | None] = dict.fromkeys(G.ULTRASONIC)
         self._blocked = False
+        self._fault: str | None = None
         self._stop_flag = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -110,8 +114,17 @@ class UltrasonicWatchdog:
         return dict(self._distances)
 
     def is_blocked(self) -> bool:
-        """Igaz, ha a LEGUTÓBBI kör akadályt talált a haladási irányban."""
+        """Igaz, ha a LEGUTÓBBI kör akadályt talált a haladási irányban VAGY hibázott."""
         return self._blocked
+
+    @property
+    def fault(self) -> str | None:
+        """A legutóbbi mérési kör hibája, ha volt — az egészség-ellenőrzésnek.
+
+        Sikeres kör törli. Nem elég naplózni: egy hibázó watchdog kívülről pontosan
+        úgy néz ki, mint egy jól működő, ha csak a `distances_cm()`-et nézzük.
+        """
+        return self._fault
 
     def close(self) -> None:
         self.stop_monitoring()
@@ -127,7 +140,24 @@ class UltrasonicWatchdog:
 
     def _loop(self) -> None:
         while not self._stop_flag.is_set():
-            self.poll_once()
+            try:
+                self.poll_once()
+            except Exception as e:  # noqa: BLE001 — a szál SEMMITŐL nem halhat meg
+                # Egy kezeletlen kivétel itt CSENDBEN megszüntetné a védelmet: a szál
+                # kilép, a robot megy tovább, és semmi nem jelzi. A fail-safe válasz
+                # három részből áll, és mindhárom kell:
+                #   1. megállítjuk a robotot (a hiba nem bizonyíték a szabad útra),
+                #   2. LÁTHATÓVÁ tesszük (`fault` + `is_blocked`), mert egy naplóba
+                #      írt kivétel ugyanolyan néma, mint a halott szál,
+                #   3. és TOVÁBB MÉRÜNK — egy pillanatnyi lgpio hiba után magától
+                #      visszaáll, egy tartós hiba pedig minden körben megállít.
+                self._fault = repr(e)
+                self._blocked = True
+                log.exception("watchdog poll failed — fail-safe stop")
+                try:
+                    self._on_obstacle()
+                except Exception:  # noqa: BLE001 — a megállító is hibázhat
+                    log.exception("watchdog on_obstacle failed")
             self._stop_flag.wait(self._cfg.poll_interval_s)
 
     def poll_once(self) -> None:
@@ -148,7 +178,11 @@ class UltrasonicWatchdog:
             # némította el az elülsőt. Az `inf` (válaszolt, de üres a tér) NEM akadály.
             if name in watched and (cm is None or cm < self._threshold_cm(name)):
                 blocked = True
+                # AZONNAL, nem a kör végén. A `min(3)` miatt a másik szenzor bevárása
+                # legrosszabb esetben 3 × 60 ms = 180 ms fékezési késleltetés lenne —
+                # 25 cm-es küszöbnél ez elfogyasztja a teljes tartalékot. A ciklus
+                # SZÁNDÉKOSAN nem szakad meg: a `distances_cm()` maradjon teljes.
+                self._on_obstacle()
 
         self._blocked = blocked
-        if blocked:
-            self._on_obstacle()
+        self._fault = None  # a kör végigfutott — a korábbi hiba elévült
