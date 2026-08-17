@@ -13,22 +13,19 @@ biztonságos, mert a kimenet szintjét a táp határolja (lásd a spec döntési
 from __future__ import annotations
 
 import argparse
+import math
 import time
 
 import _hw
 
 from freedroid.config import gpio as G
 
-SOUND_CM_PER_S = 34300.0
-# A HC-SR04 "nincs visszhang" jelzése egy ~38 ms-os MAGAS impulzus (datasheet). A régi
-# 40 ms-os ablak ezt épphogy elvágta, és a szkript a saját időtúllépését számolta
-# távolsággá: "40002 us -> 686.0 cm". 60 ms-mal a 38 ms-os impulzus BEFEJEZETTKÉNT
-# látszik, tehát megkülönböztethető a valódi méréstől.
-TIMEOUT_S = 0.06
-# A szenzor fizikai hatótávja ~4 m. Ami e fölött jönne, az NEM mérés, hanem a "nincs
-# visszhang" jelzés félreolvasása — ezért a mérés inkább None-t ad, mint egy hihető,
-# de hamis számot.
-MAX_HATOTAV_CM = 450.0
+# A mérés maga (trigger-szélesség, időtúllépés, hatótáv) átköltözött a csomagba, mert a
+# Phase 4-es watchdog UGYANEZT futtatja — két példányban ez a kód szétcsúszna.
+from freedroid.safety.ranging import MAX_RANGE_CM as MAX_HATOTAV_CM
+from freedroid.safety.ranging import SOUND_CM_PER_S, TIMEOUT_S
+from freedroid.safety.ranging import measure_cm as _measure_cm
+from freedroid.safety.ranging import trigger as _trigger
 
 
 def _minta(lgpio, h, pin: int, db: int, koz_s: float) -> list[int]:
@@ -38,38 +35,6 @@ def _minta(lgpio, h, pin: int, db: int, koz_s: float) -> list[int]:
         time.sleep(koz_s)
         ki.append(lgpio.gpio_read(h, pin))
     return ki
-
-
-def _trigger(lgpio, h, trig: int) -> None:
-    """~12 us-os trigger-impulzus, PONTOSAN időzítve (busy-wait, nem sleep).
-
-    A `time.sleep(1e-5)` Linuxon nem 10 us-ot alszik: a felébresztés szemcsézettsége
-    miatt tipikusan 60-100+ us lesz belőle. A datasheet 10 us MINIMUMOT ír, tehát a
-    hosszabb impulzus elvben rendben van — de a klónok itt eltérnek, és ez az egyetlen
-    változó, amit ingyen ki lehet zárni, mielőtt forrasztásra kerül a sor.
-    """
-    lgpio.gpio_write(h, trig, 0)
-    time.sleep(0.002)
-    lgpio.gpio_write(h, trig, 1)
-    veg = time.perf_counter() + 12e-6
-    while time.perf_counter() < veg:
-        pass
-    lgpio.gpio_write(h, trig, 0)
-
-
-def _measure_cm(lgpio, h, trig: int, echo: int) -> float | None:
-    _trigger(lgpio, h, trig)
-
-    start = time.perf_counter()
-    while lgpio.gpio_read(h, echo) == 0:
-        if time.perf_counter() - start > TIMEOUT_S:
-            return None
-    rise = time.perf_counter()
-    while lgpio.gpio_read(h, echo) == 1:
-        if time.perf_counter() - rise > TIMEOUT_S:
-            return None
-    cm = (time.perf_counter() - rise) * SOUND_CM_PER_S / 2.0
-    return None if cm > MAX_HATOTAV_CM else cm
 
 
 def _diagnosztika(lgpio, h, nev: str, trig: int, echo: int) -> None:
@@ -268,7 +233,15 @@ def main() -> int:
             readings = []
             for name, sensor in valasztott.items():
                 cm = _measure_cm(lgpio, h, sensor["trig"], sensor["echo"])
-                readings.append(f"{name}={'--' if cm is None else f'{cm:5.1f}cm'}")
+                # A "NÉMA" és a ">4m" NEM ugyanaz: az első hiba (szakadás/táp), a
+                # második normális üres tér. A régi egységes "--" a kettőt egybemosta.
+                if cm is None:
+                    jel = " NÉMA"
+                elif cm == math.inf:
+                    jel = "  >4m"
+                else:
+                    jel = f"{cm:5.1f}cm"
+                readings.append(f"{name}={jel}")
                 time.sleep(0.03)  # avoid cross-echo between sensors
             print("  ".join(readings))
             time.sleep(0.2)

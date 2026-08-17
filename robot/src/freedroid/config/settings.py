@@ -42,11 +42,32 @@ class MotionSettings:
     default_speed: float = 0.5      # 0.0–1.0 duty
     pwm_frequency_hz: int = 1000
 
+    # ⚠️ KALIBRÁCIÓS ÉRTÉKEK, MÉG NINCSENEK MÉRVE (2026-08-17). A `move 2` / `turn 90`
+    # ebből számol menetidőt, tehát amíg ezek becslések, a megtett út is becslés — a
+    # mozgás IRÁNYA és a megállás viszont NEM ezeken múlik, azok mérve vannak.
+    #
+    # Mérés (felpolcolva NEM megy, ez padlón mérendő): teljes kitöltéssel egyenesen
+    # 3 másodperc, mérőszalag; `deg` ugyanígy egy 360°-os helyben fordulás ideje.
+    # A duty→sebesség viszonyt LINEÁRISnak vesszük, ami alacsony kitöltésnél nem igaz
+    # (holtsáv) — ha a `move 0.5` rendre rövidebb lesz a kelleténél, ott kezdd.
+    cm_per_s_at_full: float = 30.0
+    deg_per_s_at_full: float = 90.0
+
+    # Deadman: távolság nélküli `move` (pl. `move forward until obstacle`) sem futhat
+    # örökké. Ha a watchdog szála elhal, ez az utolsó határ, ami leállítja a robotot.
+    max_run_s: float = 30.0
+
     def __post_init__(self) -> None:
         if not 0.0 <= self.default_speed <= 1.0:
             raise ValueError("default_speed must be in [0.0, 1.0]")
         if self.pwm_frequency_hz <= 0:
             raise ValueError("pwm_frequency_hz must be > 0")
+        if self.cm_per_s_at_full <= 0:
+            raise ValueError("cm_per_s_at_full must be > 0")
+        if self.deg_per_s_at_full <= 0:
+            raise ValueError("deg_per_s_at_full must be > 0")
+        if self.max_run_s <= 0:
+            raise ValueError("max_run_s must be > 0")
 
 
 @dataclass(frozen=True)
