@@ -165,6 +165,53 @@ class TestTrim:
             MotionSettings(right_duty_trim=1.2)
 
 
+class TestTrimSzamitas:
+    """A kalibrációs geometria (`scripts/calibrate_motion.py`)."""
+
+    def _cfg(self, bal: float = 1.0, jobb: float = 1.0):
+        # A trimet KIFEJEZETTEN megadjuk, nem a defaultot használjuk: a default a
+        # MÉRT érték (jobb=0.92), és akkor ezek a tesztek a következő kalibrációtól
+        # dőlnének el — miközben a geometriáról szólnak, nem a robot aktuális
+        # állapotáról.
+        return MotionSettings(track_width_cm=21.0,
+                              left_duty_trim=bal, right_duty_trim=jobb)
+
+    def test_balra_huzas_a_jobb_oldalt_lassitja(self):
+        from calibrate_motion import _trim
+        bal, jobb = _trim(self._cfg(), hossz_cm=200, oldal_cm=40)
+        assert bal == 1.0
+        assert jobb < 1.0
+
+    def test_jobbra_huzas_a_bal_oldalt_lassitja(self):
+        from calibrate_motion import _trim
+        bal, jobb = _trim(self._cfg(), hossz_cm=200, oldal_cm=-40)
+        assert bal < 1.0
+        assert jobb == 1.0
+
+    def test_egyenes_menet_MEGTARTJA_a_mostani_trimet(self):
+        """0 elsodródás NEM azt jelenti, hogy 1.0/1.0-ra kell állni.
+
+        A robot azért ment egyenesen, MERT a mostani trim jó — visszaállítani
+        1.0/1.0-ra pont a kalibrációt dobná el, és újra húzni kezdene.
+        """
+        from calibrate_motion import _trim
+        assert _trim(self._cfg(jobb=0.92), hossz_cm=222, oldal_cm=0) == (1.0, 0.92)
+
+    def test_tul_nagy_elsodrodas_nem_szamolhato(self):
+        # A képlet kis szögre érvényes; e fölött a szám hihető lenne, de hamis.
+        from calibrate_motion import _trim
+        assert _trim(self._cfg(), hossz_cm=100, oldal_cm=90) is None
+        assert _trim(self._cfg(), hossz_cm=100, oldal_cm=-90) is None
+
+    def test_az_eredmeny_mindig_ervenyes_trim(self):
+        # A MotionSettings (0.0, 1.0] tartományt vár — érvénytelen érték csak a
+        # robot indulásakor bukna ki, ami a legrosszabb pillanat.
+        from calibrate_motion import _trim
+        for oldal in (-25, -10, -1, 0, 1, 10, 25):
+            bal, jobb = _trim(self._cfg(), hossz_cm=100, oldal_cm=oldal)
+            MotionSettings(left_duty_trim=bal, right_duty_trim=jobb)
+
+
 def _bare_watchdog(on_obstacle) -> UltrasonicWatchdog:
     wd = object.__new__(UltrasonicWatchdog)
     wd._stop_flag = threading.Event()

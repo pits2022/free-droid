@@ -43,8 +43,17 @@ def _szam_bekeres(kerdes: str) -> float | None:
         return None
 
 
-def _trim(cfg, hossz_cm: float, oldal_cm: float) -> tuple[float, float]:
-    """Új oldalankénti trim az elsodródásból. `oldal_cm` > 0 = balra húzott.
+# A képlet KIS SZÖGRE érvényes (theta ~ 2*oldal/hossz). Negyed úthossznyi elsodródás
+# már ~28 fokos elfordulás: ott a közelítés nem áll, a kapott arány értelmetlen, és
+# elég extrém adatnál a nevező (hossz^2 + oldal*nyomtáv) nullához is tarthat. Ilyenkor
+# nem "óvatosan számolunk", hanem NEM számolunk — rövidebb úton kell újramérni.
+MAX_ELSODRODAS_ARANY = 0.25
+
+
+def _trim(cfg, hossz_cm: float, oldal_cm: float) -> tuple[float, float] | None:
+    """Új oldalankénti trim az elsodródásból, vagy None, ha nem számolható.
+
+    `oldal_cm` > 0 = balra húzott.
 
     A geometria: `hossz_cm` út alatt `oldal_cm` oldalirányú eltérés kis szögnél
     theta ~ 2*oldal/hossz szögelfordulást jelent, amit a két lánctalp úthossz-
@@ -56,6 +65,9 @@ def _trim(cfg, hossz_cm: float, oldal_cm: float) -> tuple[float, float]:
     kitöltésen már nincs hová gyorsítani. Végül visszanormáljuk, hogy a gyorsabb
     oldal 1.0 legyen — különben minden kör lassítaná a robotot.
     """
+    if hossz_cm <= 0 or abs(oldal_cm) > MAX_ELSODRODAS_ARANY * hossz_cm:
+        return None
+
     q = oldal_cm * cfg.track_width_cm
     arany = (hossz_cm**2 - q) / (hossz_cm**2 + q)
 
@@ -137,13 +149,22 @@ def main() -> int:
             eredmenyek["cm_per_s_at_full"] = cfg.cm_per_s_at_full * (mert / vart_cm)
             print(f"   Várt {vart_cm:.0f} cm, mért {mert:.0f} cm ({mert / vart_cm:.0%}).")
 
-        if mert is not None and mert > 0 and oldal:
-            bal, jobb = _trim(cfg, hossz_cm=mert, oldal_cm=oldal)
-            eredmenyek["left_duty_trim"] = bal
-            eredmenyek["right_duty_trim"] = jobb
-            merre = "balra" if oldal > 0 else "jobbra"
-            print(f"   {mert:.0f} cm alatt {abs(oldal):.0f} cm-t húzott {merre} "
-                  f"(nyomtáv {cfg.track_width_cm:.0f} cm).")
+        # `is not None`, nem `if oldal`: a beírt 0 azt jelenti, hogy EGYENESEN ment, és
+        # azt ki KELL írni — nem azért, mert a trim ilyenkor változik (nem változik:
+        # a 0 elsodródásra a képlet a MOSTANI értékeket adja vissza), hanem hogy az
+        # operátor lássa, MELYIK értékekkel sikerült. A 0-t csendben elejteni azt
+        # üzenné, hogy a sikeres futásból nem jött ki semmi.
+        if mert is not None and mert > 0 and oldal is not None:
+            uj = _trim(cfg, hossz_cm=mert, oldal_cm=oldal)
+            if uj is None:
+                print(f"   ⚠️  {abs(oldal):.0f} cm elsodródás {mert:.0f} cm alatt — ez már "
+                      f"nem kis szög,\n       a képlet nem érvényes rá. Mérd újra RÖVIDEBB "
+                      f"úton (--meters 0.5).")
+            else:
+                eredmenyek["left_duty_trim"], eredmenyek["right_duty_trim"] = uj
+                merre = "balra" if oldal > 0 else "jobbra" if oldal < 0 else "sehova"
+                print(f"   {mert:.0f} cm alatt {abs(oldal):.0f} cm-t húzott {merre} "
+                      f"(nyomtáv {cfg.track_width_cm:.0f} cm).")
 
         # --- 2. Fordulás ---
         if not args.skip_turn:
