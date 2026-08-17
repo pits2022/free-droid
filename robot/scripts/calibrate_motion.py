@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 
-from freedroid.config.settings import load_settings
+from freedroid.config.settings import MotionSettings, load_settings
 from freedroid.motion import CytronMotionController
 from freedroid.motion.types import Direction, TurnDir
 from freedroid.safety import UltrasonicWatchdog
@@ -59,7 +59,8 @@ def _szam_bekeres(kerdes: str) -> float | None:
 MAX_ELSODRODAS_ARANY = 0.25
 
 
-def _trim(cfg, hossz_cm: float, oldal_cm: float) -> tuple[float, float] | None:
+def _trim(cfg: MotionSettings, hossz_cm: float,
+          oldal_cm: float) -> tuple[float, float] | None:
     """Új oldalankénti trim az elsodródásból, vagy None, ha nem számolható.
 
     `oldal_cm` > 0 = balra húzott.
@@ -107,11 +108,11 @@ def main() -> int:
                     help="a két lánctalp KÖZÉPVONALÁNAK távolsága cm-ben (mérőszalaggal, "
                          "egyszer). Az egyenesség-trim egyetlen ismeretlene.")
     args = ap.parse_args()
-    if args.meters <= 0 or args.degrees <= 0:
+    if args.meters <= 0 or (not args.skip_turn and args.degrees <= 0):
         # Rögtön a beolvasás után, MINDEN kiírás és hardver-nyitás előtt: a `--degrees 0`
         # egyébként lefuttatna egy értelmetlen menetet, és csak a mérés VÉGÉN osztana
         # nullával — miután a robot már mozgott.
-        ap.error("--meters és --degrees is nagyobb kell legyen nullánál")
+        ap.error("--meters (és --skip-turn nélkül --degrees is) nagyobb kell legyen nullánál")
 
     cfg = load_settings().motion
     if args.track_width is not None:
@@ -212,6 +213,13 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\nMegszakítva.")
         return 130
+    except EOFError:
+        # A megerősítő kérdéseknél EOF = nincs, aki azt mondja, hogy szabad az út.
+        # A leállás a helyes válasz; itt csak azt intézzük el, hogy ne nyers stack
+        # trace legyen belőle. EGY helyen, mert mindkét megerősítés ide fut be.
+        print("\n❌ Nem interaktív környezet (EOF) — a mérés megszakadt.\n"
+              "   A robot nem indult el, illetve megállt.")
+        return 1
     finally:
         # SORREND: előbb a motorok állnak le, csak utána engedjük el a watchdogot.
         motion.close()
