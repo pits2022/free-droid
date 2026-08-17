@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""A menetidő kalibrálása — `cm_per_s_at_full` és `deg_per_s_at_full`.
+
+Ez a KÉT szám, amit a `settings.py` becslésként tartalmaz: a `move 2` és a `turn 90`
+menetideje ezekből számol. A robot IRÁNYA és a MEGÁLLÁSA nem ezeken múlik (azok mérve
+vannak), tehát egy rossz kalibráció pontatlan utat okoz, nem veszélyes robotot.
+
+A mérés a VALÓDI vezérlőt hajtja (`CytronMotionController`), nem egy külön menetet:
+így nem csak a számot méri, hanem azt is, hogy a menetidő-számítás, a leállás és a
+watchdog együtt jól működik-e. A watchdog VÉGIG FUT — ha megállít, a mérés érvénytelen,
+és ezt a script megmondja, ahelyett hogy egy rövidebb utat kalibrációnak hinne.
+
+Futtatás a roboton, PADLÓN (nem felpolcolva — felpolcolt lánctalp nem tesz meg utat):
+
+    cd /opt/free-droid/robot
+    uv run python scripts/calibrate_motion.py                 # 1 m + 360 fok
+    uv run python scripts/calibrate_motion.py --meters 2      # hosszabb út, pontosabb
+    uv run python scripts/calibrate_motion.py --skip-turn
+
+Kell hozzá: mérőszalag, és legalább `--meters` + 1 m szabad hely a robot ELŐTT.
+"""
+
+from __future__ import annotations
+
+import argparse
+
+from freedroid.config.settings import load_settings
+from freedroid.motion import CytronMotionController
+from freedroid.motion.types import Direction, TurnDir
+from freedroid.safety import UltrasonicWatchdog
+
+
+def _szam_bekeres(kerdes: str) -> float | None:
+    """Számot kér az operátortól. Üres/érvénytelen válasz -> None (kihagyjuk)."""
+    valasz = input(kerdes).strip().replace(",", ".")
+    if not valasz:
+        return None
+    try:
+        return float(valasz)
+    except ValueError:
+        print(f"  '{valasz}' nem szám — a lépést kihagyom.")
+        return None
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--meters", type=float, default=1.0,
+                    help="mekkora utat parancsoljunk (m). Hosszabb út = pontosabb arány")
+    ap.add_argument("--degrees", type=float, default=360.0,
+                    help="mekkora fordulást parancsoljunk (fok)")
+    ap.add_argument("--skip-turn", action="store_true", help="csak a távolságot mérjük")
+    args = ap.parse_args()
+
+    cfg = load_settings().motion
+    print(f"Jelenlegi (BECSÜLT) értékek: cm_per_s_at_full={cfg.cm_per_s_at_full}, "
+          f"deg_per_s_at_full={cfg.deg_per_s_at_full}")
+    print(f"Menet-kitöltés: {cfg.default_speed:.0%}\n")
+
+    motion = CytronMotionController()
+    megallitasok: list[str] = []
+
+    def akadaly() -> None:
+        # A watchdog szálából hívjuk: előbb megállítunk, aztán jegyzünk.
+        motion.stop()
+        megallitasok.append("stop")
+
+    watchdog = UltrasonicWatchdog(
+        on_obstacle=akadaly,
+        heading_source=lambda: (motion.heading, motion.is_turning),
+    )
+
+    eredmenyek: dict[str, float] = {}
+    try:
+        watchdog.start()
+
+        # --- 1. Távolság ---
+        print(f"1. TÁVOLSÁG — a robot {args.meters} métert fog PARANCSRA megtenni.")
+        print(f"   Kell: {args.meters + 1:.0f} m szabad hely előtte, és egy jelölés a "
+              f"jelenlegi helyzeténél (ragasztószalag a padlóra).")
+        input("   ENTER, ha a robot a padlón áll és szabad az út... ")
+
+        megallitasok.clear()
+        motion.move(direction=Direction.FORWARD, distance=args.meters)
+
+        if megallitasok:
+            print("   ⚠️  A WATCHDOG MEGÁLLÍTOTT — a robot nem tette meg a teljes utat,\n"
+                  "       tehát ez a mérés ÉRVÉNYTELEN. Több szabad hely kell.")
+        else:
+            mert = _szam_bekeres("   Mért TÉNYLEGES út (cm): ")
+            if mert is not None and mert > 0:
+                # t = várt_cm / (c_régi * duty), és a tényleges út = c_valódi * duty * t,
+                # amiből a duty és a t kiesik: c_valódi = c_régi * tényleges / várt.
+                vart_cm = args.meters * 100.0
+                eredmenyek["cm_per_s_at_full"] = cfg.cm_per_s_at_full * (mert / vart_cm)
+                print(f"   Várt {vart_cm:.0f} cm, mért {mert:.0f} cm "
+                      f"({mert / vart_cm:.0%}).")
+
+        # --- 2. Fordulás ---
+        if not args.skip_turn:
+            print(f"\n2. FORDULÁS — a robot {args.degrees:.0f} fokot fog PARANCSRA fordulni.")
+            print("   Jelöld meg, merre néz most (pl. szalag a padlón az orra irányában).")
+            input("   ENTER, ha kész... ")
+
+            megallitasok.clear()
+            motion.turn(direction=TurnDir.LEFT, degrees=args.degrees)
+            # Fordulás közben a watchdog SZÁNDÉKOSAN nem állít meg (a súrolt ívet egyik
+            # szenzor sem látja), tehát itt nincs értelme érvénytelenséget vizsgálni.
+
+            mert_fok = _szam_bekeres(f"   Mennyit fordult TÉNYLEGESEN (fok, "
+                                     f"a parancsolt {args.degrees:.0f} helyett): ")
+            if mert_fok is not None and mert_fok > 0:
+                eredmenyek["deg_per_s_at_full"] = (
+                    cfg.deg_per_s_at_full * (mert_fok / args.degrees))
+                print(f"   Parancsolt {args.degrees:.0f}°, mért {mert_fok:.0f}° "
+                      f"({mert_fok / args.degrees:.0%}).")
+
+    except KeyboardInterrupt:
+        print("\nMegszakítva.")
+        return 130
+    finally:
+        # SORREND: előbb a motorok állnak le, csak utána engedjük el a watchdogot.
+        motion.close()
+        watchdog.close()
+
+    if not eredmenyek:
+        print("\nNem született használható érték.")
+        return 1
+
+    print("\n" + "=" * 68)
+    print("Írd be ezeket a robot/src/freedroid/config/settings.py MotionSettings-be:")
+    for kulcs, ertek in eredmenyek.items():
+        print(f"    {kulcs}: float = {ertek:.1f}")
+    print("=" * 68)
+    print("Utána FUTTASD ÚJRA: a robotnak most már a parancsolt utat kell megtennie.\n"
+          "Ha másodszorra is elcsúszik, a duty->sebesség viszony nem lineáris\n"
+          "(holtsáv alacsony kitöltésnél) — akkor a menet-kitöltésnél kell kalibrálni.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
