@@ -87,16 +87,26 @@
 # Ellenőrzés, nem díszítés: a néma hibamód itt az, hogy a szolgáltatás fut, de nem a
 # szánt címen hallgat (pl. a drop-in nem érvényesült). Ez a Pi-n derülne ki először,
 # amikor már nem éri el a felhőt.
+# `check_mode: false`: CSAK OLVAS, tehát száraz futásban is le KELL futnia. Enélkül a
+# `--check` átugorja, a `register` egy "skipped" dictet ad, és a lenti assert azon
+# hasal el — vagyis a száraz futás pont ott áll meg, ahol a leghasznosabb lenne
+# (mérve 2026-08-18: "object of type 'dict' has no attribute 'content'").
 - name: Verify Ollama answers on the intended address
   uri:
     url: "http://{{ ollama_bind }}/api/tags"
     return_content: yes
   register: ollama_tags
+  check_mode: false
   until: ollama_tags.status == 200
   retries: 6
   delay: 5
 
+# SZÁRAZ futásban kimarad, és ez nem lustaság: a modellt lehúzó `command` check
+# módban nem fut le, tehát egy friss gépen ez az assert olyasmit kérne számon, amit a
+# száraz futás szándékosan nem csinált meg. Az eredmény "hiba" lenne egy tökéletesen
+# rendben lévő tervre.
 - name: Verify the pulled model is actually loaded
+  when: not ansible_check_mode
   assert:
     that: ollama_model.split(':')[0] in ollama_tags.content
     fail_msg: >-
@@ -109,10 +119,15 @@
 - name: Assert the cloud API is not exposed on the public interface
   when: ollama_is_cloud
   block:
+    # Szintén csak olvas, és szintén kell száraz futásban: ez egy BIZTONSÁGI őr, ami a
+    # PILLANATNYI állapotot nézi (wildcard kötés), nem egy tervezett változást. Ha a
+    # `--check` átugorja, az őr némán kimarad pont abból a futásból, amivel ellenőrizni
+    # akartuk. Ugyanaz a hibaosztály, mint fent.
     - name: Read the listening sockets
       command: ss -lntH
       register: ollama_sockets
       changed_when: false
+      check_mode: false
 
     # A minta három wildcard-alakot fog meg, mert az `ss` mindhármat írhatja:
     #   0.0.0.0  — IPv4 wildcard
