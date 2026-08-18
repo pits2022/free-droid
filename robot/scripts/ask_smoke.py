@@ -54,9 +54,13 @@ def _naplozo_motor():
 def _alvo_watchdog():
     """Nem mérünk ultrahangot: a füstpróba a NYELVI láncról szól, és egy futó
     watchdog-szál a `fault`-jával feleslegesen tiltaná le a mozgás-tool-okat."""
+    # `lambda: {}` és nem `dict`: a protokollban a `distances_cm` METÓDUS, tehát
+    # hívhatónak kell lennie. (A #88 review itt egy sima `{}`-t javasolt — az
+    # `TypeError`-t adna a `distances_cm()` híváskor; a `dict` működött, csak trükkös
+    # volt olvasni.)
     return types.SimpleNamespace(fault=None, start=lambda: None,
                                  stop_monitoring=lambda: None,
-                                 distances_cm=dict, is_blocked=lambda: False)
+                                 distances_cm=lambda: {}, is_blocked=lambda: False)
 
 
 def egy_kor(o, kerdes: str) -> None:

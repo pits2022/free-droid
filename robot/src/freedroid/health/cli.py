@@ -55,13 +55,30 @@ def log_report(report: HealthReport) -> None:
         print(f"health: remediated: {', '.join(report.remediated)}", file=sys.stderr)
 
 
+def _sudo_tipp(e: OSError) -> None:
+    """A leggyakoribb ok kézi futtatásnál — és nem hiba a gépben."""
+    if isinstance(e, PermissionError) and os.geteuid() != 0:
+        print("health:   -> nem rootként futsz; a szolgáltatás rootként fut "
+              "(sudo -E, vagy `systemctl start freedroid-health`).", file=sys.stderr)
+
+
 def main() -> int:
     settings = load_settings()
     report = heal_and_recheck(settings, time.time())
     write_status(report)
     log_report(report)
+    # A safe-mode jelzőnek MINDKÉT irányban tükröznie kell a valóságot, és mindkét
+    # irányban ugyanaz a tét: ha nem sikerül, az orchestrátor rossz állapotot lát.
     if report.healthy:
-        clear_safe_mode()
+        try:
+            clear_safe_mode()
+        except OSError as e:
+            print(f"health: A SAFE MODE JELZŐ NEM TÖRÖLHETŐ: {e}", file=sys.stderr)
+            print("health:   -> az életfunkciók RENDBEN vannak, de a bent ragadt jelző "
+                  "miatt az orchestrátor safe mode-ban marad (nem fog mozogni).",
+                  file=sys.stderr)
+            _sudo_tipp(e)
+            return 2
         return report.exit_code()
 
     # A `safemode` modul SZÁNDÉKOSAN dob, ha a jelzőt nem tudja kiírni ("a caller must
@@ -79,10 +96,7 @@ def main() -> int:
         print(f"health: A SAFE MODE JELZŐ NEM ÍRHATÓ: {e}", file=sys.stderr)
         print("health:   -> az orchestrátor NEM fogja látni a safe mode-ot, "
               "a mozgás NEM lesz letiltva.", file=sys.stderr)
-        if isinstance(e, PermissionError) and os.geteuid() != 0:
-            # A leggyakoribb eset kézi futtatásnál, és nem hiba a gépben.
-            print("health:   -> nem rootként futsz; a szolgáltatás rootként fut "
-                  "(sudo -E, vagy `systemctl start freedroid-health`).", file=sys.stderr)
+        _sudo_tipp(e)
         return 2
     return report.exit_code()
 
