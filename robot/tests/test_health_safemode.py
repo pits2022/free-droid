@@ -45,3 +45,81 @@ def test_clear_safe_mode_removes_flag(tmp_path):
 
 def test_clear_safe_mode_noop_when_absent(tmp_path):
     clear_safe_mode(str(tmp_path / "never_existed"))  # must not raise
+
+
+# --- PR #89/#88 review ---
+
+def test_egyidejuleg_ket_iras_nem_ronja_egymast(tmp_path):
+    """A tmp-név PID alapú volt, és a folyamat MINDEN szála ugyanazt a PID-et látja —
+    két párhuzamos írás ugyanarra a fájlra egymás tmp-jét írta volna."""
+    import threading
+
+    from freedroid.health.safemode import write_durably
+
+    cel = str(tmp_path / "flag")
+    hibak: list[BaseException] = []
+
+    def ir(n: int) -> None:
+        try:
+            for _ in range(20):
+                write_durably(cel, f"{n}\n" * 500)
+        except BaseException as e:  # noqa: BLE001 — a szálból ki kell hozni
+            hibak.append(e)
+
+    szalak = [threading.Thread(target=ir, args=(n,)) for n in range(4)]
+    for t in szalak:
+        t.start()
+    for t in szalak:
+        t.join()
+
+    assert not hibak, hibak
+    # Az eredmény EGYETLEN író teljes tartalma — nem kevert, nem csonka.
+    sorok = set(open(cel).read().splitlines())
+    assert len(sorok) == 1
+    # És nem hagytunk szemetet a könyvtárban.
+    assert [p.name for p in tmp_path.iterdir()] == ["flag"]
+
+
+def test_a_torles_hibaja_DOB_hogy_a_hivo_felszinre_hozza(tmp_path, monkeypatch):
+    """A testvérével azonos szerződés. Korábban csak figyelmeztetett, és a `main`
+    0-val (= egészséges) tért vissza, miközben a bent ragadt jelző miatt az
+    orchestrátor safe mode-ban maradt volna."""
+    import os
+
+    from freedroid.health.safemode import clear_safe_mode
+
+    def tilos(_p):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr(os, "remove", tilos)
+    with pytest.raises(PermissionError):
+        clear_safe_mode(str(tmp_path / "flag"))
+
+
+def test_a_csere_bukasakor_nem_marad_tmp_szemet(tmp_path, monkeypatch):
+    """Ha a csere bukik (csak olvasható fs, kvóta), a tmp itt maradna — és a 10
+    percenként futó időzítő minden körben hagyna egyet a /run-ban."""
+    import os
+
+    from freedroid.health.safemode import write_durably
+
+    def bukik(_a, _b):
+        raise OSError(30, "Read-only file system")
+    monkeypatch.setattr(os, "replace", bukik)
+
+    with pytest.raises(OSError):
+        write_durably(str(tmp_path / "flag"), "akarmi\n")
+    assert list(tmp_path.iterdir()) == [], f"szemét maradt: {list(tmp_path.iterdir())}"
+
+
+def test_az_iras_bukasakor_sem_marad_tmp_szemet(tmp_path, monkeypatch):
+    import os
+
+    from freedroid.health.safemode import write_durably
+
+    def bukik(*_a):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(os, "write", bukik)
+
+    with pytest.raises(OSError):
+        write_durably(str(tmp_path / "flag"), "akarmi\n")
+    assert list(tmp_path.iterdir()) == []

@@ -369,6 +369,21 @@ Conscious gaps from the PR #4 review — not bugs, but things a future session s
 - **Minor, left as-is:** `check_package_import` is a near-tautological venv-intact canary (cheap, fine);
   `tests/test_grammar.py`'s `KNOWN_TOOLS` is a hardcoded list (it mirrors the spec's tool set, not code).
 
+## Configuration — env overrides, never edit `settings.py` on a host
+
+`load_settings()` reads `FREEDROID_<SECTION>_<FIELD>` overrides (sections `LLM`, `SAFETY`,
+`MOTION`, `RAG`), e.g. `FREEDROID_LLM_EDGE_MODEL`, `FREEDROID_MOTION_DEG_PER_S_AT_FULL`,
+`FREEDROID_RAG_TOP_K`. Validation still runs, so an out-of-range override fails at startup;
+an unparseable one fails loudly (`bool("hamis")` is True in Python, so booleans take an
+explicit word list); a **typo'd** `FREEDROID_*` name prints a warning rather than silently
+running the default. Ansible sets them per host via `edge_robot`'s `robot_env` dict.
+
+**Why this exists (2026-08-18, measured on the Pi):** editing `settings.py` on a host was the
+only way to change anything, and it bit twice — a locally edited `settings.py` blocked
+`git checkout`, the Pi sat on an **old branch for weeks**, and that evening's health check
+therefore validated the OLD model tag (`llama3.2:3b`) while we believed it had validated the
+new one. Host-specific values do not belong in a version-controlled file.
+
 ## Conventions
 
 - **GPL-3.0** licensed.

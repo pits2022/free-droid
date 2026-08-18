@@ -1,12 +1,37 @@
-"""Runtime tunables with sane defaults. Override via env / config file later.
+"""Futásidejű hangolható értékek, józan alapértelmezésekkel + KÖRNYEZETI FELÜLÍRÁS.
 
-Defaults are validated once at construction (range checks) so an out-of-range
-value fails loudly at startup rather than mis-driving a motor silently.
+Az alapértelmezéseket a konstruktor egyszer ellenőrzi (tartomány-vizsgálat), tehát egy
+rossz érték INDULÁSKOR hangosan bukik, nem egy félrehajtott motorban derül ki.
+
+**Miért van env-felülírás (2026-08-18, a Pi-n mérve).** Enélkül az egyetlen mód, hogy a
+roboton bármit átállíts, a FORRÁS szerkesztése volt — és ez pontosan az a hibaosztály,
+ami már kétszer harapott: egy lokálisan szerkesztett `settings.py` blokkolta a
+`git checkout`-ot, a Pi hetekig egy RÉGI branchen állt, és az esti health-check emiatt
+jó okból NÉM ROSSZ dolgot igazolt (a régi `llama3.2:3b` tagot, nem az újat). A tanulság
+nem az, hogy jobban kell figyelni, hanem hogy a gép-specifikus értéknek nem a
+verziókövetett fájlban a helye.
+
+    FREEDROID_<SZEKCIÓ>_<MEZŐ>=érték
+
+    FREEDROID_LLM_EDGE_MODEL=szabi-3b-v12        # névtér nélküli, helyi példány
+    FREEDROID_MOTION_DEG_PER_S_AT_FULL=280.0     # egy újramért kalibráció
+    FREEDROID_RAG_TOP_K=1                        # gyorsabb edge-válasz, kevesebb forrás
+    FREEDROID_SAFETY_STOP_THRESHOLD_CM=40        # nagyobb terem, több tartalék
+
+A systemd `Environment=` sora ugyanezt adja a szolgáltatásnak, tehát az Ansible egy
+hosztonkénti értéket úgy állít be, hogy a munkafa TISZTA marad.
+
+Fájl-alapú configot szándékosan NEM adunk hozzá: a systemd unit és az Ansible is
+env-ben gondolkodik, egy második forrás pedig csak azt a kérdést szülné, hogy melyik
+nyer.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import math
+import os
+import sys
+from dataclasses import dataclass, field, fields
 from types import MappingProxyType
 from typing import Mapping
 
@@ -158,6 +183,102 @@ class Settings:
     rag: RAGSettings = field(default_factory=RAGSettings)
 
 
-def load_settings() -> Settings:
-    """Return effective settings. Stub: returns defaults until config loading lands."""
-    return Settings()
+# Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt
+# felülírásokra figyelmeztethessünk anélkül, hogy ezekre is rászólnánk.
+_EGYEB_ENV = frozenset({
+    "FREEDROID_ASSUME_PI", "FREEDROID_GPIOCHIP", "FREEDROID_HEALTH_STATUS",
+    "FREEDROID_SAFE_MODE_FLAG", "FREEDROID_TRANSCRIPT_LOG", "FREEDROID_MOTOR_TEST",
+    "FREEDROID_DEBUG",
+})
+
+_SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
+             "MOTION": ("motion", MotionSettings), "RAG": ("rag", RAGSettings)}
+
+# Csak skalár mezők írhatók felül. A `per_sensor_cm` (Mapping) szándékosan kimarad:
+# egy env-be sűrített dict saját mini-nyelvtant kívánna, és az elgépelése némán
+# rossz küszöböt adna — épp azt a hibát, ami ellen ez az egész készült.
+_IGAZ = {"1", "true", "yes", "igen", "on"}
+_HAMIS = {"0", "false", "no", "nem", "off"}
+
+
+def _ertek(kulcs: str, nyers: str, tipus: str):
+    """Sztring -> a mező típusa. Ismeretlen/rossz érték HANGOS hiba.
+
+    A bool külön eset, és nem kényeskedés: a `bool("hamis")` Pythonban IGAZ. Egy
+    `FREEDROID_RAG_ENABLED=hamis` tehát némán BEkapcsolva hagyná a RAG-ot.
+    """
+    if tipus == "bool":
+        kicsi = nyers.strip().lower()
+        if kicsi in _IGAZ:
+            return True
+        if kicsi in _HAMIS:
+            return False
+        raise ValueError(f"{kulcs}={nyers!r} — logikai értéket vártam "
+                         f"({'/'.join(sorted(_IGAZ))} vagy {'/'.join(sorted(_HAMIS))})")
+    try:
+        ertek = {"str": str, "int": int, "float": float}[tipus](nyers)
+    except (KeyError, ValueError) as e:
+        raise ValueError(f"{kulcs}={nyers!r} — nem értelmezhető {tipus}-ként") from e
+
+    # A `float("nan")` és a `float("inf")` ÉRVÉNYES bemenet a `float()`-nak, és a NaN
+    # MINDEN összehasonlítása hamis — tehát a `__post_init__` tartomány-ellenőrzései
+    # (`<= 0`, `not 0.0 < x <= 1.0`) NÉMÁN átengednék. A hatásuk viszont nem ártalmatlan:
+    # egy NaN `cm_per_s_at_full` NaN menetidőt ad, egy `inf` pedig NULLA hosszút, azaz a
+    # robot meg sem mozdul — mindkettő némán. (PR #88 review.)
+    if tipus == "float" and not math.isfinite(ertek):
+        raise ValueError(f"{kulcs}={nyers!r} — véges számot vártam "
+                         f"(a NaN és a végtelen kicselezi a tartomány-ellenőrzést)")
+    return ertek
+
+
+def _tipusnev(annotacio: object) -> str:
+    """A mező típusának NEVE, akárhogyan is tárolja a Python az annotációt.
+
+    A `from __future__ import annotations` miatt ma minden annotáció SZTRING, tehát
+    `f.type == "float"`. Ha viszont ez az import valaha eltűnik (a PEP 649 óta reális
+    takarítás), az annotációk kiértékelt TÍPUSOBJEKTUMOK lesznek, és egy sztring-
+    összevetés egyetlen mezőre sem illeszkedne — vagyis MINDEN env-felülírás NÉMÁN
+    abbahagyná a működését, és a robot az alapértelmezésekkel futna tovább.
+
+    Pontosan az a csendes sodródás, ami ellen ez a modul készült. (PR #88 review.)
+    A `test_a_felismert_kulcsok_keszlete_ROGZITETT` erre külön ráfeszül.
+    """
+    if isinstance(annotacio, type):
+        return annotacio.__name__
+    return str(annotacio)
+
+
+def _szekciobol(cls, elonev: str, kornyezet) -> tuple[object, set[str]]:
+    """Egy szekció példánya az env-ből. Visszaadja a FELISMERT kulcsokat is."""
+    kwargs, ismert = {}, set()
+    for f in fields(cls):
+        tipus = _tipusnev(f.type)
+        if tipus not in ("str", "int", "float", "bool"):
+            continue
+        kulcs = f"FREEDROID_{elonev}_{f.name.upper()}"
+        ismert.add(kulcs)
+        if (nyers := kornyezet.get(kulcs)) is not None:
+            kwargs[f.name] = _ertek(kulcs, nyers, tipus)
+    return cls(**kwargs), ismert
+
+
+def load_settings(env: dict[str, str] | None = None) -> Settings:
+    """A hatályos beállítások: alapértelmezések + `FREEDROID_<SZEKCIÓ>_<MEZŐ>` felülírás.
+
+    A validáció VÁLTOZATLANUL fut (a dataclassok `__post_init__`-je), tehát egy
+    tartományon kívüli env-érték ugyanúgy indulásnál bukik, mint egy rossz default.
+    """
+    kornyezet = os.environ if env is None else env
+    reszek, ismert = {}, set()
+    for elonev, (mezo, cls) in _SZEKCIOK.items():
+        reszek[mezo], kulcsok = _szekciobol(cls, elonev, kornyezet)
+        ismert |= kulcsok
+
+    # ELGÉPELT FELÜLÍRÁS: némán az alapértelmezéssel futni pontosan az a csendes
+    # sodródás, ami ellen ez a modul készült. Figyelmeztetés, nem hiba: egy ismeretlen
+    # FREEDROID_* változó miatt a robot ne álljon meg a színpadon.
+    for kulcs in sorted(k for k in kornyezet if k.startswith("FREEDROID_")):
+        if kulcs not in ismert and kulcs not in _EGYEB_ENV:
+            print(f"settings: ISMERETLEN felülírás, FIGYELMEN KÍVÜL HAGYVA: {kulcs} "
+                  f"(elgépelés? az alapértelmezés marad érvényben)", file=sys.stderr)
+    return Settings(**reszek)
