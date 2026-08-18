@@ -19,8 +19,35 @@ class LLMEndpoints:
     # Cloud Ollama is reachable over WireGuard; edge Ollama is loopback-only.
     cloud_url: str = "http://10.0.0.1:11434"
     edge_url: str = "http://127.0.0.1:11434"
-    model: str = "llama3.2:3b"  # placeholder — final = fine-tuned GGUF Modelfile tag
-    cloud_timeout_s: float = 8.0
+
+    # ASZIMMETRIKUS: a felhő a 8B-t viszi, az edge a 3B-t (spec, 2. szakasz). A NÉV az
+    # Ollama tagje a KÉT KÜLÖN gépen — nem ugyanaz a modell két helyen, tehát nem lehet
+    # egy mező.
+    #
+    # A DEMÓ-MODELLEK (a Teremtő, 2026-08-18), PUBLIKUS ollama.com modellként terjesztve.
+    #
+    # A NÉV ITT SZÓ SZERINT AZ, AMIT AZ ANSIBLE HÚZ — `ai_stack/defaults/main.yml`.
+    # A névtérrel együtt: a `pull` után az `ollama list` `csaba_ajtony/szabi-3b-v12:latest`-et
+    # mutat, tehát egy rövidített „szabi-3b-v12" itt 404-et adna. A két fájlnak együtt
+    # kell mozognia; a `check_edge_model` pont ezt az eltérést fogja meg.
+    #
+    # ⚠️ A FEJLESZTŐGÉPEN más a helyzet: ott a modellek helyben, `ollama create`-tel
+    # készültek, tehát névtér nélkül állnak (`szabi-8b-v12:latest`). Lokális futtatáshoz
+    # ezt a két értéket kell felülírni — nem a kódot javítani.
+    cloud_model: str = "csaba_ajtony/szabi-8b-v12"
+    edge_model: str = "csaba_ajtony/szabi-3b-v12"
+
+    # HÁROM külön időkorlát, és a szétválasztás a lényeg (lásd `llm/__init__.py`):
+    # a `probe` dönti el, MELYIK háttér válaszol, a generálási korlátok pedig csak
+    # a végső határt adják. Egy közös, rövid korlát a hideg felhőt kizárná.
+    probe_timeout_s: float = 2.0
+    cloud_timeout_s: float = 60.0
+    edge_timeout_s: float = 90.0
+
+    def __post_init__(self) -> None:
+        for nev in ("probe_timeout_s", "cloud_timeout_s", "edge_timeout_s"):
+            if getattr(self, nev) <= 0:
+                raise ValueError(f"{nev} must be > 0")
 
 
 @dataclass(frozen=True)

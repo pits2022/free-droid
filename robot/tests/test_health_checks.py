@@ -42,7 +42,8 @@ def test_edge_ollama_down_is_critical_with_remediation(monkeypatch, settings):
 
 
 def test_edge_model_present(monkeypatch, settings):
-    body = '{"models": [{"name": "llama3.2:3b"}]}'
+    """A KONFIGURÁLT tagot keressük, nem egy beégetettet."""
+    body = '{"models": [{"name": "%s"}]}' % settings.llm.edge_model
     monkeypatch.setattr(checks, "http_get", lambda url, **k: (200, body))
     r = checks.check_edge_model(settings)
     assert r.status is Status.OK
@@ -139,8 +140,14 @@ def test_edge_model_rejects_different_family(monkeypatch, settings):
 
 
 def test_edge_model_accepts_family_tag(monkeypatch, settings):
-    monkeypatch.setattr(checks, "http_get",
-                        lambda u, **k: (200, '{"models":[{"name":"llama3.2:3b-instruct-q4"}]}'))
+    """A tag-variáns is elfogadott — és ez NEM elméleti eset.
+
+    A config `szabi-3b-v12`-t ír, az `ollama list` viszont `szabi-3b-v12:latest`-et
+    jelent. Ha a check pontos egyezést követelne, a health minden valódi Pi-n
+    CRITICAL-t mondana egy tökéletesen betöltött modellre.
+    """
+    body = '{"models":[{"name":"%s:latest"}]}' % settings.llm.edge_model.split(":")[0]
+    monkeypatch.setattr(checks, "http_get", lambda u, **k: (200, body))
     assert checks.check_edge_model(settings).status is Status.OK
 
 

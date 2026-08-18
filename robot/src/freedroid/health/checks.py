@@ -179,7 +179,7 @@ def check_edge_model(settings: Settings) -> CheckResult:
         # as "model absent", so CRITICAL, not a downgraded WARNING.
         return fail(name, Layer.SOFTWARE, Severity.CRITICAL,
                     "cannot parse Ollama /api/tags")
-    wanted = settings.llm.model
+    wanted = settings.llm.edge_model
     base = wanted.split(":")[0]
     if any(n == wanted or n.startswith(base + ":") for n in names):
         return ok(name, Layer.SOFTWARE, severity=Severity.CRITICAL, detail=f"{wanted} loaded")

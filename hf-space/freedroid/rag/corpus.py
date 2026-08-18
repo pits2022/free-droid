@@ -54,7 +54,11 @@ def build_corpus(src: Path | None = None, out: Path = DEFAULT_OUT) -> list[Chunk
     return chunks
 
 
-def load_corpus(path: Path = DEFAULT_OUT) -> list[Chunk]:
+def load_corpus(path: Path | str = DEFAULT_OUT) -> list[Chunk]:
+    # `str` is accepted on purpose — the body already normalises with `Path(path)`, and
+    # callers hold the path as a plain string (`Settings.corpus_path`, the HF Space).
+    # Widening the annotation fixes it once, at the source, instead of asking every
+    # caller to wrap. (PR #86 review flagged the mismatch at one call site.)
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     return [Chunk(**d) for d in data]
 

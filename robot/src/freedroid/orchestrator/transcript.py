@@ -38,7 +38,8 @@ class Interakcio:
     hallott: str                       # a Whisper NYERS átirata, változtatás nélkül
     valasz: str = ""                   # amit a modell mondott
     forras: str = ""                   # "cloud" | "edge" | "safe" — MELYIK ág felelt
-    modell: str = ""                   # a konkrét modellnév, pl. "szabi-8b-v11"
+    modell: str = ""                   # a konkrét modellnév, pl. "szabi-8b-v12"
+    hatter_indok: str = ""             # MIÉRT az az ág — a teljes döntési nyom
     rag_chunkok: list[str] = field(default_factory=list)   # betalált chunk-id-k
     rag_cimek: list[str] = field(default_factory=list)     # …és a címük, olvashatóan
     prompt: str = ""                   # ami TÉNYLEG a modellhez ment (grounding-gal)

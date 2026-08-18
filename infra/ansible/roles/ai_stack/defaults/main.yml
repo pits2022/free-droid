@@ -1,12 +1,29 @@
 ---
-# Base model pulled into Ollama on each node (bring-up placeholder).
+# Az Ollamába húzott modell csomópontonként.
 #
 # Model decision (concluded on the Hungarian persona benchmark, not generic scores):
-# an ASYMMETRIC hybrid — the cloud runs Llama 3.1 8B, the edge runs Llama 3.2 3B.
-# 3B Hungarian/persona was the weak link; the 8B lifts it, but at ~4-5 tok/s on CPU
-# it is CLOUD-ONLY (the Pi can't run it in real time). Both stay one-line swaps.
+# an ASYMMETRIC hybrid — the cloud runs the 8B, the edge runs the 3B. 3B
+# Hungarian/persona was the weak link; the 8B lifts it, but at ~4-5 tok/s on CPU it is
+# CLOUD-ONLY (the Pi can't run it in real time). Both stay one-line swaps.
 #
-# NOTE: ultimately the *fine-tuned* GGUF is loaded via an Ollama Modelfile rather
-# than pulled from the registry; these registry tags are the bring-up placeholder.
-cloud_ollama_model: "llama3.1:8b"   # cloud CAX31/41 (ARM, CPU) — inference only, 8B
-edge_ollama_model: "llama3.2:3b"    # RPi 5 — offline fallback (Q4_K_M), 3B
+# TERJESZTÉS: a finomhangolt modellek PUBLIKUS ollama.com modellek (a Teremtő,
+# 2026-08-18), tehát `ollama pull` névtelenül húzza őket — SEMMILYEN hitelesítő nem
+# kerül sem a Pi-re, sem a felhőre. Ez nem kényelmi döntés: a Pi-n nincs lemeztitkosítás
+# (teljes kiolvasást feltételezünk), és egy ollama.com hitelesítő PUSH-jogot is adna,
+# azaz egy ellopott robotból meg lehetne mérgezni magát a demó-modellt. A modell amúgy
+# is publikus a HF-en, szándékosan — a lopási értéke ~0.
+#
+# MIÉRT REGISTRY, ÉS NEM GGUF + `ollama create`: az Unsloth GGUF NEM ágyazza be a chat
+# sablont (lásd training/Modelfile), tehát csupasz GGUF mellett a Modelfile-t is
+# szállítani kellene, és az némán elcsúszhat — a hibája nem kivétel, hanem zagyva
+# kimenet a színpadon. A `push`-olt modellbe a TEMPLATE/SYSTEM/paraméterek bele vannak
+# égetve, tehát együtt utaznak a súlyokkal.
+#
+# ⚠️ A névtér (`csaba_ajtony`) az ollama.com FELHASZNÁLÓNÉV, NEM a HuggingFace-é
+# (`jabba77`) — a kettő eltér, és a repóban mindkettő szerepel. Ne cseréld őket.
+#
+# ELLENŐRIZVE 2026-08-18: mindkét manifest lejön a registry.ollama.ai-ról hitelesítő
+# fejléc NÉLKÜL (8B 4,92 GB, 3B 2,02 GB), és mindkettőben ott a `template` + `system` +
+# `params` réteg a súlyok mellett — vagyis a sablon tényleg együtt utazik a modellel.
+cloud_ollama_model: "csaba_ajtony/szabi-8b-v12"   # felhő (DO GPU / CAX) — csak inferencia, 8B
+edge_ollama_model: "csaba_ajtony/szabi-3b-v12"    # RPi 5 — offline fallback (Q4_K_M), 3B

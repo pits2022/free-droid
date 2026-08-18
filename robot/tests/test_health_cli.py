@@ -52,6 +52,11 @@ def test_cli_runs_the_real_registry_off_pi(tmp_path, monkeypatch):
     # No real services touched, and _unit_installed=False → no settle-sleep.
     monkeypatch.setattr("freedroid.health.remediation.run", lambda *a, **k: (127, "", ""))
     monkeypatch.delenv("FREEDROID_ASSUME_PI", raising=False)
+    # A hálózat KIVEZETVE a tesztből. Enélkül az eredmény attól függött, fut-e épp egy
+    # Ollama a fejlesztőgépen — 2026-08-18-án futott, és a teszt emiatt bukott. Egy
+    # környezetfüggő teszt rosszabb, mint a hiányzó teszt: hol zöld, hol piros, és
+    # egyik állapota sem mond semmit a kódról.
+    monkeypatch.setattr("freedroid.health.checks.http_get", lambda u, **k: (0, ""))
 
     rc = cli.main()
 

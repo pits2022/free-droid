@@ -165,3 +165,141 @@ def test_close_lezarja_a_vezerloket_akkor_is_ha_a_watchdog_elhasal():
     o = Orchestrator(motion=m, watchdog=FakeWatchdog(leallas_hiba=True))
     o.close()
     assert m.closed is True
+
+
+# --- Phase 4.2: ask() — a teljes lánc hang nélkül ---
+
+class FakeLLM:
+    def __init__(self, valasz: str = "Megyek, Teremtőm.", hiba: Exception | None = None) -> None:
+        self._valasz = valasz
+        self._hiba = hiba
+        self.promptok: list[str] = []
+        self.melegitve = False
+
+    def generate(self, prompt: str) -> str:
+        self.promptok.append(prompt)
+        if self._hiba is not None:
+            raise self._hiba
+        return self._valasz
+
+    def active_backend(self):
+        from freedroid.llm import Backend
+        return Backend.CLOUD
+
+    def active_model(self) -> str:
+        return "csaba_ajtony/szabi-8b-v12"
+
+    def decision(self) -> str:
+        return "cloud: felelt (csaba_ajtony/szabi-8b-v12)"
+
+    def warmup(self):
+        self.melegitve = True
+
+
+def kerdezo(llm: FakeLLM, monkeypatch, rag: bool = False):
+    """Orchestrátor RAG és átirat-napló nélkül — itt a LÁNC a tétel, nem a mellékhatásai."""
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog(), llm=llm)
+    monkeypatch.setattr("freedroid.orchestrator.transcript.log", lambda *a, **k: None)
+    if not rag:
+        monkeypatch.setattr(o, "_talalatok", lambda k: [])
+    return o
+
+
+def test_ask_vegigviszi_a_lancot(monkeypatch):
+    llm = FakeLLM("Megyek, Teremtőm. <tool>move forward 2</tool>")
+    o = kerdezo(llm, monkeypatch)
+    assert o.ask("Gyere ide!") == "Megyek, Teremtőm."
+    assert o.motion.calls == ["move"]
+    assert llm.promptok == ["Gyere ide!"]   # forrás nélkül a prompt VÁLTOZATLAN
+
+
+def test_ask_safe_mode_ha_egyik_elme_sem_felel(monkeypatch):
+    """A robot NEM némul el: a néma robot a színpadon megkülönböztethetetlen a lefagyottól."""
+    from freedroid.llm import LLMUnavailable
+    from freedroid.orchestrator import SAFE_MODE_VALASZ
+
+    o = kerdezo(FakeLLM(hiba=LLMUnavailable("cloud: nem elérhető; edge: nem elérhető")),
+                monkeypatch)
+    assert o.ask("Ki vagy?") == SAFE_MODE_VALASZ
+    assert o.motion.calls == []
+
+
+def test_ask_a_NYELVI_ort_is_atengedi(monkeypatch):
+    """Angol válasz -> újrapróbálkozás „Magyarul válaszolj!"-jal, és az megy ki."""
+    from freedroid.orchestrator import MAGYARUL
+
+    class KetValasz(FakeLLM):
+        def generate(self, prompt: str) -> str:
+            self.promptok.append(prompt)
+            return ("I am a robot and this is not Hungarian at all."
+                    if len(self.promptok) == 1 else "Szabi vagyok, Teremtőm.")
+
+    llm = KetValasz()
+    o = kerdezo(llm, monkeypatch)
+    assert o.ask("Who are you?") == "Szabi vagyok, Teremtőm."
+    assert llm.promptok[1].startswith(MAGYARUL)
+
+
+def test_start_bemelegiti_a_modellt(monkeypatch):
+    """A hidegindítás 21 másodperc — az a csend nem eshet az első kérdésre."""
+    llm = FakeLLM()
+    o = kerdezo(llm, monkeypatch)
+    o.start()
+    assert llm.melegitve is True
+
+
+def test_a_hianyzo_korpusz_nem_nemitja_el(monkeypatch):
+    """Tények nélkül is tud beszélni — csak kevesebbet tud."""
+    llm = FakeLLM("Szia, Teremtőm.")
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog(), llm=llm)
+    monkeypatch.setattr("freedroid.orchestrator.transcript.log", lambda *a, **k: None)
+    monkeypatch.setattr("freedroid.rag.corpus.load_corpus",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("nincs korpusz")))
+    assert o.ask("Mi az a Yotengrit?") == "Szia, Teremtőm."
+
+
+def test_az_atirat_rogziti_a_MODELLT_es_az_INDOKOT(monkeypatch):
+    """A `forras` csak annyit mond: „cloud". Az, hogy a v12-t vagy egy nyers
+    bázismodellt kérdeztük, a MODELL mezőből derül ki."""
+    naplo = []
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog(), llm=FakeLLM("Szia."))
+    monkeypatch.setattr("freedroid.orchestrator.transcript.log",
+                        lambda e, *a, **k: naplo.append(e))
+    monkeypatch.setattr(o, "_talalatok", lambda k: [])
+    o.ask("Ki vagy?")
+    (e,) = naplo
+    assert e.forras == "cloud"
+    assert e.modell == "csaba_ajtony/szabi-8b-v12"
+    assert e.hatter_indok == "cloud: felelt (csaba_ajtony/szabi-8b-v12)"
+
+
+def test_a_MASODIK_generalas_bukasa_is_safe_mode(monkeypatch):
+    """PR #86 review: a nyelvi őr MÁSODSZOR is hívja a modellt.
+
+    Ha a háttér a két hívás között esik el, a `LLMUnavailable` az `ask()`-ból szállt
+    volna ki, magával rántva a hurkot — épp azt az egy dolgot rontva el, amiért a safe
+    mode létezik.
+    """
+    from freedroid.llm import LLMUnavailable
+    from freedroid.orchestrator import SAFE_MODE_VALASZ
+
+    class ElsoreAngolAztanHalott(FakeLLM):
+        def generate(self, prompt: str) -> str:
+            self.promptok.append(prompt)
+            if len(self.promptok) == 1:
+                return "I am a robot and this is not Hungarian at all."
+            raise LLMUnavailable("cloud: nem elérhető; edge: nem elérhető")
+
+    naplo = []
+    llm = ElsoreAngolAztanHalott()
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog(), llm=llm)
+    monkeypatch.setattr("freedroid.orchestrator.transcript.log",
+                        lambda e, *a, **k: naplo.append(e))
+    monkeypatch.setattr(o, "_talalatok", lambda k: [])
+
+    assert o.ask("Who are you?") == SAFE_MODE_VALASZ
+    assert len(llm.promptok) == 2          # tényleg a MÁSODIK hívás bukott el
+    (e,) = naplo
+    assert e.forras == "safe"
+    # A nyers első választ a napló megőrzi — e nélkül pont a legérdekesebb kör veszne el.
+    assert e.valasz.startswith("I am a robot")
