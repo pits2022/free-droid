@@ -152,12 +152,15 @@
     mode: "0644"
     content: |
       d /run/freedroid 0755 {{ robot_user }} {{ robot_user }} -
-  register: freedroid_tmpfiles
 
-- name: Create /run/freedroid now (tmpfiles only runs at boot on its own)
+# FELTÉTEL NÉLKÜL fut, és ez nem pazarlás. A korábbi `when: ...changed` azt jelentette,
+# hogy egy MÁSODIK playbook-futás átugorja a lépést, ha a konfigfájl nem változott —
+# még akkor is, ha közben valaki törölte vagy elrontotta a /run/freedroid-ot. Márpedig a
+# playbook célja épp az, hogy a futás UTÁN a könyvtár garantáltan meglegyen, nem az,
+# hogy a konfigfájl változását kövesse. A `systemd-tmpfiles --create` idempotens.
+- name: Ensure /run/freedroid exists now (tmpfiles otherwise only runs at boot)
   command: systemd-tmpfiles --create /etc/tmpfiles.d/freedroid.conf
-  when: freedroid_tmpfiles.changed
-  changed_when: true
+  changed_when: false
 
 - name: Ensure the transcript log directory exists and is owned by {{ robot_user }}
   file:

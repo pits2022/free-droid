@@ -123,3 +123,30 @@ def test_az_iras_bukasakor_sem_marad_tmp_szemet(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         write_durably(str(tmp_path / "flag"), "akarmi\n")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_a_konyvtar_fsync_O_DIRECTORY_val_nyit(tmp_path, monkeypatch):
+    """`O_DIRECTORY` nélkül az `os.open` egy FÁJLRA is sikerülne, és az fsync a rossz
+    dolgot tenné tartóssá — némán.
+
+    Ez SZÁNDÉKOSAN a hívást méri, nem a viselkedést: a nem-könyvtár esetet a
+    `makedirs`/`mkstemp` már előbb elkapja, tehát a flag CSAK egy versenyhelyzet ellen
+    véd (az útvonal a csere után válik fájllá). Az ilyen védelmet nem lehet
+    determinisztikusan előidézni — de a szándékot érdemes rögzíteni, mert a flag
+    elhagyása egyébként láthatatlan lenne."""
+    import os
+
+    from freedroid.health.safemode import write_durably
+
+    flagek: list[int] = []
+    eredeti = os.open
+
+    def figyelo(utvonal, jelzok, *a, **kw):
+        if utvonal == str(tmp_path):
+            flagek.append(jelzok)
+        return eredeti(utvonal, jelzok, *a, **kw)
+
+    monkeypatch.setattr(os, "open", figyelo)
+    write_durably(str(tmp_path / "flag"), "akarmi\n")
+
+    assert flagek and all(f & os.O_DIRECTORY for f in flagek)

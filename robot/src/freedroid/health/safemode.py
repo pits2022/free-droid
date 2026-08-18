@@ -62,7 +62,12 @@ def write_durably(path: str, content: str) -> None:
     # A könyvtár-bejegyzés tartóssá tétele. Ez SZÁNDÉKOSAN a takarító ágon KÍVÜL van:
     # a sikeres `os.replace` után a tmp már nem létezik (átnevezés), tehát innentől
     # nincs mit szivárogtatni — a review ezt a részt tévesen sorolta ide.
-    dir_fd = os.open(directory, os.O_RDONLY)
+    # `O_DIRECTORY`: enélkül az `os.open` egy FÁJLRA is sikerülne (ha az útvonal
+    # közben fájllá vagy fájlra mutató szimlinkké vált), és akkor a lenti `fsync` a
+    # rossz dolgot tenné tartóssá — némán. Így hangosan bukik.
+    # A `getattr(os, "O_DIRECTORY", 0)` védőháló szándékosan kimarad: az csak a Windows
+    # kedvéért kellene, amit ebben a projektben kifejezetten nem támogatunk.
+    dir_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(dir_fd)
     finally:
