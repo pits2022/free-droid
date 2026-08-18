@@ -83,3 +83,63 @@ def test_settings_are_frozen():
     s = LLMEndpoints()
     with pytest.raises(dataclasses.FrozenInstanceError):
         s.model = "other"  # type: ignore[misc]
+
+
+# --- env-felülírás (2026-08-18) ---------------------------------------------- #
+# MIÉRT LÉTEZIK: enélkül a roboton az egyetlen mód bármit átállítani a FORRÁS
+# szerkesztése volt — és az kétszer harapott (blokkolt `git checkout`, a Pi hetekig
+# egy régi branchen). A gép-specifikus értéknek nem a verziókövetett fájlban a helye.
+
+def test_env_felulirja_a_szekciok_mezoit():
+    s = load_settings({
+        "FREEDROID_MOTION_DEG_PER_S_AT_FULL": "300",
+        "FREEDROID_LLM_EDGE_MODEL": "szabi-3b-v12",
+        "FREEDROID_RAG_TOP_K": "1",
+        "FREEDROID_SAFETY_STOP_THRESHOLD_CM": "40",
+    })
+    assert s.motion.deg_per_s_at_full == 300.0
+    assert s.llm.edge_model == "szabi-3b-v12"
+    assert s.rag.top_k == 1
+    assert s.safety.stop_threshold_cm == 40.0
+    # amit nem írtunk felül, az érintetlen
+    assert s.motion.cm_per_s_at_full == 66.6
+
+
+def test_env_nelkul_az_alapertelmezes_marad():
+    s = load_settings({})
+    assert s.motion.deg_per_s_at_full == 280.0
+    assert s.llm.edge_model == "csaba_ajtony/szabi-3b-v12"
+
+
+def test_a_bool_NEM_a_python_igazsagerteke():
+    """`bool("hamis")` Pythonban IGAZ — egy naiv konverzió némán BEkapcsolva hagyná
+    a RAG-ot egy `FREEDROID_RAG_ENABLED=hamis` mellett."""
+    assert load_settings({"FREEDROID_RAG_ENABLED": "nem"}).rag.enabled is False
+    assert load_settings({"FREEDROID_RAG_ENABLED": "igen"}).rag.enabled is True
+    with pytest.raises(ValueError, match="logikai"):
+        load_settings({"FREEDROID_RAG_ENABLED": "hamis"})
+
+
+def test_ertelmezhetetlen_ertek_HANGOSAN_bukik():
+    with pytest.raises(ValueError, match="nem értelmezhető"):
+        load_settings({"FREEDROID_MOTION_DEG_PER_S_AT_FULL": "gyorsan"})
+
+
+def test_a_validacio_az_env_ertekre_IS_fut():
+    """A felülírás nem kerülheti meg a tartomány-ellenőrzést: egy 1.0 fölötti trim
+    némán 100%-on telítődne, és a robot ugyanúgy húzna, 'kalibrálva'."""
+    with pytest.raises(ValueError, match="lassítani"):
+        load_settings({"FREEDROID_MOTION_RIGHT_DUTY_TRIM": "1.5"})
+
+
+def test_elgepelt_felulirasra_FIGYELMEZTET(capsys):
+    """Némán az alapértelmezéssel futni pontosan az a csendes sodródás, ami ellen
+    ez az egész készült."""
+    load_settings({"FREEDROID_MOTION_DEG_PER_SEC": "99"})
+    assert "ISMERETLEN felülírás" in capsys.readouterr().err
+
+
+def test_a_tobbi_modul_env_valtozoira_NEM_szol(capsys):
+    load_settings({"FREEDROID_TRANSCRIPT_LOG": "/tmp/x.jsonl",
+                   "FREEDROID_ASSUME_PI": "1"})
+    assert capsys.readouterr().err == ""

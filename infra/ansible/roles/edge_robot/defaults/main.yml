@@ -83,3 +83,16 @@ robot_alsa_playback_card: "UACDemoV10"   # USB sztereó hangszóró (Jieli 4c4a:
 robot_alsa_capture_card: "U20"           # a webkamera beépített mikrofonja
                                          # (Jieli 1224:2a25 "USB PHY 2.0" — egy
                                          # összetett eszköz: UVC videó + audio)
+
+# Hoszt-specifikus beállítás-felülírások, a `freedroid.config.settings` env-formájában
+# (`FREEDROID_<SZEKCIÓ>_<MEZŐ>`). Ez a HELYE a gép-specifikus értéknek — NEM a
+# verziókövetett settings.py. Egy lokálisan szerkesztett forrás blokkolja a `git pull`-t,
+# és a roboton már kétszer okozott csendes sodródást (2026-08-18: a Pi egy régi branchen
+# állt, a health-check emiatt a RÉGI modell-tagot igazolta).
+#
+#   robot_env:
+#     FREEDROID_LLM_EDGE_MODEL: "szabi-3b-v12"      # névtér nélküli helyi példány
+#     FREEDROID_RAG_TOP_K: "1"                      # gyorsabb edge-válasz
+#
+# Elgépelésre a betöltő figyelmeztet (stderr -> journald), de nem áll le tőle.
+robot_env: {}
