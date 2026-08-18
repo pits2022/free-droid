@@ -199,3 +199,13 @@ def test_a_NaN_tenyleg_kicselezne_a_tartomany_ellenorzest():
 
     assert not (math.nan <= 0)                      # a validáció feltétele HAMIS
     assert MotionSettings(cm_per_s_at_full=math.nan).cm_per_s_at_full != 0  # átmegy rajta
+
+
+def test_elgepelt_play_command_helyorzo_INDULASKOR_bukik():
+    """PR #91 review: a `{rate}`-et a PiperTTS tölti ki. Egy elgépelt felülírás enélkül
+    csak a BESZÉD pillanatában bukna ki — vagyis a színpadon."""
+    with pytest.raises(ValueError, match="helyőrző"):
+        load_settings({"FREEDROID_VOICE_PLAY_COMMAND": "aplay -r {sample_rate}"})
+    # a helyes viszont átmegy, és a helyőrző nélküli parancs is (pl. egy fix wrapper)
+    assert load_settings({"FREEDROID_VOICE_PLAY_COMMAND": "aplay -r {rate}"}).voice
+    assert load_settings({"FREEDROID_VOICE_PLAY_COMMAND": "sajat-lejatszo"}).voice

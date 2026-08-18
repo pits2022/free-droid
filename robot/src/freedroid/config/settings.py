@@ -182,9 +182,25 @@ class VoiceSettings:
     # `-D plughw:1,0` pont azt a konfigot kerülné meg, ami már be van állítva.
     play_command: str = "aplay -q -r {rate} -f S16_LE -t raw -"
 
+    # A beszéd FELSŐ HATÁRA. Nem teljesítmény-kérdés: ha a hangeszköz foglalt, az `aplay`
+    # megállhat a megnyitáson anélkül, hogy kilépne — olyankor a csővezeték BERAGAD, és a
+    # robot a színpadon némán, örökre várna. Egy hangos hiba mindig jobb, mint egy néma
+    # megállás. 17 szó kimondása a Pi-n 9,8 s volt (mérve), tehát a 60 s bőséges tartalék.
+    speak_timeout_s: float = 60.0
+
     def __post_init__(self) -> None:
         if self.length_scale <= 0:
             raise ValueError("length_scale must be > 0")
+        if self.speak_timeout_s <= 0:
+            raise ValueError("speak_timeout_s must be > 0")
+        # A `{rate}` helyőrzőt a `PiperTTS` tölti ki. Egy elgépelt felülírás (pl.
+        # `{sample_rate}`) enélkül csak a BESZÉD pillanatában bukna ki — vagyis a
+        # színpadon. A validáció INDULÁSKOR ugyanazt mondja meg, órákkal korábban.
+        try:
+            self.play_command.format(rate=22050)
+        except (KeyError, IndexError) as e:
+            raise ValueError(f"play_command ismeretlen helyőrzőt tartalmaz ({e}); "
+                             f"csak a {{rate}} tölthető ki") from e
 
 
 @dataclass(frozen=True)

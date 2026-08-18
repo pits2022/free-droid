@@ -15,6 +15,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -51,6 +52,15 @@ class STT(Protocol):
 
 
 class TTS(Protocol):
+    @staticmethod
+    def _olvas(nev: str, folyam, ide: dict) -> None:
+        """Egy stderr teljes kiolvasása, saját szálon. Sosem dob: egy hibaüzenet
+        olvasása közben keletkező hiba nem buktathatja meg magát a beszédet."""
+        try:
+            ide[nev] = folyam.read()
+        except Exception:  # noqa: BLE001 — a diagnosztika sosem fontosabb a működésnél
+            ide[nev] = b""
+
     def speak(self, text: str) -> None: ...
 
 
@@ -114,6 +124,15 @@ class PiperTTS:
                 f"a Piper hang configja nem olvasható ({config}): {e} — a hang KÉT "
                 f"fájlból áll (.onnx + .onnx.json), és mindkettő kell") from e
 
+    @staticmethod
+    def _olvas(nev: str, folyam, ide: dict) -> None:
+        """Egy stderr teljes kiolvasása, saját szálon. Sosem dob: egy hibaüzenet
+        olvasása közben keletkező hiba nem buktathatja meg magát a beszédet."""
+        try:
+            ide[nev] = folyam.read()
+        except Exception:  # noqa: BLE001 — a diagnosztika sosem fontosabb a működésnél
+            ide[nev] = b""
+
     def speak(self, text: str) -> None:
         """Kimondja a szöveget. Üres szövegre nem csinál semmit (nem hiba).
 
@@ -144,14 +163,53 @@ class PiperTTS:
 
         # A SZÜLŐNEK el kell engednie a cső olvasó végét, különben az `aplay` sosem lát
         # EOF-ot, és a beszéd végén örökre várna. Ez a klasszikus cső-holtpont.
+        # A SZÜLŐNEK el kell engednie a cső olvasó végét, különben az `aplay` sosem lát
+        # EOF-ot, és a beszéd végén örökre várna.
         gen.stdout.close()
 
-        gen.stdin.write(text.encode("utf-8"))
-        gen.stdin.close()
-        gen_hiba = gen.stderr.read().decode("utf-8", "replace")
-        gen.wait()
-        jatszo_hiba = jatszo.stderr.read().decode("utf-8", "replace")
-        jatszo.wait()
+        # MINDKÉT stderr-t PÁRHUZAMOSAN olvassuk. Sorban olvasva ez holtpontba futhat:
+        # ha a lejátszó megáll (foglalt hangeszköz), a `piper` a megtelt csőre írva
+        # blokkol, tehát az ő stderr-je sosem ér EOF-ot — és a lejátszó hibaüzenetéhez,
+        # ami épp megmagyarázná az egészet, sosem jutnánk el. (PR #91 review.)
+        hibak: dict[str, bytes] = {}
+        szalak = [threading.Thread(target=self._olvas, args=(nev, folyam, hibak),
+                                   daemon=True)
+                  for nev, folyam in (("piper", gen.stderr), ("lejátszó", jatszo.stderr))]
+        for szal in szalak:
+            szal.start()
+
+        # A `piper` AZONNAL kiléphet (rossz modell-útvonal, hibás kapcsoló), és akkor az
+        # írás `BrokenPipeError`-t dob. Elnyeljük — nem azért, mert nem érdekes, hanem
+        # mert az ÉRDEKES üzenet a piper stderr-jén van, és azt pár sorral lejjebb
+        # ki is olvassuk. A nyers BrokenPipeError csak elrejtené a valódi okot.
+        try:
+            gen.stdin.write(text.encode("utf-8"))
+            gen.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+
+        # ÉS IDŐKORLÁT. A szálas olvasás önmagában NEM elég — a review javaslata itt
+        # megáll félúton: ha a lejátszó beragad a hangeszköz megnyitásán anélkül, hogy
+        # kilépne, a `piper` örökre blokkol az írásnál, az ő stderr-je sosem ér EOF-ot,
+        # és a `join()` ugyanúgy örökre vár. Csak a szálak mellett a robot NÉMÁN,
+        # határidő nélkül állna meg a színpadon — a legrosszabb kimenet.
+        hatarido = self._cfg.speak_timeout_s
+        try:
+            gen.wait(timeout=hatarido)
+            jatszo.wait(timeout=hatarido)
+        except subprocess.TimeoutExpired as e:
+            for folyamat in (gen, jatszo):
+                folyamat.kill()
+                folyamat.wait()
+            for szal in szalak:
+                szal.join(timeout=1.0)
+            raise RuntimeError(f"a beszéd beragadt ({hatarido:g} s) és leállítottuk: {e} "
+                               f"— foglalt vagy hibás hangeszköz?") from e
+        for szal in szalak:
+            szal.join(timeout=1.0)
+
+        gen_hiba = hibak.get("piper", b"").decode("utf-8", "replace")
+        jatszo_hiba = hibak.get("lejátszó", b"").decode("utf-8", "replace")
 
         if gen.returncode:
             raise RuntimeError(f"piper hiba ({gen.returncode}): {gen_hiba.strip()[:300]}")

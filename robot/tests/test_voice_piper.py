@@ -60,8 +60,11 @@ def test_a_lejatszo_parancsba_a_MERT_rata_kerul(tmp_path, monkeypatch):
             self.stdout = _Nyelo()
             self.stderr = _Nyelo()
 
-        def wait(self):
+        def wait(self, timeout=None):
             return 0
+
+        def kill(self):
+            return None
 
     monkeypatch.setattr(voice.subprocess, "Popen", AlFolyamat)
     hang(tmp_path).speak("Megyek, Teremtőm.")
@@ -100,3 +103,54 @@ def test_a_binaris_kereses_a_VENV_bol_indul(tmp_path, monkeypatch):
 
     # ami nincs se a venv-ben, se a PATH-on -> None (nem üres string, nem kivétel)
     assert find_voice_binary("nincs-ilyen-binaris-remelem") is None
+
+
+def test_a_beragadt_lejatszo_IDOKORLATRA_bukik_nem_nemul_el(tmp_path, monkeypatch):
+    """PR #91 review: a szálas stderr-olvasás ÖNMAGÁBAN nem elég.
+
+    Ha a lejátszó beragad a hangeszköz megnyitásán anélkül, hogy kilépne, a `piper`
+    örökre blokkol az írásnál, az ő stderr-je sosem ér EOF-ot, és a `join()` ugyanúgy
+    örökre vár. A robot NÉMÁN, határidő nélkül állna meg — a legrosszabb kimenet.
+    """
+    import time
+
+    from freedroid import voice
+    from freedroid.config.settings import Settings, VoiceSettings
+
+    (tmp_path / "v.onnx.json").write_text(json.dumps({"audio": {"sample_rate": 22050}}))
+    # "piper" helyett egy script, ami beolvassa a bemenetet, aztán ÉL TOVÁBB — pontosan
+    # úgy, ahogy egy beragadt lejátszó mellett a valódi piper viselkedne.
+    alpiper = tmp_path / "alpiper"
+    alpiper.write_text("#!/bin/sh\ncat > /dev/null\nsleep 30\n")
+    alpiper.chmod(0o755)
+    monkeypatch.setattr(voice, "find_voice_binary",
+                        lambda nev: str(alpiper) if nev == "piper" else None)
+
+    cfg = VoiceSettings(piper_model=str(tmp_path / "v"),
+                        play_command="sleep 30", speak_timeout_s=1.0)
+    tts = PiperTTS(dataclasses.replace(Settings(), voice=cfg))
+
+    kezd = time.perf_counter()
+    with pytest.raises(RuntimeError, match="beragadt"):
+        tts.speak("Megyek, Teremtőm.")
+    # És tényleg az IDŐKORLÁT vetett véget neki, nem valami más hiba.
+    assert 0.5 < time.perf_counter() - kezd < 15
+
+
+def test_azonnal_kilepo_piper_a_SAJAT_hibajat_mondja(tmp_path, monkeypatch):
+    """Rossz modell-útvonalnál a piper kilép, és az írás BrokenPipe-ot dob. A hívónak
+    a piper ÜZENETÉT kell látnia, nem egy nyers csőhibát."""
+    from freedroid import voice
+    from freedroid.config.settings import Settings, VoiceSettings
+
+    (tmp_path / "v.onnx.json").write_text(json.dumps({"audio": {"sample_rate": 22050}}))
+    alpiper = tmp_path / "alpiper"
+    alpiper.write_text("#!/bin/sh\necho 'nincs ilyen modell' >&2\nexit 3\n")
+    alpiper.chmod(0o755)
+    monkeypatch.setattr(voice, "find_voice_binary",
+                        lambda nev: str(alpiper) if nev == "piper" else None)
+
+    cfg = VoiceSettings(piper_model=str(tmp_path / "v"), play_command="cat > /dev/null")
+    tts = PiperTTS(dataclasses.replace(Settings(), voice=cfg))
+    with pytest.raises(RuntimeError, match="nincs ilyen modell"):
+        tts.speak("Megyek, Teremtőm.")
