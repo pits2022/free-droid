@@ -220,16 +220,34 @@ def _ertek(kulcs: str, nyers: str, tipus: str):
         raise ValueError(f"{kulcs}={nyers!r} — nem értelmezhető {tipus}-ként") from e
 
 
+def _tipusnev(annotacio: object) -> str:
+    """A mező típusának NEVE, akárhogyan is tárolja a Python az annotációt.
+
+    A `from __future__ import annotations` miatt ma minden annotáció SZTRING, tehát
+    `f.type == "float"`. Ha viszont ez az import valaha eltűnik (a PEP 649 óta reális
+    takarítás), az annotációk kiértékelt TÍPUSOBJEKTUMOK lesznek, és egy sztring-
+    összevetés egyetlen mezőre sem illeszkedne — vagyis MINDEN env-felülírás NÉMÁN
+    abbahagyná a működését, és a robot az alapértelmezésekkel futna tovább.
+
+    Pontosan az a csendes sodródás, ami ellen ez a modul készült. (PR #88 review.)
+    A `test_a_felismert_kulcsok_keszlete_ROGZITETT` erre külön ráfeszül.
+    """
+    if isinstance(annotacio, type):
+        return annotacio.__name__
+    return str(annotacio)
+
+
 def _szekciobol(cls, elonev: str, kornyezet) -> tuple[object, set[str]]:
     """Egy szekció példánya az env-ből. Visszaadja a FELISMERT kulcsokat is."""
     kwargs, ismert = {}, set()
     for f in fields(cls):
-        if f.type not in ("str", "int", "float", "bool"):
+        tipus = _tipusnev(f.type)
+        if tipus not in ("str", "int", "float", "bool"):
             continue
         kulcs = f"FREEDROID_{elonev}_{f.name.upper()}"
         ismert.add(kulcs)
         if (nyers := kornyezet.get(kulcs)) is not None:
-            kwargs[f.name] = _ertek(kulcs, nyers, f.type)
+            kwargs[f.name] = _ertek(kulcs, nyers, tipus)
     return cls(**kwargs), ismert
 
 

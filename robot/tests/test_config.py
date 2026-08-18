@@ -143,3 +143,36 @@ def test_a_tobbi_modul_env_valtozoira_NEM_szol(capsys):
     load_settings({"FREEDROID_TRANSCRIPT_LOG": "/tmp/x.jsonl",
                    "FREEDROID_ASSUME_PI": "1"})
     assert capsys.readouterr().err == ""
+
+
+def test_a_felismert_kulcsok_keszlete_ROGZITETT():
+    """PR #88 review: a mezőket az ANNOTÁCIÓ alapján ismerjük fel, és ez elromolhat.
+
+    Ma minden annotáció sztring (`from __future__ import annotations`). Ha ez az import
+    valaha eltűnik, az annotációk típusobjektumok lesznek — és egy sztring-összevetés
+    egyetlen mezőre sem illeszkedne, tehát MINDEN felülírás NÉMÁN abbahagyná a
+    működését. Ez a teszt akkor is szól, ha a felismerés bármi mástól romlik el.
+    """
+    from freedroid.config import settings as S
+
+    ismert = set()
+    for elonev, (_, cls) in S._SZEKCIOK.items():
+        _, kulcsok = S._szekciobol(cls, elonev, {})
+        ismert |= kulcsok
+
+    assert {"FREEDROID_LLM_EDGE_MODEL", "FREEDROID_LLM_CLOUD_MODEL",
+            "FREEDROID_MOTION_DEG_PER_S_AT_FULL", "FREEDROID_MOTION_RIGHT_DUTY_TRIM",
+            "FREEDROID_SAFETY_STOP_THRESHOLD_CM", "FREEDROID_RAG_TOP_K",
+            "FREEDROID_RAG_ENABLED"} <= ismert
+    # A Mapping mező NEM lehet köztük (env-be sűrített dict némán rossz küszöböt adna).
+    assert "FREEDROID_SAFETY_PER_SENSOR_CM" not in ismert
+
+
+def test_a_tipusfelismeres_a_kiertekelt_annotaciot_is_birja():
+    """A javítás lényege: sztring ÉS típusobjektum annotáció is működjön."""
+    from freedroid.config.settings import _tipusnev
+
+    assert _tipusnev("float") == "float"
+    assert _tipusnev(float) == "float"
+    assert _tipusnev(bool) == "bool"
+    assert _tipusnev("Mapping[str, float]") not in ("str", "int", "float", "bool")
