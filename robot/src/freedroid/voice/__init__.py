@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -148,6 +149,13 @@ class PiperTTS:
             jatszo = subprocess.Popen(jatszo_parancs, stdin=gen.stdout,
                                       stderr=subprocess.PIPE)
         except OSError as e:
+            # A csöveket EXPLICITEN zárjuk. A CPython refszámlálása általában elintézné,
+            # de a kivétel-objektum életben tartja a keretet (és vele a `gen`-t), amíg a
+            # traceback él — egy tartósan hibázó lejátszónál (pl. hiányzó `aplay`) ez
+            # mondatonként három leíró, egy hosszan futó szolgáltatásban.
+            for folyam in (gen.stdin, gen.stdout, gen.stderr):
+                if folyam is not None:
+                    folyam.close()
             gen.kill()
             gen.wait()
             raise RuntimeError(f"a lejátszó nem indult el ({jatszo_parancs[0]}): {e}") from e
@@ -182,10 +190,14 @@ class PiperTTS:
         # kilépne, a `piper` örökre blokkol az írásnál, az ő stderr-je sosem ér EOF-ot,
         # és a `join()` ugyanúgy örökre vár. Csak a szálak mellett a robot NÉMÁN,
         # határidő nélkül állna meg a színpadon — a legrosszabb kimenet.
+        # KÖZÖS határidő, nem két külön időkorlát. Egymás után, teljes értékkel hívva a
+        # legrosszabb eset a KÉTSZERESE lett volna — vagyis a `speak_timeout_s` nem azt
+        # jelentette volna, amit a neve és a dokumentációja ígér. (PR #91 review.)
         hatarido = self._cfg.speak_timeout_s
+        vege = time.monotonic() + hatarido
         try:
-            gen.wait(timeout=hatarido)
-            jatszo.wait(timeout=hatarido)
+            gen.wait(timeout=max(0.0, vege - time.monotonic()))
+            jatszo.wait(timeout=max(0.0, vege - time.monotonic()))
         except subprocess.TimeoutExpired as e:
             for folyamat in (gen, jatszo):
                 folyamat.kill()

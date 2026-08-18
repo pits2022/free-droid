@@ -154,3 +154,33 @@ def test_azonnal_kilepo_piper_a_SAJAT_hibajat_mondja(tmp_path, monkeypatch):
     tts = PiperTTS(dataclasses.replace(Settings(), voice=cfg))
     with pytest.raises(RuntimeError, match="nincs ilyen modell"):
         tts.speak("Megyek, Teremtőm.")
+
+
+def test_az_idokorlat_a_TELJES_beszedre_vonatkozik(tmp_path, monkeypatch):
+    """PR #91 review: két külön időkorlát a legrosszabb esetben a KÉTSZERESÉT engedné.
+
+    Itt a "piper" gyorsan végez, a lejátszó viszont beragad. Közös határidővel a teljes
+    idő a korlát körül marad; két külön korláttal a piper ideje MÉG RÁJÖNNE.
+    """
+    import time
+
+    from freedroid import voice
+    from freedroid.config.settings import Settings, VoiceSettings
+
+    (tmp_path / "v.onnx.json").write_text(json.dumps({"audio": {"sample_rate": 22050}}))
+    alpiper = tmp_path / "alpiper"
+    alpiper.write_text("#!/bin/sh\ncat > /dev/null\nsleep 0.8\n")
+    alpiper.chmod(0o755)
+    monkeypatch.setattr(voice, "find_voice_binary",
+                        lambda nev: str(alpiper) if nev == "piper" else None)
+
+    cfg = VoiceSettings(piper_model=str(tmp_path / "v"),
+                        play_command="sleep 30", speak_timeout_s=1.0)
+    tts = PiperTTS(dataclasses.replace(Settings(), voice=cfg))
+
+    kezd = time.perf_counter()
+    with pytest.raises(RuntimeError, match="beragadt"):
+        tts.speak("Megyek, Teremtőm.")
+    telt = time.perf_counter() - kezd
+    # Két külön korláttal ez ~1,8 s lenne (0,8 piper + 1,0 lejátszó).
+    assert telt < 1.5, f"a határidő nem a TELJES beszédre vonatkozott: {telt:.2f} s"
