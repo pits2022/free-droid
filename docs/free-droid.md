@@ -344,6 +344,40 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 > nyilvántartás), és **ha az irány ismeretlen, a szigorúbb szabály él** — a hiba a
 > felesleges fékezés felé essen, ne a mozgás felé.
 
+> 🔴 **A NÉMA SZENZOR ÉS AZ ÜRES TÉR NEM UGYANAZ — külön jelzés kell rájuk
+> (2026-08-17, a `motion`/`safety` implementálásakor derült ki, hogy a spec ezt nem
+> mondja ki).** A HC-SR04 az üres teret a NORMÁLIS működése szerint jelzi: egy
+> ~38 ms-os "nincs visszhang" impulzussal. Egy szakadt vezeték viszont abban
+> nyilvánul meg, hogy az Echo **meg sem szólal**. A régi mérés mindkettőre ugyanazt a
+> `None`-t adta, és ebből **mindkét értelmezés rossz**:
+>
+> | ha a közös `None` = akadály | ha a közös `None` = szabad út |
+> | :--- | :--- |
+> | a robot egy ÜRES teremben **el sem indul** | egy szakadt föld-vezeték **csendben vakká teszi** |
+>
+> A második nem elméleti: 2026-08-15-én pontosan ez történt (a breadboard hasított
+> tápsínje miatt az elülső szenzor földje nem ért a Pi földjéhez).
+>
+> **A mérés ezért HÁROMÉRTÉKŰ** (`safety/ranging.py`):
+>
+> | érték | jelentés | a watchdognak |
+> | :--- | :--- | :--- |
+> | `float` | mért távolság cm-ben | akadály, ha a küszöb alatt van |
+> | `inf` | a szenzor VÁLASZOLT, de a hatótávon belül nincs semmi | **szabad az út** |
+> | `None` | az Echo fel sem futott, vagy beragadt magason | **akadály** (néma szenzor = hiba) |
+>
+> A `None` azért esik az akadály oldalra, mert **egy meg sem szólaló szenzor nem
+> bizonyítja, hogy szabad az út**. Ugyanez a szabály a `min(3)` összegzésében is:
+> a `None` ott hiányzó minta (kihagyjuk), és csak akkor lesz a végeredmény `None`,
+> ha MINDHÁROM néma volt.
+>
+> ⚠️ **A 450 cm-es hatótáv-korlát a `None` oldalára tartozik, nem a `float`-éra.** A
+> szenzor fizikai hatótávja ~4 m; ami e fölött jönne, az nem mérés, hanem a "nincs
+> visszhang" jelzés félreolvasása. A korábbi 40 ms-os időablak épp elvágta a 38 ms-os
+> impulzust, és a mérés a SAJÁT időtúllépését számolta távolsággá:
+> „40002 µs → 686,0 cm" — egy hihető, de hamis szám, ami szabad útnak látszik.
+> A 60 ms-os ablak (`TIMEOUT_S`) az, ami a két esetet egyáltalán szétválaszthatóvá teszi.
+
 > 🔴 **MÉRVE 2026-08-15: a Python busy-wait ÖNMAGÁBAN nem elég — 3 mérés `min()`-e kell.**
 > Ez volt a projekt legrégebbi nyitott kockázata, és most van száma.
 > (`scripts/watchdog_latency.py`, `--load ollama`, 30 s ablakok, CPU 64% igazolva.)
