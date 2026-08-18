@@ -176,3 +176,26 @@ def test_a_tipusfelismeres_a_kiertekelt_annotaciot_is_birja():
     assert _tipusnev(float) == "float"
     assert _tipusnev(bool) == "bool"
     assert _tipusnev("Mapping[str, float]") not in ("str", "int", "float", "bool")
+
+
+@pytest.mark.parametrize("nyers", ["nan", "NaN", "inf", "-inf", "Infinity"])
+def test_a_nem_veges_float_HANGOSAN_bukik(nyers):
+    """PR #88 review: a `float()` elfogadja őket, és a NaN MINDEN összehasonlítása
+    hamis — tehát a tartomány-ellenőrzés NÉMÁN átengedné.
+
+    A hatás nem ártalmatlan: NaN sebességnél NaN a menetidő, végtelennél NULLA,
+    azaz a robot meg sem mozdul. Mindkettő csendben.
+    """
+    with pytest.raises(ValueError, match="véges számot"):
+        load_settings({"FREEDROID_MOTION_CM_PER_S_AT_FULL": nyers})
+
+
+def test_a_NaN_tenyleg_kicselezne_a_tartomany_ellenorzest():
+    """Az ok, amiért a fenti őr KELL — nem elméleti: a dataclass validációja
+    `<= 0`-t néz, és a NaN arra hamisat ad."""
+    import math
+
+    from freedroid.config.settings import MotionSettings
+
+    assert not (math.nan <= 0)                      # a validáció feltétele HAMIS
+    assert MotionSettings(cm_per_s_at_full=math.nan).cm_per_s_at_full != 0  # átmegy rajta

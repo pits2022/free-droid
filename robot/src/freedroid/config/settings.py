@@ -28,6 +28,7 @@ nyer.
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 from dataclasses import dataclass, field, fields
@@ -215,9 +216,19 @@ def _ertek(kulcs: str, nyers: str, tipus: str):
         raise ValueError(f"{kulcs}={nyers!r} — logikai értéket vártam "
                          f"({'/'.join(sorted(_IGAZ))} vagy {'/'.join(sorted(_HAMIS))})")
     try:
-        return {"str": str, "int": int, "float": float}[tipus](nyers)
+        ertek = {"str": str, "int": int, "float": float}[tipus](nyers)
     except (KeyError, ValueError) as e:
         raise ValueError(f"{kulcs}={nyers!r} — nem értelmezhető {tipus}-ként") from e
+
+    # A `float("nan")` és a `float("inf")` ÉRVÉNYES bemenet a `float()`-nak, és a NaN
+    # MINDEN összehasonlítása hamis — tehát a `__post_init__` tartomány-ellenőrzései
+    # (`<= 0`, `not 0.0 < x <= 1.0`) NÉMÁN átengednék. A hatásuk viszont nem ártalmatlan:
+    # egy NaN `cm_per_s_at_full` NaN menetidőt ad, egy `inf` pedig NULLA hosszút, azaz a
+    # robot meg sem mozdul — mindkettő némán. (PR #88 review.)
+    if tipus == "float" and not math.isfinite(ertek):
+        raise ValueError(f"{kulcs}={nyers!r} — véges számot vártam "
+                         f"(a NaN és a végtelen kicselezi a tartomány-ellenőrzést)")
+    return ertek
 
 
 def _tipusnev(annotacio: object) -> str:

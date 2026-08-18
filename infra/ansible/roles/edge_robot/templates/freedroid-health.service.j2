@@ -10,10 +10,14 @@ Type=oneshot
 # Assert we're on the Pi so a transient device-tree read can't silently SKIP the
 # CRITICAL hardware checks (a missing device then FAILs -> safe-mode, fail-safe).
 Environment=FREEDROID_ASSUME_PI=1
-{# Idézőjelben: idézés nélkül a systemd a SZÓKÖZNÉL kettévágja az értéket, és a
-   maradékot külön, érvénytelen hozzárendelésként olvassa. Két korlát marad, mindkettő
-   a systemd sajátja: a `%` specifikátor (kettőzve kell: `%%`) és a literál `"`. #}
+{# Idézőjelben ÉS escape-elve. Idézés nélkül a systemd a SZÓKÖZNÉL kettévágja az
+   értéket; escape nélkül pedig két külön baj van, és a MÁSODIK a csendes:
+     - a `"` és a `\` az idézett szakaszon belül vezérlő karakter -> a unit betöltése
+       elhasal (hangos hiba),
+     - a `%` viszont SPECIFIKÁTOR: a `%h` némán a home könyvtárra cserélődik, azaz az
+       érték csendben MÁSSÁ válik. Ezért kell a `%%`.
+   A sorrend kötött: előbb a backslash, különben a saját escape-jeinket escape-elnénk. #}
 {% for kulcs, ertek in robot_env.items() %}
-Environment="{{ kulcs }}={{ ertek }}"
+Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
 {% endfor %}
 ExecStart={{ robot_venv_bin }}/freedroid-health
