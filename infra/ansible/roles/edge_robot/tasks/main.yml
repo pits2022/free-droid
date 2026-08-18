@@ -142,11 +142,22 @@
     owner: "{{ robot_user }}"
     group: "{{ robot_user }}"
     mode: "0755"
+  register: robot_piper_dir_allapot
 
 # MINDKÉT fájl kell: a `.onnx` a súlyok, a `.onnx.json` a hangtani konfig (mintavétel,
 # fonéma-térkép). A `piper` a másodikat a modell mellől olvassa, névkonvencióval —
 # ha hiányzik, a hiba a futásidőben jön, nem itt.
+# A `when` a SZÁRAZ futás miatt van, és szándékosan szűk. Check módban a fenti `file:`
+# csak SZIMULÁLJA a könyvtárat, a `get_url` viszont ellenőrzi, hogy létezik-e — tehát
+# egy friss gépen a száraz futás itt elhasalna, pedig az éles futás rendben lefutna
+# (mérve 2026-08-18: "Destination ... does not exist").
+#
+# Nem egyszerűen `not ansible_check_mode`: az a MÁR felprovisionált gépen is elrejtené
+# a letöltés állapotát, pedig ott a könyvtár létezik, és a száraz futásnak épp az a
+# dolga, hogy megmondja, kell-e még tölteni. Ezért csak akkor hagyjuk ki, ha check
+# módban vagyunk ÉS a könyvtárat előbb létre kellett volna hozni.
 - name: Download the Piper voice ({{ robot_piper_voice }})
+  when: not (ansible_check_mode and robot_piper_dir_allapot.changed)
   get_url:
     url: "{{ robot_piper_voice_url }}/{{ robot_piper_voice }}{{ item }}"
     dest: "{{ robot_piper_dir }}/{{ robot_piper_voice }}{{ item }}"
