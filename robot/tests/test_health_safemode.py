@@ -93,3 +93,33 @@ def test_a_torles_hibaja_DOB_hogy_a_hivo_felszinre_hozza(tmp_path, monkeypatch):
     monkeypatch.setattr(os, "remove", tilos)
     with pytest.raises(PermissionError):
         clear_safe_mode(str(tmp_path / "flag"))
+
+
+def test_a_csere_bukasakor_nem_marad_tmp_szemet(tmp_path, monkeypatch):
+    """Ha a csere bukik (csak olvasható fs, kvóta), a tmp itt maradna — és a 10
+    percenként futó időzítő minden körben hagyna egyet a /run-ban."""
+    import os
+
+    from freedroid.health.safemode import write_durably
+
+    def bukik(_a, _b):
+        raise OSError(30, "Read-only file system")
+    monkeypatch.setattr(os, "replace", bukik)
+
+    with pytest.raises(OSError):
+        write_durably(str(tmp_path / "flag"), "akarmi\n")
+    assert list(tmp_path.iterdir()) == [], f"szemét maradt: {list(tmp_path.iterdir())}"
+
+
+def test_az_iras_bukasakor_sem_marad_tmp_szemet(tmp_path, monkeypatch):
+    import os
+
+    from freedroid.health.safemode import write_durably
+
+    def bukik(*_a):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(os, "write", bukik)
+
+    with pytest.raises(OSError):
+        write_durably(str(tmp_path / "flag"), "akarmi\n")
+    assert list(tmp_path.iterdir()) == []

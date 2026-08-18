@@ -12,6 +12,7 @@ orchestrator must also fail safe if the status/flag is missing or stale.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import tempfile
@@ -44,16 +45,23 @@ def write_durably(path: str, content: str) -> None:
     # tehát egyik hibamód sem áll fenn.
     fd, tmp = tempfile.mkstemp(dir=directory, prefix=os.path.basename(path) + ".tmp.")
     try:
-        os.fchmod(fd, 0o644)   # a mkstemp 0600-at ad; ezt más is olvashatja
-        os.write(fd, content.encode("utf-8"))
-        os.fsync(fd)
+        try:
+            os.fchmod(fd, 0o644)   # a mkstemp 0600-at ad; ezt más is olvashatja
+            os.write(fd, content.encode("utf-8"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        # A CSERE is a takarító ágon belül: ha ez bukik (csak olvasható fájlrendszer,
+        # kvóta), a tmp itt maradna — és a 10 percenként futó időzítő minden körben
+        # hagyna egyet a /run-ban. (PR #88/#89 review.)
+        os.replace(tmp, path)
     except BaseException:
-        os.close(fd)
-        os.unlink(tmp)   # ne hagyjunk szemetet a /run-ban
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)   # ne hagyjunk szemetet; a takarítás hibája ne nyelje el az igazit
         raise
-    else:
-        os.close(fd)
-    os.replace(tmp, path)
+    # A könyvtár-bejegyzés tartóssá tétele. Ez SZÁNDÉKOSAN a takarító ágon KÍVÜL van:
+    # a sikeres `os.replace` után a tmp már nem létezik (átnevezés), tehát innentől
+    # nincs mit szivárogtatni — a review ezt a részt tévesen sorolta ide.
     dir_fd = os.open(directory, os.O_RDONLY)
     try:
         os.fsync(dir_fd)
