@@ -574,14 +574,23 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 
 A finomhangolt modellek **publikus ollama.com modellként** kerülnek a felhőre és a Pi-re:
 
-| | |
-| :--- | :--- |
-| felhő (8B) | `jabba77/szabi-8b-v12` |
-| edge (3B) | `jabba77/szabi-3b-v12` |
+| | modell | méret |
+| :--- | :--- | ---: |
+| felhő (8B) | `csaba_ajtony/szabi-8b-v12` | 4,92 GB |
+| edge (3B) | `csaba_ajtony/szabi-3b-v12` | 2,02 GB |
+
+> ✅ **Feltöltve és ELLENŐRIZVE 2026-08-18.** Mindkét manifest lejön a
+> `registry.ollama.ai`-ról **hitelesítő fejléc nélkül** — tehát a „publikus, névtelenül
+> húzható" nem feltételezés. És mindkettőben ott a **`template` + `system` + `params`
+> réteg** a súlyok mellett: pontosan az a tulajdonság, amire a registry-döntés épült,
+> mérve.
+>
+> ⚠️ A névtér (`csaba_ajtony`) az **ollama.com** felhasználónév, **nem** a HuggingFace-é
+> (`jabba77`). A repóban mindkettő szerepel, más célra — ne cseréld őket.
 
 Az Ansible (`ai_stack`) `ollama pull`-lal húzza mindkettőt, és a `robot/` `Settings`-e
 **szó szerint ugyanezt a két nevet** használja — a névtérrel együtt, mert a `pull` után
-az `ollama list` `jabba77/szabi-3b-v12:latest`-et mutat, és egy rövidített név 404-et
+az `ollama list` `csaba_ajtony/szabi-3b-v12:latest`-et mutat, és egy rövidített név 404-et
 adna. A két fájlnak együtt kell mozognia.
 
 **Miért registry, és nem GGUF-szállítás + `ollama create`.** Az Unsloth GGUF **nem
