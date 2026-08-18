@@ -121,6 +121,36 @@
       a kódot máshogy (rsync / image) a futás ELŐTT.
     success_msg: "A robot-projekt a helyén van: {{ robot_src_dir }}"
 
+# MI VAN VALÓJÁBAN A GÉPEN. A role szándékosan NEM frissíti a kódot (a `robot_repo_url`
+# alapból üres: „deliver the code another way"), tehát a provisioning simán ráfuthat egy
+# RÉGI checkoutra — és a hiba olyankor máshol jelentkezik, félrevezetően. Ez ma kétszer
+# is időbe került (2026-08-18): egyszer a Pi hetekig a `feature/kalibracio` branchen
+# állt, egyszer pedig a `uv sync` hasalt el egy olyan extrán, ami az ott lévő
+# pyproject.toml-ban még nem létezett.
+#
+# Ezért NEM némán megyünk tovább: kiírjuk, mit provisionálunk. Nem hiba, csak látható.
+- name: Read the delivered checkout (branch, commit, dirty)
+  when: robot_project.stat.exists
+  command:
+    argv: [git, -C, "{{ robot_src_dir }}", status, --porcelain=2, --branch]
+  register: robot_checkout
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Show what is actually being provisioned
+  when: robot_project.stat.exists
+  vars:
+    robot_fej: >-
+      {{ robot_checkout.stdout_lines | default([]) | select('search', '^# branch\.')
+         | map('regex_replace', '^# branch\.', '') | join(', ') }}
+    robot_piszkos: >-
+      {{ robot_checkout.stdout_lines | default([]) | reject('match', '^#') | list }}
+  debug:
+    msg: >-
+      Kiszállított kód: {{ robot_fej }}{{ ' — FIGYELEM: %d módosított fájl a munkafán, a
+      provisioning NEM ezt frissíti' % (robot_piszkos | length) if robot_piszkos else '' }}
+
 - name: Sync the robot project venv with uv
   when: robot_project.stat.exists
   become: true
