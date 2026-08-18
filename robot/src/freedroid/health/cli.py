@@ -2,7 +2,13 @@
 
 Run at boot and on a timer (systemd). Flow: run checks → self-heal fixable
 failures → re-check → write a JSON status file + log to journald → set safe-mode
-(or clear it) → exit 0 if vital functions are healthy, 1 otherwise.
+(or clear it) → exit 0 if vital functions are healthy, 1 otherwise, 2 if the
+safe-mode flag itself could not be written.
+
+**A szolgáltatás ROOTKÉNT fut** (`freedroid-health.service`): `systemctl restart`-ot
+ad ki önjavításkor, és a `/run/freedroid/` alá ír. Kézzel, `creator`-ként indítva a
+`/run/freedroid` root tulajdonú, tehát az írások jogosultsághibára futnak — ez nem
+elromlott gép, hanem hiányzó `sudo`. Az üzenetek ezt ki is mondják.
 """
 
 from __future__ import annotations
@@ -46,8 +52,28 @@ def main() -> int:
     log_report(report)
     if report.healthy:
         clear_safe_mode()
-    else:
+        return report.exit_code()
+
+    # A `safemode` modul SZÁNDÉKOSAN dob, ha a jelzőt nem tudja kiírni ("a caller must
+    # surface that as a hard failure, never continue as if safe-mode is in effect") —
+    # csakhogy eddig senki nem teljesítette ezt a szerződést: a kivétel nyers
+    # tracebackként szállt ki. Két baja volt, és a második a súlyosabb:
+    #   1. a 10 percenként futó timer minden körben tracebacket írt a journalba, ami
+    #      pont arra tanítja az embert, hogy ne olvassa;
+    #   2. az EGYETLEN mondat, ami számít — hogy a safe mode NEM lett rögzítve, tehát
+    #      az orchestrátor nem fogja látni —, sehol nem hangzott el. A traceback egy
+    #      tmp fájl jogosultságáról beszélt.
+    try:
         enter_safe_mode(report)
+    except OSError as e:
+        print(f"health: A SAFE MODE JELZŐ NEM ÍRHATÓ: {e}", file=sys.stderr)
+        print("health:   -> az orchestrátor NEM fogja látni a safe mode-ot, "
+              "a mozgás NEM lesz letiltva.", file=sys.stderr)
+        if isinstance(e, PermissionError) and os.geteuid() != 0:
+            # A leggyakoribb eset kézi futtatásnál, és nem hiba a gépben.
+            print("health:   -> nem rootként futsz; a szolgáltatás rootként fut "
+                  "(sudo -E, vagy `systemctl start freedroid-health`).", file=sys.stderr)
+        return 2
     return report.exit_code()
 
 

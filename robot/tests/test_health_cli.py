@@ -64,3 +64,30 @@ def test_cli_runs_the_real_registry_off_pi(tmp_path, monkeypatch):
     data = json.loads(status.read_text())
     assert data["healthy"] is False
     assert flag.exists()
+
+
+# --- a safe-mode írás szerződése (a Pi-n mérve, 2026-08-18) ---
+
+def test_kiirhatatlan_safe_mode_jelzo_nem_traceback_hanem_exit_2(tmp_path, monkeypatch,
+                                                                 capsys):
+    """A `safemode` szándékosan dob, ha a jelzőt nem tudja kiírni — a hívónak ezt
+    HARD FAILKÉNT kell felszínre hoznia. Eddig nyers tracebackként szállt ki.
+
+    A Pi-n ez élesben elő is jött (`creator`-ként futtatva a root tulajdonú
+    /run/freedroid alá): a 10 percenként futó timer minden körben tracebacket írt
+    volna a journalba, ÉS az egyetlen fontos mondat — hogy a safe mode nem lett
+    rögzítve, tehát a mozgás nem lesz letiltva — sehol nem hangzott el.
+    """
+    _patch_paths(tmp_path, monkeypatch)
+    monkeypatch.setattr("freedroid.health.remediation.run", lambda *a, **k: (127, "", ""))
+    monkeypatch.delenv("FREEDROID_ASSUME_PI", raising=False)
+    monkeypatch.setattr("freedroid.health.checks.http_get", lambda u, **k: (0, ""))
+
+    def nem_irhato(report, flag_path=None):
+        raise PermissionError(13, "Permission denied", "/run/freedroid/safe_mode.tmp.1")
+    monkeypatch.setattr(cli, "enter_safe_mode", nem_irhato)
+
+    assert cli.main() == 2          # nem 1: ez a ROSSZABB állapot
+    hiba = capsys.readouterr().err
+    assert "A SAFE MODE JELZŐ NEM ÍRHATÓ" in hiba
+    assert "mozgás NEM lesz letiltva" in hiba

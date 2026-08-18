@@ -67,7 +67,12 @@ class HealthReport:
         return worst
 
     def exit_code(self) -> int:
-        """0 = healthy (warnings allowed), 1 = a vital function is down."""
+        """0 = healthy (warnings allowed), 1 = a vital function is down.
+
+        A CLI egy harmadikat is ad: **2 = életfunkció le VAN, és a safe mode jelzőt
+        sem sikerült kiírni** — az a rosszabb állapot, mert olyankor a mozgás sincs
+        letiltva. Lásd `health/cli.py`.
+        """
         return 0 if self.healthy else 1
 
     def to_dict(self) -> dict:
