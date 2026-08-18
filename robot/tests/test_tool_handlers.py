@@ -8,6 +8,7 @@ kimenetének feldolgozása. A dispatch SZŰRŐJÉNEK szerződése külön él
 
 from __future__ import annotations
 
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -187,4 +188,18 @@ def test_scan_wifi_nmcli_hiba_HANGOS(monkeypatch):
         raise OSError("nmcli not found")
     monkeypatch.setattr(handlers.subprocess, "run", robban)
     with pytest.raises(RuntimeError):
+        scan_wifi(ParsedTool("scan_wifi", {}))
+
+
+def test_scan_wifi_nem_nulla_kilepes_a_STDERR_t_is_elmondja(monkeypatch):
+    """PR #85: a `str(CalledProcessError)` CSAK a parancsot és a kilépési kódot mondja el.
+
+    A Pi fej nélkül fut — ha a "Wi-Fi is disabled" a naplóból hiányzik, a hiba nem
+    diagnosztizálható.
+    """
+    def robban(*a, **k):
+        raise subprocess.CalledProcessError(1, handlers.NMCLI_SCAN,
+                                            stderr="Error: Wi-Fi is disabled\n")
+    monkeypatch.setattr(handlers.subprocess, "run", robban)
+    with pytest.raises(RuntimeError, match="Wi-Fi is disabled"):
         scan_wifi(ParsedTool("scan_wifi", {}))

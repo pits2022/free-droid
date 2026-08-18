@@ -37,22 +37,42 @@ class FakeMotion:
 
 
 class FakeWatchdog:
-    def __init__(self, fault: str | None = None) -> None:
+    def __init__(self, fault: str | None = None, leallas_hiba: bool = False) -> None:
         self.fault = fault
         self.started = False
         self.stopped = False
+        self._leallas_hiba = leallas_hiba
 
     def start(self) -> None:
         self.started = True
 
     def stop_monitoring(self) -> None:
         self.stopped = True
+        if self._leallas_hiba:
+            raise RuntimeError("a szál-join elhasalt")
 
     def distances_cm(self) -> dict[str, float | None]:
         return {}
 
     def is_blocked(self) -> bool:
         return False
+
+
+class FakeCamera:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def pan(self, direction, degrees) -> None:
+        self.calls.append("pan")
+
+    def tilt(self, direction, degrees) -> None:
+        self.calls.append("tilt")
+
+    def action(self, action) -> None:
+        self.calls.append("action")
+
+    def close(self) -> None:
+        pass
 
 
 def orch(fault: str | None = None) -> tuple[Orchestrator, FakeMotion]:
@@ -116,3 +136,32 @@ def test_a_hurok_meg_NEM_letezik_es_ezt_hangosan_mondja():
     with pytest.raises(NotImplementedError):
         import asyncio
         asyncio.run(o.run())
+
+
+# --- PR #85 review ---
+
+@pytest.mark.parametrize("valasz", [
+    "<tool>camera nod</tool><tool>move forward 2</tool>",
+    "<tool>move forward 2</tool><tool>camera nod</tool>",
+])
+def test_hibas_watchdog_mellett_a_KOTEG_egeszet_eldobjuk(valasz):
+    """A tiltás ne legyen SORRENDFÜGGŐ.
+
+    A menet közbeni döntés mellett a `[camera, move]` válasznál a kamera még lefutott,
+    a `[move, camera]`-nál nem — ugyanarra a kérésre. Egy kis modell tool-sorrendje
+    nem stabil, tehát ez futásonként változó viselkedés lett volna, pont abban az
+    állapotban, amikor a robot már nem lát tisztán.
+    """
+    c = FakeCamera()
+    m = FakeMotion()
+    o = Orchestrator(motion=m, camera=c, watchdog=FakeWatchdog(fault="OSError('lgpio')"))
+    assert o.execute(valasz) == BIZTONSAGI_ELHARITAS
+    assert m.calls == [] and c.calls == []
+
+
+def test_close_lezarja_a_vezerloket_akkor_is_ha_a_watchdog_elhasal():
+    """A legrosszabb kimenet: járó lánctalpak egy kilépő folyamat után."""
+    m = FakeMotion()
+    o = Orchestrator(motion=m, watchdog=FakeWatchdog(leallas_hiba=True))
+    o.close()
+    assert m.closed is True

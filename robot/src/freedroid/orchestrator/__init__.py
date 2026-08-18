@@ -75,7 +75,15 @@ class Orchestrator:
         self.watchdog.start()
 
     def close(self) -> None:
-        self.watchdog.stop_monitoring()
+        # A watchdog leállítása is try alatt: ha a szál-join elhasal, a motorok
+        # LEZÁRATLANUL maradnának — épp a legrosszabb kimenet (járó lánctalpak egy
+        # kilépő folyamat után). A lezárás sorrendje szándékos (előbb a watchdog, hogy
+        # ne állítson meg egy már lezárt vezérlőt), de egyik lépés sem előfeltétele a
+        # másiknak.
+        try:
+            self.watchdog.stop_monitoring()
+        except Exception:  # noqa: BLE001 — a vezérlők lezárása ettől nem maradhat el
+            log.exception("watchdog leállítása sikertelen")
         for vezerlo in (self.motion, self.camera):
             zaras = getattr(vezerlo, "close", None)
             if zaras is not None:
@@ -94,10 +102,19 @@ class Orchestrator:
         kiestek — ide csak VALÓDI végrehajtási hiba juthat el.
         """
         eredmeny = guard(valasz)
+
+        # A tiltás ELŐRE dől el, az egész kötegre — nem menet közben. A menet közbeni
+        # döntés SORRENDFÜGGŐ volt: a `[camera, move]` válasznál a kamera még lefutott,
+        # a `[move, camera]`-nál nem, pedig a két válasz ugyanazt kéri. Egy kis modell
+        # tool-sorrendje nem stabil, tehát ez futásonként változó viselkedés lett volna
+        # — pont abban az állapotban, amikor a robot már nem lát tisztán.
+        if self._mozgas_tiltott() and any(t.name in MOZGATO_TOOLOK
+                                          for t in eredmeny.toolok):
+            log.warning("mozgás letiltva (watchdog hiba), a köteg eldobva: %r",
+                        [t.name for t in eredmeny.toolok])
+            return BIZTONSAGI_ELHARITAS
+
         for tool in eredmeny.toolok:
-            if tool.name in MOZGATO_TOOLOK and self._mozgas_tiltott():
-                log.warning("mozgás letiltva (watchdog hiba): %r", tool.name)
-                return BIZTONSAGI_ELHARITAS
             try:
                 self.tools.dispatch(tool)
             except Exception:  # noqa: BLE001 — a beszéd fontosabb, mint a tool

@@ -209,6 +209,12 @@ def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
     try:
         proc = subprocess.run(NMCLI_SCAN, capture_output=True, text=True,
                               timeout=NMCLI_TIMEOUT_S, check=True)
+    except subprocess.CalledProcessError as e:
+        # A nem nulla kilépési kód INDOKA a stderr-ben van ("Wi-Fi is disabled",
+        # "device not managed"), és a `str(e)` CSAK a parancssort és a kódot mondja el.
+        # A Pi fej nélkül fut: ha ez itt elveszik, a hiba a naplóból nem diagnosztizálható.
+        raise RuntimeError(f"nmcli sikertelen (kilépési kód {e.returncode}): "
+                           f"{(e.stderr or '').strip()}") from e
     except (OSError, subprocess.SubprocessError) as e:
         # Hangos hiba: "nem találtam hálózatot" és "nem tudtam megnézni" NEM ugyanaz.
         raise RuntimeError(f"nmcli sikertelen: {e}") from e
