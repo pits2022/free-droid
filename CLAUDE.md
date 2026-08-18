@@ -64,7 +64,7 @@ direction/speed/mode/action, `until` → marker); `request_navigation_help` take
 free-text target. The parser (`robot/src/freedroid/tools/parser.py`, implemented) tolerates extra whitespace.
 
 **Voice pipeline (fully offline on the Pi):** wake word `"Szabi"` (openWakeWord) → STT Whisper.cpp (Hungarian) →
-LLM (cloud or edge) → TTS Piper (`hu_HU-anonymous-medium`, pitch-tuned younger) → tool execution.
+LLM (cloud or edge) → TTS Piper (`hu_HU-anna-medium`, pitch-tuned younger) → tool execution.
 
 **Target `robot/` module layout** (RPi control software — mostly scaffold, but `rag/` is implemented + tested): `orchestrator/` (main async loop + fallback),
 `motion/` (Cytron HAT, lgpio-based), `safety/` (ultrasonic watchdog thread), `voice/` (wake/STT/TTS/VAD),

@@ -17,9 +17,30 @@ robot_src_dir: /opt/free-droid/robot
 robot_repo_url: ""
 robot_repo_version: main
 
-# Install the offline voice stack extra (openWakeWord, Piper). whisper.cpp is a
-# native binary wired up separately. Off by default until Phase 4.2.
-robot_install_voice_extra: false
+# Az offline hang-stack extra (openWakeWord, Piper). BEKAPCSOLVA a Phase 4.2 óta:
+# a `piper-tts` pip-csomag hozza a `piper` binárist, amit a health-check is keres.
+# A whisper.cpp NEM ebből jön — az natív bináris, külön menet.
+robot_install_voice_extra: true
+
+# --- Piper TTS hang (a spec 4. szakasza: hu_HU-anonymous-medium) ---
+# A modell NEM a pip-csomagban van: két külön fájl (súlyok + konfig), és a `piper`
+# a `.onnx` mellett MINDIG a `.onnx.json`-t is olvassa. Ha csak az egyiket töltjük le,
+# a hiba a hangnál jelentkezik, nem a letöltésnél.
+# ⚠️ A spec korábban `hu_HU-anonymous-medium`-ot írt: az a hang NEM LÉTEZIK (mérve
+# 2026-08-18). A magyar kínálat: `anna`, `berta`, `imre` — mind medium, 22050 Hz.
+# Az `anna` ideiglenes; a végső választás fül-döntés, és a Teremtőé.
+robot_piper_voice: hu_HU-anna-medium
+
+# Az URL a NÉVBŐL származik, nem külön változó: a kettő különtartása azt jelentené, hogy
+# a hang cseréjekor az egyiket el lehet felejteni — és akkor a letöltés a RÉGI fájlt
+# hozná le az ÚJ néven, amitől a `piper` a beszéd pillanatában hasalna el.
+robot_piper_lang_dir: hu/hu_HU
+robot_piper_speaker: "{{ robot_piper_voice.split('-')[1] }}"
+robot_piper_quality: "{{ robot_piper_voice.split('-')[2] }}"
+robot_piper_voice_url: >-
+  https://huggingface.co/rhasspy/piper-voices/resolve/main/{{ robot_piper_lang_dir }}/{{
+  robot_piper_speaker }}/{{ robot_piper_quality }}
+robot_piper_dir: "{{ robot_user_home }}/.local/share/piper-voices"
 
 # Átirat-napló (transcript.py). A DEFAULT_PATH-nak megfelelő útvonal; a robot
 # unprivilegizált userként fut, ezért a könyvtárat NEKI kell birtokolnia — enélkül

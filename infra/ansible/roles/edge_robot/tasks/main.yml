@@ -131,6 +131,32 @@
   args:
     chdir: "{{ robot_src_dir }}"
 
+# --- Piper TTS hang ---
+# A modellt AZ UTÁN töltjük, hogy a venv megvan: a `piper` bináris a pip-extrából jön,
+# a hang viszont külön fájl. A kettő együtt kell — a `piper` modell nélkül elindul, és
+# csak a beszéd pillanatában hasal el.
+- name: Ensure the Piper voice directory exists
+  file:
+    path: "{{ robot_piper_dir }}"
+    state: directory
+    owner: "{{ robot_user }}"
+    group: "{{ robot_user }}"
+    mode: "0755"
+
+# MINDKÉT fájl kell: a `.onnx` a súlyok, a `.onnx.json` a hangtani konfig (mintavétel,
+# fonéma-térkép). A `piper` a másodikat a modell mellől olvassa, névkonvencióval —
+# ha hiányzik, a hiba a futásidőben jön, nem itt.
+- name: Download the Piper voice ({{ robot_piper_voice }})
+  get_url:
+    url: "{{ robot_piper_voice_url }}/{{ robot_piper_voice }}{{ item }}"
+    dest: "{{ robot_piper_dir }}/{{ robot_piper_voice }}{{ item }}"
+    owner: "{{ robot_user }}"
+    group: "{{ robot_user }}"
+    mode: "0644"
+  loop:
+    - .onnx
+    - .onnx.json
+
 # --- Átirat-napló (transcript.py) ---
 # A modul PERZISZTENS útvonalra ír, nem /run-ba (az tmpfs), mert a naplót utólag
 # elemezzük. A `log()` viszont SOHA nem dob kivételt — tehát ha ez a könyvtár

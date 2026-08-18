@@ -15,6 +15,8 @@ from __future__ import annotations
 import glob
 import json
 import shutil
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from freedroid.health.model import (
@@ -199,9 +201,21 @@ def check_orchestrator_service(settings: Settings) -> CheckResult:
                 remediation="restart_orchestrator")
 
 
+def _voice_binary(nev: str) -> bool:
+    """A hang-binárisok a PATH-on VAGY a projekt venv-jében.
+
+    A `piper` a `uv sync --extra voice`-ból jön, tehát a `.venv/bin`-be kerül — az pedig
+    NINCS a PATH-on, amikor a systemd a `{venv}/bin/freedroid-health`-t indítja
+    (a szolgáltatás nem aktiválja a venv-et, csak a benne lévő futtathatót hívja).
+    Egy puszta `which()` ezért TELEPÍTETT Piper mellett is „hiányzik"-ot mondana —
+    egy figyelmeztetés, ami sosem múlik el, és amit ezért egy idő után senki nem olvas.
+    """
+    return which(nev) or (Path(sys.executable).parent / nev).exists()
+
+
 def check_voice_binaries(settings: Settings) -> CheckResult:
     name = "voice_binaries"
-    missing = [b for b in ("piper", "whisper-cli") if not which(b)]
+    missing = [b for b in ("piper", "whisper-cli") if not _voice_binary(b)]
     if not missing:
         return ok(name, Layer.SOFTWARE, detail="voice binaries present")
     # Phase 4.2 not installed yet -> WARNING, not a vital failure.

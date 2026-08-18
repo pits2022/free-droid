@@ -154,6 +154,40 @@ class MotionSettings:
 
 
 @dataclass(frozen=True)
+class VoiceSettings:
+    """Piper TTS. A wake word és az STT külön menet (Phase 4.2 folytatás)."""
+
+    # A hang két fájlból áll (.onnx + .onnx.json); itt az ELŐTAG szerepel, kiterjesztés
+    # nélkül — a `piper` a konfigot a modell mellől, névkonvencióval keresi.
+    # ⚠️ A specben szereplő `hu_HU-anonymous-medium` NEM LÉTEZIK (mérve 2026-08-18: a
+    # `rhasspy/piper-voices` magyar kínálata `anna`, `berta`, `imre`). Az `anna` ideiglenes
+    # alapértelmezés — női hang, ahogy a persona kívánja —, de a VÉGSŐ választás fül-döntés,
+    # és a Teremtőé. Kiterjesztés NÉLKÜLI előtag: a `.onnx` és a `.onnx.json` is kell.
+    piper_model: str = "~/.local/share/piper-voices/hu_HU-anna-medium"
+
+    # Beszédtempó: NAGYOBB = LASSABB (a Piper hosszúság-szorzója). A fiatalosabb hangzás
+    # a specben elvárás, és részben a tempóból jön — de hogy MENNYI a jó, azt csak
+    # hallás után lehet eldönteni, ezért kell ez a gomb. A magasság (pitch) eltolása
+    # ezzel NEM oldható meg: az külön feldolgozást kívánna (sox/rubberband), és a
+    # mértékét szintén hallás dönti el — ezért nincs itt találgatott alapérték.
+    length_scale: float = 1.0
+
+    # Lejátszó parancs. A Pi-n az ALSA defaultja az `/etc/asound.conf`-ból jön (a HDMI
+    # helyett az USB hangszóró), ezért itt NEM adunk meg eszközt — egy beégetett
+    # `-D plughw:1,0` pont azt a konfigot kerülné meg, ami már be van állítva.
+    # `{rate}`: a mintavételi frekvencia a MODELL configjából jön, nem innen — a
+    # `--output-raw` fejléc nélküli PCM-et ad, tehát a lejátszónak meg kell mondani a
+    # formátumot. Eszközt szándékosan NEM adunk meg: az ALSA defaultja az
+    # `/etc/asound.conf`-ból jön (USB hangszóró a HDMI helyett), és egy beégetett
+    # `-D plughw:1,0` pont azt a konfigot kerülné meg, ami már be van állítva.
+    play_command: str = "aplay -q -r {rate} -f S16_LE -t raw -"
+
+    def __post_init__(self) -> None:
+        if self.length_scale <= 0:
+            raise ValueError("length_scale must be > 0")
+
+
+@dataclass(frozen=True)
 class RAGSettings:
     # Offline BM25 retrieval over the Yotengrit corpus. corpus_path="" -> the loader
     # uses its repo-default (training/rag/yotengrit_corpus.json).
@@ -180,6 +214,7 @@ class Settings:
     llm: LLMEndpoints = field(default_factory=LLMEndpoints)
     safety: SafetySettings = field(default_factory=SafetySettings)
     motion: MotionSettings = field(default_factory=MotionSettings)
+    voice: VoiceSettings = field(default_factory=VoiceSettings)
     rag: RAGSettings = field(default_factory=RAGSettings)
 
 
@@ -192,7 +227,8 @@ _EGYEB_ENV = frozenset({
 })
 
 _SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
-             "MOTION": ("motion", MotionSettings), "RAG": ("rag", RAGSettings)}
+             "MOTION": ("motion", MotionSettings), "VOICE": ("voice", VoiceSettings),
+             "RAG": ("rag", RAGSettings)}
 
 # Csak skalár mezők írhatók felül. A `per_sensor_cm` (Mapping) szándékosan kimarad:
 # egy env-be sűrített dict saját mini-nyelvtant kívánna, és az elgépelése némán
