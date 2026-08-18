@@ -63,7 +63,14 @@ Known tools: `move`, `turn`, `stop`, `camera`, `set_speed`, `set_mode`, `request
 direction/speed/mode/action, `until` → marker); `request_navigation_help` takes rest-of-line as a
 free-text target. The parser (`robot/src/freedroid/tools/parser.py`, implemented) tolerates extra whitespace.
 
-**Voice pipeline (fully offline on the Pi):** wake word `"Szabi"` (openWakeWord) → STT Whisper.cpp (Hungarian) →
+**Voice pipeline (fully offline on the Pi):** ⚠️ **openWakeWord is BLOCKED on the Pi**
+(measured 2026-08-18): it unconditionally pulls `tflite-runtime`, which has **no
+cp312/cp313 wheel at all**, and the Pi runs Python 3.13. The `voice` extra was therefore
+split into `tts` (piper-tts — works) and `wake` (openwakeword — uninstallable today);
+`uv sync` with both would fail *entirely*, taking working Piper down with it. Piper TTS is
+implemented and verified; the spec's `hu_HU-anonymous-medium` voice **never existed** — the
+real Hungarian voices are `anna` (chosen), `berta`, `imre`. Pipeline: wake word `"Szabi"`
+(openWakeWord) → STT Whisper.cpp (Hungarian) →
 LLM (cloud or edge) → TTS Piper (`hu_HU-anna-medium`, pitch-tuned younger) → tool execution.
 
 **Target `robot/` module layout** (RPi control software — mostly scaffold, but `rag/` is implemented + tested): `orchestrator/` (main async loop + fallback),

@@ -127,7 +127,7 @@
   become_user: "{{ robot_user }}"
   command: >-
     {{ robot_user_home }}/.local/bin/uv sync
-    {{ '--extra voice' if robot_install_voice_extra else '' }}
+    {{ robot_uv_extras | map('regex_replace', '^', '--extra ') | join(' ') }}
   args:
     chdir: "{{ robot_src_dir }}"
 

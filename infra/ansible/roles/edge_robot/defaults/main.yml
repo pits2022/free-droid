@@ -17,10 +17,21 @@ robot_src_dir: /opt/free-droid/robot
 robot_repo_url: ""
 robot_repo_version: main
 
-# Az offline hang-stack extra (openWakeWord, Piper). BEKAPCSOLVA a Phase 4.2 óta:
-# a `piper-tts` pip-csomag hozza a `piper` binárist, amit a health-check is keres.
-# A whisper.cpp NEM ebből jön — az natív bináris, külön menet.
-robot_install_voice_extra: true
+# A `uv sync` extrái, LISTAKÉNT. A `tts` a Phase 4.2 óta alap: a `piper-tts` hozza a
+# `piper` binárist, amit a health-check is keres.
+#
+# ⚠️ A `wake` SZÁNDÉKOSAN NINCS BENNE: az `openwakeword` `tflite-runtime`-ot húz, aminek
+# nincs cp313 wheelje, a Pi pedig Python 3.13-on fut — egyetlen listába téve a TELJES
+# `uv sync` elhasalna, és vele a Piper is (mérve 2026-08-18).
+#
+# A whisper.cpp NEM innen jön: az natív bináris, külön menet.
+# A `dev` is rajta van, és ez nem hanyagság: a `uv sync` ELTÁVOLÍTJA, ami nincs a
+# listán — `--extra tts` egymagában letörölné a pytestet a Pi-ről. Márpedig a
+# hardver-közeli tesztek (`@requires_pi`) CSAK a roboton futtathatók, tehát a
+# tesztelhetőség ott üzemi képesség, nem fejlesztői kényelem.
+robot_uv_extras:
+  - tts
+  - dev
 
 # --- Piper TTS hang (a spec 4. szakasza: hu_HU-anonymous-medium) ---
 # A modell NEM a pip-csomagban van: két külön fájl (súlyok + konfig), és a `piper`

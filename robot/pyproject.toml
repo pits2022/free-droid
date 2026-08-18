@@ -21,11 +21,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Offline voice stack — integrated in Phase 4.2, kept optional for now.
-voice = [
+# Az offline hang-stack KÉT extrában, és a szétválasztás MÉRT okból van (2026-08-18):
+# az `openwakeword` a Linux-ágon feltétel nélkül `tflite-runtime`-ot húz, aminek
+# EGYÁLTALÁN NINCS cp312/cp313 wheelje (a legmagasabb: cp311, minden platformra). A Pi
+# Python 3.13-on fut, tehát egyetlen közös `voice` extra mellett a `uv sync` EGÉSZE
+# elhasal — és vele a Piper is, ami egyébként hibátlanul telepszik.
+#
+# Egy extra, ami egy MÁSIK, működő komponenst is megbuktat, rosszabb a hiányzó extránál.
+tts = [
+    "piper-tts",   # csak onnxruntime + pathvalidate — tiszta 3.13-on
+]
+wake = [
+    # ⚠️ MA NEM TELEPÍTHETŐ a Pi-n (lásd fent). A megoldás nem itt lesz: vagy az
+    # openwakeword `--no-deps` + onnx futtatókörnyezet, vagy másik wake-word motor,
+    # vagy egy külön 3.11-es venv ennek az egy komponensnek. Külön menet.
     "openwakeword",
-    "piper-tts",
-    # whisper.cpp is a native binary, not a pip dep — wired up separately
 ]
 dev = [
     "pytest",

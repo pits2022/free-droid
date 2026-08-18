@@ -1025,6 +1025,19 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 **4.2 LLM & hang** *(a voice/ almodulok egymástól függetlenek, külön fejleszthetők)*
 - [ ] `llm/`: kliens cloud (WireGuard→Ollama) és edge (helyi Ollama) fallbackkel *(függ: F2 modell + F3 cloud)*
 - [ ] `voice/`: openWakeWord „Szabi" wake word betanítása + integráció *(független)*
+  > 🔴 **BLOKKOLT, felfelé jövő csomagolási korlát (mérve 2026-08-18).** Az
+  > `openwakeword` a Linux-ágon feltétel nélkül `tflite-runtime`-ot húz, aminek
+  > **egyáltalán nincs cp312/cp313 wheelje** (a legmagasabb cp311, minden platformra),
+  > a Pi pedig **Python 3.13**-on fut. Ez nem hangolási kérdés: a csomag ma nem
+  > telepíthető a roboton.
+  >
+  > Ezért lett a `voice` extra KETTÉ bontva (`tts` / `wake`): egy extra, ami egy másik,
+  > MŰKÖDŐ komponenst (a Pipert) is megbuktat, rosszabb a hiányzó extránál.
+  >
+  > Három járható út, mind külön menet: (1) `--no-deps` telepítés + ONNX
+  > futtatókörnyezet (az `openwakeword` amúgy is függ az `onnxruntime`-tól, a tflite
+  > csak a metaadatban kötelező); (2) másik wake-word motor; (3) külön 3.11-es venv
+  > ennek az EGY komponensnek.
 - [ ] `voice/`: Whisper.cpp STT (magyar) integráció *(független)*
 - [ ] `voice/`: Piper TTS (`hu_HU-anna-medium`) integráció, pitch/sebesség hangolás fiatalosabbra *(független)*
 - [ ] `voice/`: VAD (mikor fejezte be a beszédet) *(független)*
