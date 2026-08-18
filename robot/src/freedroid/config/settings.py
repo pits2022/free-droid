@@ -19,8 +19,31 @@ class LLMEndpoints:
     # Cloud Ollama is reachable over WireGuard; edge Ollama is loopback-only.
     cloud_url: str = "http://10.0.0.1:11434"
     edge_url: str = "http://127.0.0.1:11434"
-    model: str = "llama3.2:3b"  # placeholder — final = fine-tuned GGUF Modelfile tag
-    cloud_timeout_s: float = 8.0
+
+    # ASZIMMETRIKUS: a felhő a 8B-t viszi, az edge a 3B-t (spec, 2. szakasz). A NÉV az
+    # Ollama tagje a KÉT KÜLÖN gépen — nem ugyanaz a modell két helyen, tehát nem lehet
+    # egy mező.
+    #
+    # ⚠️ Ezek a BÁZISMODELLEK, és szándékosan azonosak azzal, amit az Ansible ténylegesen
+    # telepít (`ai_stack/defaults/main.yml`: cloud_ollama_model / edge_ollama_model).
+    # A FINOMHANGOLT modell Ollama-tagje (a `training/Modelfile`-ból,
+    # `ollama create szabi -f Modelfile`) még nincs kiszállítva — amíg nincs, egy
+    # „szabi:..." alapértelmezés itt csak 404-et hozna a valódi Pi-n, és a health check
+    # is CRITICAL-t jelentene. A tag cseréje EGY konfigsor lesz, nem kódmódosítás.
+    cloud_model: str = "llama3.1:8b"
+    edge_model: str = "llama3.2:3b"
+
+    # HÁROM külön időkorlát, és a szétválasztás a lényeg (lásd `llm/__init__.py`):
+    # a `probe` dönti el, MELYIK háttér válaszol, a generálási korlátok pedig csak
+    # a végső határt adják. Egy közös, rövid korlát a hideg felhőt kizárná.
+    probe_timeout_s: float = 2.0
+    cloud_timeout_s: float = 60.0
+    edge_timeout_s: float = 90.0
+
+    def __post_init__(self) -> None:
+        for nev in ("probe_timeout_s", "cloud_timeout_s", "edge_timeout_s"):
+            if getattr(self, nev) <= 0:
+                raise ValueError(f"{nev} must be > 0")
 
 
 @dataclass(frozen=True)

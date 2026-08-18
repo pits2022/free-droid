@@ -1,11 +1,13 @@
 """Fő hurok: ébresztőszó -> STT -> LLM -> TTS, a tool-ok párhuzamos végrehajtásával.
 
-**Ami MA megvan (Phase 4.1, 2026-08-18): a VÉGREHAJTÁSI út.** A modell nyers válaszától
-a motorokig — `guard()` (kimondható szöveg / végrehajtható tool-ok szétválasztása) ->
-`ToolRegistry.dispatch`. Ez hardveren kipróbálható a hang és az LLM nélkül is: a
-`freedroid.orchestrator.Orchestrator.execute()` egy KÉSZ válasz-szöveget kap.
+**Ami MA megvan (2026-08-18): a kérdéstől a motorokig tartó TELJES lánc, hang nélkül.**
 
-**Ami nincs: a hurok maga** (`run()`), mert a `voice/` és az `llm/` még stub (Phase 4.2).
+    ask(kérdés) -> RAG -> LLM (felhő/edge) -> nyelvi őr -> guard() -> tool-ok -> beszéd
+
+Ez billentyűzetről végigvihető, tehát a hangpipeline előtt is tesztelhető hardveren.
+Az `execute()` a lánc alsó fele külön: egy KÉSZ válasz-szöveget hajt végre.
+
+**Ami nincs: a hurok maga** (`run()`), mert a `voice/` még stub (ébresztőszó, STT, TTS).
 Ezt szándékosan nem imitáljuk: egy félig megírt hurok, ami néma stubokat hív, zöld
 tesztek mellett is működésképtelen robotot ad.
 """
@@ -17,15 +19,21 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from freedroid.llm import FallbackLLMClient, LLMUnavailable
+from freedroid.llm.language_guard import enforce_hungarian
 from freedroid.motion import CytronMotionController
+from freedroid.orchestrator import transcript
 from freedroid.orchestrator.guard import GuardResult, guard
+from freedroid.rag.context import build_prompt
 from freedroid.safety import UltrasonicWatchdog
 from freedroid.tools.handlers import ToolRegistry
 
 if TYPE_CHECKING:
     from freedroid.camera import CameraController
     from freedroid.config.settings import Settings
+    from freedroid.llm import LLMClient
     from freedroid.motion import MotionController
+    from freedroid.rag.retriever import Hit
     from freedroid.safety import Watchdog
 
 log = logging.getLogger(__name__)
@@ -36,6 +44,15 @@ MOZGATO_TOOLOK = frozenset({"move", "turn"})
 
 # Amit ilyenkor mond. Konzerv mondat, mert a modellt ilyenkor nem kérdezzük meg újra.
 BIZTONSAGI_ELHARITAS = "Most nem mozdulok, Teremtőm. Nem látok tisztán."
+
+# Safe mode: EGYIK elme sem felel. A második mondat szándékosan konkrét — egy
+# szuverenitásról szóló előadáson az, hogy „se a felhő, se a helyi", maga az üzenet.
+SAFE_MODE_VALASZ = ("Most nem tudok gondolkodni, Teremtőm. "
+                    "Se a felhő, se a helyi elme nem felel.")
+
+# Nyelvi újrapróbálkozás. A `language_guard` ezt a thunkot hívja, ha a modell kilépett
+# a magyarból; ha a második kör sem magyar, konzerv mondat megy ki (CANNED_HU).
+MAGYARUL = "Magyarul válaszolj!\n\n"
 
 
 class State(str, Enum):
@@ -56,8 +73,13 @@ class Orchestrator:
     def __init__(self, settings: Settings | None = None,
                  motion: MotionController | None = None,
                  camera: CameraController | None = None,
-                 watchdog: Watchdog | None = None) -> None:
+                 watchdog: Watchdog | None = None,
+                 llm: LLMClient | None = None) -> None:
         self._settings = settings
+        # A kliens konstruktora NEM nyúl a hálózathoz (a háttér-választás kérésenként
+        # történik), tehát alapból megépíthető — Pi nélkül is.
+        self.llm = llm or FallbackLLMClient(settings)
+        self._retriever = None
         self.motion = motion or CytronMotionController(settings)
         self.camera = camera
         # A watchdog a `motion`-től olvassa a haladási irányt — EGYETLEN forrás, nem
@@ -70,9 +92,19 @@ class Orchestrator:
         self.tools = ToolRegistry(motion=self.motion, camera=camera)
 
     def start(self) -> None:
-        """A watchdog elindítása. KÜLÖN lépés a konstruktortól: egy félig megépült
-        objektum ne indítson szálat, ami már meg is állíthatja a robotot."""
+        """A watchdog elindítása és a modell bemelegítése.
+
+        KÜLÖN lépés a konstruktortól: egy félig megépült objektum ne indítson szálat,
+        ami már meg is állíthatja a robotot.
+
+        A bemelegítés is ide tartozik, és nem az első kérdéshez: a felhő HIDEGEN 21
+        másodpercig tölti a modellt (mérve 2026-08-13), és az a csend a színpadon
+        pont az első kérdésre esne.
+        """
         self.watchdog.start()
+        bemelegit = getattr(self.llm, "warmup", None)
+        if bemelegit is not None:
+            bemelegit()
 
     def close(self) -> None:
         # A watchdog leállítása is try alatt: ha a szál-join elhasal, a motorok
@@ -92,6 +124,61 @@ class Orchestrator:
                 except Exception:  # noqa: BLE001 — a másikat is le kell zárni
                     log.exception("vezérlő lezárása sikertelen: %r", vezerlo)
 
+    def ask(self, kerdes: str) -> str:
+        """Egy teljes kör SZÖVEGBŐL: kérdés -> RAG -> LLM -> nyelvi őr -> tool-ok.
+
+        Ez a lánc a hang nélkül is teljes, tehát billentyűzetről végigvihető. Ami
+        hiányzik belőle, az kizárólag a `voice/` (ébresztőszó, STT, TTS).
+        """
+        hits = self._talalatok(kerdes)
+        prompt = build_prompt(kerdes, hits)
+        esemeny = transcript.Interakcio(
+            hallott=kerdes, prompt=prompt,
+            rag_cimek=[h.chunk.title for h in hits])
+        try:
+            nyers = self.llm.generate(prompt)
+        except LLMUnavailable as e:
+            # NEM némulunk el: a safe mode konzerv mondata megy ki. Egy néma robot a
+            # színpadon megkülönböztethetetlen a lefagyottól.
+            esemeny.forras, esemeny.hiba = "safe", str(e)
+            log.error("safe mode: %s", e)
+            transcript.log(esemeny)
+            return SAFE_MODE_VALASZ
+
+        hatter = self.llm.active_backend()
+        esemeny.forras = hatter.value if hatter is not None else ""
+        # A nyelvi őr a `generate()` és a kimondás KÖZÉ ékelődik — ugyanaz az elv, mint a
+        # biztonsági watchdognál: a szabály a kódban áll, nem a súlyokban.
+        valasz = enforce_hungarian(nyers, regenerate=lambda: self.llm.generate(MAGYARUL + prompt))
+        esemeny.valasz = valasz
+
+        eredmeny = guard(valasz)
+        esemeny.toolok = [t.name for t in eredmeny.toolok]
+        transcript.log(esemeny)
+        return self.execute_guarded(eredmeny)
+
+    def _talalatok(self, kerdes: str) -> list[Hit]:
+        """RAG-találatok, vagy üres lista. A korpusz hiánya NEM némíthatja el a robotot:
+        tények nélkül is tud beszélni, csak kevesebbet tud."""
+        from freedroid.config.settings import load_settings
+
+        cfg = (self._settings or load_settings()).rag
+        if not cfg.enabled:
+            return []
+        if self._retriever is None:
+            from freedroid.rag.corpus import load_corpus
+            from freedroid.rag.retriever import Retriever
+            try:
+                chunks = (load_corpus(cfg.corpus_path) if cfg.corpus_path
+                          else load_corpus())
+            except OSError as e:
+                log.error("a Yotengrit-korpusz nem tölthető be (%s) — RAG nélkül megyek", e)
+                return []
+            self._retriever = Retriever(chunks, title_boost=cfg.title_boost)
+        return self._retriever.retrieve(kerdes, top_k=cfg.top_k,
+                                        min_score=cfg.min_score,
+                                        min_coverage=cfg.min_coverage)
+
     def execute(self, valasz: str) -> str:
         """A modell nyers válaszából: végrehajtjuk a tool-okat, visszaadjuk a KIMONDANDÓT.
 
@@ -101,8 +188,10 @@ class Orchestrator:
         hiba": a `dispatch` maga is naplóz, és a kitalált nevek a `guard`-on már
         kiestek — ide csak VALÓDI végrehajtási hiba juthat el.
         """
-        eredmeny = guard(valasz)
+        return self.execute_guarded(guard(valasz))
 
+    def execute_guarded(self, eredmeny: GuardResult) -> str:
+        """Ugyanaz, de MÁR szétválasztott kimeneten — így az `ask()` egyszer őröl."""
         # A tiltás ELŐRE dől el, az egész kötegre — nem menet közben. A menet közbeni
         # döntés SORRENDFÜGGŐ volt: a `[camera, move]` válasznál a kamera még lefutott,
         # a `[move, camera]`-nál nem, pedig a két válasz ugyanazt kéri. Egy kis modell
@@ -133,13 +222,13 @@ class Orchestrator:
         return getattr(self.watchdog, "fault", None) is not None
 
     async def run(self) -> None:
-        # A hurok a `voice/` + `llm/` megvalósítására vár (Phase 4.2):
+        # Már CSAK a `voice/` hiányzik (ébresztőszó, STT, TTS):
         #   self.start()
         #   while True:
-        #       await wake -> record -> transcribe -> llm.generate
-        #       speak(self.execute(valasz))
-        raise NotImplementedError("Phase 4.2: voice/ + llm/ kell a hurokhoz "
-                                  "(a végrehajtási út az `execute()`-ban már megvan)")
+        #       await wake -> record -> transcribe
+        #       speak(self.ask(atirat))
+        raise NotImplementedError("Phase 4.2: a voice/ (wake/STT/TTS) kell a hurokhoz — "
+                                  "a kérdéstől a motorokig tartó lánc az `ask()`-ban kész")
 
 
 def main() -> None:
