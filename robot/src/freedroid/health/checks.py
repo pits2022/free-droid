@@ -26,7 +26,7 @@ from freedroid.health.model import (
     skipped,
     warn,
 )
-from freedroid.health.probe import http_get, is_pi, path_exists, read_text, run, which
+from freedroid.health.probe import http_get, is_pi, path_exists, read_text, run
 
 if TYPE_CHECKING:
     from freedroid.config.settings import Settings
@@ -201,7 +201,12 @@ def check_orchestrator_service(settings: Settings) -> CheckResult:
 
 def check_voice_binaries(settings: Settings) -> CheckResult:
     name = "voice_binaries"
-    missing = [b for b in ("piper", "whisper-cli") if not which(b)]
+    # A keresés a `voice` modulból jön — ugyanaz a szabály szolgálja ki a health-checket
+    # és a TÉNYLEGES hívást, tehát nem tud elcsúszni: nem fordulhat elő, hogy az
+    # egészség-ellenőrzés megtalálja a Pipert, a beszéd pedig nem.
+    from freedroid.voice import find_voice_binary
+
+    missing = [b for b in ("piper", "whisper-cli") if not find_voice_binary(b)]
     if not missing:
         return ok(name, Layer.SOFTWARE, detail="voice binaries present")
     # Phase 4.2 not installed yet -> WARNING, not a vital failure.

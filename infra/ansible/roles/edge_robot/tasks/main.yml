@@ -121,15 +121,84 @@
       a kódot máshogy (rsync / image) a futás ELŐTT.
     success_msg: "A robot-projekt a helyén van: {{ robot_src_dir }}"
 
+# MI VAN VALÓJÁBAN A GÉPEN. A role szándékosan NEM frissíti a kódot (a `robot_repo_url`
+# alapból üres: „deliver the code another way"), tehát a provisioning simán ráfuthat egy
+# RÉGI checkoutra — és a hiba olyankor máshol jelentkezik, félrevezetően. Ez ma kétszer
+# is időbe került (2026-08-18): egyszer a Pi hetekig a `feature/kalibracio` branchen
+# állt, egyszer pedig a `uv sync` hasalt el egy olyan extrán, ami az ott lévő
+# pyproject.toml-ban még nem létezett.
+#
+# Ezért NEM némán megyünk tovább: kiírjuk, mit provisionálunk. Nem hiba, csak látható.
+- name: Read the delivered checkout (branch, commit, dirty)
+  when: robot_project.stat.exists
+  command:
+    argv: [git, -C, "{{ robot_src_dir }}", status, --porcelain=2, --branch]
+  register: robot_checkout
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Show what is actually being provisioned
+  when: robot_project.stat.exists
+  vars:
+    robot_fej: >-
+      {{ robot_checkout.stdout_lines | default([]) | select('search', '^# branch\.')
+         | map('regex_replace', '^# branch\.', '') | join(', ') }}
+    robot_piszkos: >-
+      {{ robot_checkout.stdout_lines | default([]) | reject('match', '^#') | list }}
+  debug:
+    msg: >-
+      Kiszállított kód: {{ robot_fej }}{{ ' — FIGYELEM: %d módosított fájl a munkafán, a
+      provisioning NEM ezt frissíti' % (robot_piszkos | length) if robot_piszkos else '' }}
+
 - name: Sync the robot project venv with uv
   when: robot_project.stat.exists
   become: true
   become_user: "{{ robot_user }}"
   command: >-
     {{ robot_user_home }}/.local/bin/uv sync
-    {{ '--extra voice' if robot_install_voice_extra else '' }}
+    {{ robot_uv_extras | map('regex_replace', '^', '--extra ') | join(' ') }}
   args:
     chdir: "{{ robot_src_dir }}"
+
+# --- Piper TTS hang ---
+# A modellt AZ UTÁN töltjük, hogy a venv megvan: a `piper` bináris a pip-extrából jön,
+# a hang viszont külön fájl. A kettő együtt kell — a `piper` modell nélkül elindul, és
+# csak a beszéd pillanatában hasal el.
+- name: Ensure the Piper voice directory exists
+  file:
+    path: "{{ robot_piper_dir }}"
+    state: directory
+    owner: "{{ robot_user }}"
+    group: "{{ robot_user }}"
+    mode: "0755"
+  register: robot_piper_dir_allapot
+
+# MINDKÉT fájl kell: a `.onnx` a súlyok, a `.onnx.json` a hangtani konfig (mintavétel,
+# fonéma-térkép). A `piper` a másodikat a modell mellől olvassa, névkonvencióval —
+# ha hiányzik, a hiba a futásidőben jön, nem itt.
+# A `when` a SZÁRAZ futás miatt van, és szándékosan szűk. Check módban a fenti `file:`
+# csak SZIMULÁLJA a könyvtárat, a `get_url` viszont ellenőrzi, hogy létezik-e — tehát
+# egy friss gépen a száraz futás itt elhasalna, pedig az éles futás rendben lefutna
+# (mérve 2026-08-18: "Destination ... does not exist").
+#
+# Nem egyszerűen `not ansible_check_mode`: az a MÁR felprovisionált gépen is elrejtené
+# a letöltés állapotát, pedig ott a könyvtár létezik, és a száraz futásnak épp az a
+# dolga, hogy megmondja, kell-e még tölteni. Ezért csak akkor hagyjuk ki, ha check
+# módban vagyunk ÉS a könyvtárat előbb létre kellett volna hozni.
+- name: Download the Piper voice ({{ robot_piper_voice }})
+  # `default(false)`: ha a fenti task valaha kimarad (címke-szűrés, `when`), a `.changed`
+  # hivatkozás Jinja-hibát adna — és egy ELGÉPELT címke miatt bukna el a provisioning.
+  when: not (ansible_check_mode and (robot_piper_dir_allapot.changed | default(false)))
+  get_url:
+    url: "{{ robot_piper_voice_url }}/{{ robot_piper_voice }}{{ item }}"
+    dest: "{{ robot_piper_dir }}/{{ robot_piper_voice }}{{ item }}"
+    owner: "{{ robot_user }}"
+    group: "{{ robot_user }}"
+    mode: "0644"
+  loop:
+    - .onnx
+    - .onnx.json
 
 # --- Átirat-napló (transcript.py) ---
 # A modul PERZISZTENS útvonalra ír, nem /run-ba (az tmpfs), mert a naplót utólag

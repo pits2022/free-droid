@@ -630,7 +630,7 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 3. STT (magyar)      →  Whisper.cpp (base vagy small modell)
 4. LLM               →  Llama 3.1 8B (cloud) / Llama 3.2 3B (edge) + LoRA (fallback szerint)
                         → persona válasz + opcionális <tool> blokk
-5a. TTS (női hang)   →  Piper (hu_HU-anonymous-medium)
+5a. TTS (női hang)   →  Piper (hu_HU-anna-medium)
 5b. VEZÉRLÉS         →  a <tool> blokkot a Python orchestrator végrehajtja
 ```
 
@@ -638,7 +638,23 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 | :--- | :--- | :--- |
 | Wake word | **openWakeWord** | Saját „Szabi" wake word betanítható, nyílt/ingyenes |
 | STT | Whisper.cpp (base/small) | Magyar nyelv, offline; sebesség/pontosság tesztelendő RPi 5-ön |
-| TTS | Piper `hu_HU-anonymous-medium` | Offline, női magyar hang; pitch/sebesség hangolható fiatalosabbra |
+| TTS | Piper `hu_HU-anna-medium` | Offline, női magyar hang; pitch/sebesség hangolható fiatalosabbra |
+
+> 🔴 **A KORÁBBI NÉV NEM LÉTEZETT (mérve 2026-08-18).** A spec végig
+> `hu_HU-anonymous-medium`-ot írt; a `rhasspy/piper-voices` magyar kínálata valójában
+> **`anna`, `berta`, `imre`** (mind `medium`, 22050 Hz, 63 MB). A hibás név az Ansible
+> letöltő-taskján bukott volna el — jó eséllyel a helyszínen, mert idáig semmi nem
+> hivatkozott rá.
+>
+> Az **`anna` az ideiglenes alapértelmezés** (női hang, ahogy a persona kívánja), de a
+> **végső választás fül-döntés, és a Teremtőé** — a három hangból készült minta
+> ugyanazzal a mondattal elkészült.
+>
+> ⚙️ **A pitch-hangolás NEM a Piperben van.** A `piper --help` kapcsolói között nincs
+> magasság-állítás: van `--length-scale` (tempó), `--noise-scale`, `--volume`. A
+> fiatalosabb hangzás magassági része külön feldolgozást kívánna (sox/rubberband a
+> nyers PCM-en), és a MÉRTÉKÉT is hallás dönti el — ezért a `VoiceSettings`-ben csak a
+> tempó-gomb van, találgatott pitch-alapérték nélkül.
 
 > ⚠️ **Erőforrás:** STT + LLM + TTS együtt ~5.5 GB RAM a 8 GB-ból. Ezért a nehéz LLM-inferencia elsősorban a cloud-ra megy (ha van net), és csak offline fut a teljes stack az RPi-n.
 
@@ -676,7 +692,7 @@ hibaállapotban néma, amiért létezik. Ez a szigorúan betartandó szabály.
   alatt kezd válaszolni, de a lánc eleje (wake → STT → hálózat) ennél lassabb; a nyugtázásnak
   a wake word **detektálásakor** kell jönnie, nem a válasz elkészültekor.
 
-A WAV-ok a Piperrel készülnek (ugyanaz a hang, `hu_HU-anonymous-medium`, azonos pitch-hangolás),
+A WAV-ok a Piperrel készülnek (ugyanaz a hang, `hu_HU-anna-medium`, azonos pitch-hangolás),
 csak nem futásidőben — így a karakter egységes marad.
 
 ### 5. Mozgásvezérlés – Réteges architektúra (tool-calling)
@@ -1009,8 +1025,21 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 **4.2 LLM & hang** *(a voice/ almodulok egymástól függetlenek, külön fejleszthetők)*
 - [ ] `llm/`: kliens cloud (WireGuard→Ollama) és edge (helyi Ollama) fallbackkel *(függ: F2 modell + F3 cloud)*
 - [ ] `voice/`: openWakeWord „Szabi" wake word betanítása + integráció *(független)*
+  > 🔴 **BLOKKOLT, felfelé jövő csomagolási korlát (mérve 2026-08-18).** Az
+  > `openwakeword` a Linux-ágon feltétel nélkül `tflite-runtime`-ot húz, aminek
+  > **egyáltalán nincs cp312/cp313 wheelje** (a legmagasabb cp311, minden platformra),
+  > a Pi pedig **Python 3.13**-on fut. Ez nem hangolási kérdés: a csomag ma nem
+  > telepíthető a roboton.
+  >
+  > Ezért lett a `voice` extra KETTÉ bontva (`tts` / `wake`): egy extra, ami egy másik,
+  > MŰKÖDŐ komponenst (a Pipert) is megbuktat, rosszabb a hiányzó extránál.
+  >
+  > Három járható út, mind külön menet: (1) `--no-deps` telepítés + ONNX
+  > futtatókörnyezet (az `openwakeword` amúgy is függ az `onnxruntime`-tól, a tflite
+  > csak a metaadatban kötelező); (2) másik wake-word motor; (3) külön 3.11-es venv
+  > ennek az EGY komponensnek.
 - [ ] `voice/`: Whisper.cpp STT (magyar) integráció *(független)*
-- [ ] `voice/`: Piper TTS (`hu_HU-anonymous-medium`) integráció, pitch/sebesség hangolás fiatalosabbra *(független)*
+- [ ] `voice/`: Piper TTS (`hu_HU-anna-medium`) integráció, pitch/sebesség hangolás fiatalosabbra *(független)*
 - [ ] `voice/`: VAD (mikor fejezte be a beszédet) *(független)*
 - [ ] `config/sounds/`: mind a 6 előre renderelt WAV (ld. 4.1) — boot, wake-nyugtázás, akadály, safe mode, edge-váltás, STT-kudarc; lejátszás `aplay`-jel, a TTS-pipeline megkerülésével *(független — Piper kell hozzá, de csak build-időben)*
 - [ ] systemd unit a boot-üdvözléshez, ami NEM függ az orchestratortól *(függ: config/sounds)*
@@ -1067,6 +1096,6 @@ Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se 
 *   **Navigáció:** Nincs SLAM/térképezés. **Reaktív mozgás** — parancsra fordul/megy, ultrahanggal megáll akadálynál. A robot bevallja, ha nem ismer egy útvonalat (a dataset így kezeli). *Indok: a SLAM önmagában több hónapos projekt, felemésztené a Hacktivity-keretet.*
 *   **Szenzorok:** **3 db HC-SR04P** — elöl + bal-elöl 45° + jobb-elöl 45° (6 GPIO). Hátra nincs.
 *   **Demó:** **Teljes persona, szabad kérdések** (nem kötött forgatókönyv). A 603 példás dataset elbírja. → **Kötelező a fine-tuning utáni „red team" tesztkör** (lásd Fázis 2), hogy lásd hol esik ki a persona váratlan/provokatív kérdéseknél.
-*   **TTS-hang:** `hu_HU-anonymous-medium`, fiatalosabb karakterhez **pitch-hangolás a hangmintán** (tesztelési feladat, Fázis 4.2).
+*   **TTS-hang:** `hu_HU-anna-medium`, fiatalosabb karakterhez **pitch-hangolás a hangmintán** (tesztelési feladat, Fázis 4.2).
 *   **Nyelv:** Magyar-only. A Hacktivity előadáson a Teremtő tolmácsol angolra — ez az üzenet része, nem korlát.
 *   **„Tudók" (LLM routing):** OPCIONÁLIS, alapból KIKAPCSOLVA. Csak családi/szórakoztató módban (`mode: extended`). Nehéz kérdésnél Szabi „megpuskázza" a választ egy nagyobb modelltől (alapból Opus 4.8), de a saját Yotengrit-értékrendjén szűri — mindig hozzátesz saját nézőpontot, finoman jelzi a puskázást. Hangkapcsoló: „Szabi, puskázz" / „Szabi, ne puskázz". A demón KI (szuverenitás).

@@ -18,6 +18,7 @@ Amit érdemes leolvasni belőle:
   * `FORRÁS` — talált-e a RAG chunkot; üres lista tény-kérdésnél a keresés hibája.
   * `MOTOR:` — a tool-lánc végigment-e a parsertől a vezérlőig.
   * a másodperc — a 3B tok/s-a a Pi-n a hang-pipeline költségvetésének a fele.
+  * `--speak` esetén a KIMONDVA idő: ennyivel kell a generálásnak lépést tartania.
 
 ⚠️ **A script ALAPBÓL BEMELEGÍT** (`Orchestrator.start()`), mert a valódi robot is
 melegen áll: a `warmup()` bootkor kifizeti a modell betöltését ÉS a rendszerprompt
@@ -63,7 +64,7 @@ def _alvo_watchdog():
                                  distances_cm=lambda: {}, is_blocked=lambda: False)
 
 
-def egy_kor(o, kerdes: str) -> None:
+def egy_kor(o, kerdes: str, tts=None) -> None:
     print(f"\n=== {kerdes}")
     kezd = time.perf_counter()
     valasz = o.ask(kerdes)
@@ -72,6 +73,12 @@ def egy_kor(o, kerdes: str) -> None:
     print(f"VÁLASZ: {valasz}")
     print(f"IDŐ:    {telt:.1f} s / {szavak} szó  (~{szavak / telt:.1f} szó/s)")
     print(f"INDOK:  {o.llm.decision()}")
+    if tts is not None:
+        kezd = time.perf_counter()
+        tts.speak(valasz)
+        # A kimondás IDEJE külön szám: ez az, amivel a generálásnak lépést kell tartania
+        # (a spec ~6,8 tok/s-os becslése épp ebből jött).
+        print(f"KIMONDVA: {time.perf_counter() - kezd:.1f} s")
 
 
 def main() -> int:
@@ -84,6 +91,8 @@ def main() -> int:
                     help="VALÓDI motorvezérlő — a robot MOZOGNI FOG. Polcold fel.")
     ap.add_argument("--cold", action="store_true",
                     help="NE melegítsen be — a hidegindítás árát méri (nem üzemi szám)")
+    ap.add_argument("--speak", action="store_true",
+                    help="mondja is KI a választ (Piper TTS) — a lánc HALLHATÓ vége")
     args = ap.parse_args()
 
     from freedroid.orchestrator import Orchestrator
@@ -92,6 +101,11 @@ def main() -> int:
     if args.live_motion:
         print("⚠️  VALÓDI MOTORVEZÉRLŐ — a robot mozogni fog. 3 másodperced van.")
         time.sleep(3)
+
+    tts = None
+    if args.speak:
+        from freedroid.voice import PiperTTS
+        tts = PiperTTS()
 
     o = Orchestrator(motion=motion, watchdog=_alvo_watchdog())
     if not args.cold:
@@ -103,7 +117,7 @@ def main() -> int:
               f"({time.perf_counter() - kezd:.1f} s)")
     try:
         for kerdes in (args.kerdes or ([] if args.interactive else ALAP_KERDESEK)):
-            egy_kor(o, kerdes)
+            egy_kor(o, kerdes, tts)
         while args.interactive:
             try:
                 kerdes = input("\nkérdés> ").strip()
@@ -111,7 +125,7 @@ def main() -> int:
                 break
             if not kerdes:
                 break
-            egy_kor(o, kerdes)
+            egy_kor(o, kerdes, tts)
     except KeyboardInterrupt:
         return 130
     finally:
