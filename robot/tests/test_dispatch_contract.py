@@ -9,9 +9,8 @@ próbára minden modell kitalált csatlakozó toolt ad (`connect`, `connect_to_b
 `connect_to`), a tiltott mozgás-kérésekre pedig kitalált érzékelő-kikapcsolókat
 (`disable_collision_sensor`, `set_collision_off`). A dataset-körök ezt NEM javították ki.
 
-XFAIL (strict) az `xfail_strict = true` mellett: amint a `dispatch` megvalósul, ezek a
-tesztek HARD FAILRE fordulnak, ha a szűrés kimaradt — és zöldre, ha benne van (akkor
-viszont a markert kell levenni). Ez a repó bevált idiómája (lásd test_phase4_hardware.py).
+A `dispatch` 2026-08-18-án megvalósult, tehát az xfail markerek LEKERÜLTEK: innentől
+ezek éles regressziós tesztek. Ha valaki a szűrést kiveszi, itt pirosodik.
 
 A `KNOWN_TOOLS` a PARSERBŐL jön, nem másolatból: a `tests/test_grammar.py` egy kézi
 listát tart (elfogadott adósság a dataset-ellenőrzéshez), de egy BIZTONSÁGI szűrőnél az
@@ -19,8 +18,11 @@ elcsúszás valódi hiba lenne.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
+from freedroid.tools import handlers
 from freedroid.tools.handlers import ToolRegistry
 from freedroid.tools.parser import KNOWN_TOOLS, parse_tools
 
@@ -51,7 +53,6 @@ def test_a_kitalalt_nevek_tenylegesen_ismeretlenek():
 
 
 @pytest.mark.parametrize("nev", KITALALT)
-@pytest.mark.xfail(reason="Phase 4.1: ToolRegistry.dispatch nincs megvalósítva", strict=True)
 def test_ismeretlen_tool_nem_hajtodik_vegre(nev):
     """A szerződés: ismeretlen névre a dispatch NE hajtson végre semmit.
 
@@ -66,14 +67,17 @@ def test_ismeretlen_tool_nem_hajtodik_vegre(nev):
         reg.dispatch(tool)
 
 
-@pytest.mark.xfail(reason="Phase 4.1: ToolRegistry.dispatch nincs megvalósítva", strict=True)
-def test_a_jogos_tool_ATMEGY_a_szuron():
+def test_a_jogos_tool_ATMEGY_a_szuron(monkeypatch):
     """A szűrő ne legyen olyan szigorú, hogy a valódi működést is letiltja.
 
     Ez a párja a fentieknek: egy "mindent eldobó" dispatch is átmenne a tiltás-tesztjeimen,
     de működésképtelen robotot adna. A `wf_03`-nál pont ez a tét: a felsorolás JOGOS, csak
     a csatlakozás nem.
     """
+    # Az `nmcli` kiváltva: a teszt tétele a SZŰRŐ, nem a gép wifi-kártyája. Enélkül
+    # egy nmcli nélküli fejlesztőgépen pirosodna, és a valódi állítást nem is mérné.
+    monkeypatch.setattr(handlers.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(stdout="Teszt:70:WPA2\n"))
     reg = ToolRegistry()
     (tool,) = parse_tools("<tool>scan_wifi</tool>")
-    reg.dispatch(tool)  # nem dobhat — a scan_wifi ismert és megengedett
+    assert reg.dispatch(tool) == [{"ssid": "Teszt", "signal": 70, "security": "WPA2"}]
