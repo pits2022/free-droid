@@ -271,3 +271,35 @@ def test_az_atirat_rogziti_a_MODELLT_es_az_INDOKOT(monkeypatch):
     assert e.forras == "cloud"
     assert e.modell == "csaba_ajtony/szabi-8b-v12"
     assert e.hatter_indok == "cloud: felelt (csaba_ajtony/szabi-8b-v12)"
+
+
+def test_a_MASODIK_generalas_bukasa_is_safe_mode(monkeypatch):
+    """PR #86 review: a nyelvi őr MÁSODSZOR is hívja a modellt.
+
+    Ha a háttér a két hívás között esik el, a `LLMUnavailable` az `ask()`-ból szállt
+    volna ki, magával rántva a hurkot — épp azt az egy dolgot rontva el, amiért a safe
+    mode létezik.
+    """
+    from freedroid.llm import LLMUnavailable
+    from freedroid.orchestrator import SAFE_MODE_VALASZ
+
+    class ElsoreAngolAztanHalott(FakeLLM):
+        def generate(self, prompt: str) -> str:
+            self.promptok.append(prompt)
+            if len(self.promptok) == 1:
+                return "I am a robot and this is not Hungarian at all."
+            raise LLMUnavailable("cloud: nem elérhető; edge: nem elérhető")
+
+    naplo = []
+    llm = ElsoreAngolAztanHalott()
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog(), llm=llm)
+    monkeypatch.setattr("freedroid.orchestrator.transcript.log",
+                        lambda e, *a, **k: naplo.append(e))
+    monkeypatch.setattr(o, "_talalatok", lambda k: [])
+
+    assert o.ask("Who are you?") == SAFE_MODE_VALASZ
+    assert len(llm.promptok) == 2          # tényleg a MÁSODIK hívás bukott el
+    (e,) = naplo
+    assert e.forras == "safe"
+    # A nyers első választ a napló megőrzi — e nélkül pont a legérdekesebb kör veszne el.
+    assert e.valasz.startswith("I am a robot")

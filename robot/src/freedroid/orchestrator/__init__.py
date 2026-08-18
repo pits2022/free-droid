@@ -135,8 +135,27 @@ class Orchestrator:
         esemeny = transcript.Interakcio(
             hallott=kerdes, prompt=prompt,
             rag_cimek=[h.chunk.title for h in hits])
+        # MINDKÉT generálás a try-on BELÜL. A nyelvi őr ugyanis MÁSODSZOR is hívhatja a
+        # modellt (ha az első válasz nem magyar), és a háttér a két hívás között is
+        # eleshet — a `LLMUnavailable` akkor az `ask()`-ból kiszállna, magával rántva a
+        # hurkot. Épp azt az egy dolgot rontaná el, amiért a safe mode létezik: hogy a
+        # robot SOSE némuljon el. (PR #86 review.)
         try:
             nyers = self.llm.generate(prompt)
+            hatter = self.llm.active_backend()
+            esemeny.forras = hatter.value if hatter is not None else ""
+            # A háttér neve önmagában nem diagnózis: a MODELL mondja meg, hogy a v12-t
+            # vagy egy nyers bázismodellt kérdeztük, az INDOK pedig azt, miért arra esett.
+            esemeny.modell = getattr(self.llm, "active_model", lambda: None)() or ""
+            esemeny.hatter_indok = self._llm_indok()
+            # A NYERS válasz azonnal az eseménybe: ha a nyelvi újrapróbálkozás bukik, a
+            # napló akkor is megőrzi, MIT mondott a modell először. E nélkül pont a
+            # legérdekesebb kör (idegen nyelvű válasz + eldőlt háttér) veszne el.
+            esemeny.valasz = nyers
+            # A nyelvi őr a `generate()` és a kimondás KÖZÉ ékelődik — ugyanaz az elv,
+            # mint a biztonsági watchdognál: a szabály a kódban áll, nem a súlyokban.
+            valasz = enforce_hungarian(
+                nyers, regenerate=lambda: self.llm.generate(MAGYARUL + prompt))
         except LLMUnavailable as e:
             # NEM némulunk el: a safe mode konzerv mondata megy ki. Egy néma robot a
             # színpadon megkülönböztethetetlen a lefagyottól.
@@ -145,16 +164,6 @@ class Orchestrator:
             log.error("safe mode: %s", e)
             transcript.log(esemeny)
             return SAFE_MODE_VALASZ
-
-        hatter = self.llm.active_backend()
-        esemeny.forras = hatter.value if hatter is not None else ""
-        # A háttér neve önmagában nem diagnózis: a MODELL mondja meg, hogy a v12-t vagy
-        # egy nyers bázismodellt kérdeztük, az INDOK pedig azt, hogy miért arra esett.
-        esemeny.modell = getattr(self.llm, "active_model", lambda: None)() or ""
-        esemeny.hatter_indok = self._llm_indok()
-        # A nyelvi őr a `generate()` és a kimondás KÖZÉ ékelődik — ugyanaz az elv, mint a
-        # biztonsági watchdognál: a szabály a kódban áll, nem a súlyokban.
-        valasz = enforce_hungarian(nyers, regenerate=lambda: self.llm.generate(MAGYARUL + prompt))
         esemeny.valasz = valasz
 
         eredmeny = guard(valasz)
