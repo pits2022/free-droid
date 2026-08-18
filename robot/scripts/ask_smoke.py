@@ -115,9 +115,10 @@ def main() -> int:
     except KeyboardInterrupt:
         return 130
     finally:
-        # Csak a valódi vezérlőt kell lezárni; a naplózó álnak nincs mit.
-        if args.live_motion:
-            o.close()
+        # Feltétel nélkül: a naplózó ál-motornak is van `close`-a, a watchdog-álnak is
+        # `stop_monitoring`-ja, tehát ez mindkét módban biztonságos — és így az
+        # orchestrátor bármely KÉSŐBBI erőforrása is lezárul, nem csak a motoré.
+        o.close()
     return 0
 
 
