@@ -20,17 +20,27 @@ import time
 from freedroid.config.settings import load_settings
 from freedroid.health.model import HealthReport, Status
 from freedroid.health.runner import heal_and_recheck
-from freedroid.health.safemode import clear_safe_mode, enter_safe_mode
+from freedroid.health.safemode import clear_safe_mode, enter_safe_mode, write_durably
 
 STATUS_PATH = os.environ.get("FREEDROID_HEALTH_STATUS", "/run/freedroid/health.json")
 
 
 def write_status(report: HealthReport, path: str | None = None) -> None:
+    """Az állapot kiírása — ATOMIAN, mint a safe-mode jelző.
+
+    Két baja volt a sima `open(path, "w")`-nek, és a második az, ami a Pi-n elő is jött:
+      1. egy félbeszakadt írás CSONKA JSON-t hagy, amit az olvasó (Phase-4 orchestrátor,
+         monitorozás) érvényes fájlnak lát — a csere ezt szerkezetileg kizárja;
+      2. ha az előző példányt a ROOTKÉNT futó systemd-szolgáltatás írta, egy kézi,
+         `creator`-ként indított futás nem tudta felülírni. Az `os.replace` viszont a
+         KÖNYVTÁRRA kér jogot, nem a fájlra — így ugyanaz a kód mindkét gazdának jó.
+
+    A hiba itt továbbra is csak figyelmeztetés: az állapotfájl TÁJÉKOZTATÓ. A safe-mode
+    jelző az, ami szerződés, és az hangosan bukik (lásd `main`).
+    """
     path = path or STATUS_PATH
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as fh:
-            fh.write(report.to_json())
+        write_durably(path, report.to_json())
     except OSError as e:  # pragma: no cover - defensive
         print(f"health: cannot write status {path}: {e}", file=sys.stderr)
 

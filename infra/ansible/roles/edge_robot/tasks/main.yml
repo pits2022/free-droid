@@ -136,6 +136,29 @@
 # elemezzük. A `log()` viszont SOHA nem dob kivételt — tehát ha ez a könyvtár
 # hiányzik vagy nem írható, a naplózás NÉMÁN nem csinál semmit, és a beszéd-teszt
 # nulla adatot ad. Ezért kell explicit task; a `robot_user` a tulajdonos.
+# A /run tmpfs: minden újraindításkor ELTŰNIK, tehát egy sima `file:` task csak addig
+# ér valamit, amíg le nem áll a gép. A systemd-tmpfiles az a mechanizmus, ami bootkor
+# újra létrehozza — ezért NEM `file:`-lal csináljuk.
+#
+# MIÉRT {{ robot_user }} A TULAJDONOS, és nem root: a health-check szolgáltatás rootként
+# fut (systemctl restartot ad ki önjavításkor), de a KÉZI futtatás és a Phase-4
+# orchestrátor `creator`-ként megy — az orchestrátorról már eldőlt, hogy privilégium
+# nélkül fut (a GPIO-hoz sem kell sudo). Ha a könyvtárat a root szolgáltatás hozza létre
+# elsőként, a kézi futtatás jogosultsághibára fut. Így viszont mindkét gazda írhat, mert
+# az atomi csere (`os.replace`) a KÖNYVTÁRRA kér jogot, nem a meglévő fájlra.
+- name: Ensure /run/freedroid is recreated at boot and owned by {{ robot_user }}
+  copy:
+    dest: /etc/tmpfiles.d/freedroid.conf
+    mode: "0644"
+    content: |
+      d /run/freedroid 0755 {{ robot_user }} {{ robot_user }} -
+  register: freedroid_tmpfiles
+
+- name: Create /run/freedroid now (tmpfiles only runs at boot on its own)
+  command: systemd-tmpfiles --create /etc/tmpfiles.d/freedroid.conf
+  when: freedroid_tmpfiles.changed
+  changed_when: true
+
 - name: Ensure the transcript log directory exists and is owned by {{ robot_user }}
   file:
     path: "{{ robot_transcript_log | dirname }}"

@@ -22,8 +22,15 @@ if TYPE_CHECKING:
 SAFE_MODE_FLAG = os.environ.get("FREEDROID_SAFE_MODE_FLAG", "/run/freedroid/safe_mode")
 
 
-def _write_durably(path: str, content: str) -> None:
-    """Atomic, fsynced write. Raises OSError on failure (intentionally not swallowed)."""
+def write_durably(path: str, content: str) -> None:
+    """Atomic, fsynced write. Raises OSError on failure (intentionally not swallowed).
+
+    Nyilvános, mert a `cli.write_status` is ezt használja, és a KÖZÖS rész nem a
+    tartósság, hanem a CSERE: az `os.replace` a KÖNYVTÁRRA kér írásjogot, nem a
+    meglévő fájlra. Ezért működik akkor is, ha az előző példányt a rootként futó
+    systemd-szolgáltatás írta, és most `creator`-ként futunk kézzel — egy sima
+    `open(path, "w")` ott jogosultsághibára futna.
+    """
     directory = os.path.dirname(path) or "."
     os.makedirs(directory, exist_ok=True)
     tmp = f"{path}.tmp.{os.getpid()}"
@@ -53,7 +60,7 @@ def enter_safe_mode(report: HealthReport, flag_path: str | None = None) -> None:
     print("health: ENTERING SAFE MODE — vital functions down:", file=sys.stderr)
     for line in reasons.splitlines():
         print(f"health:   {line}", file=sys.stderr)
-    _write_durably(flag_path, reasons + "\n")
+    write_durably(flag_path, reasons + "\n")
     # TODO(Phase 4): drive the WS2812 ring to the error state here.
 
 
