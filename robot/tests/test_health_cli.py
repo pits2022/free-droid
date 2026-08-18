@@ -91,3 +91,23 @@ def test_kiirhatatlan_safe_mode_jelzo_nem_traceback_hanem_exit_2(tmp_path, monke
     hiba = capsys.readouterr().err
     assert "A SAFE MODE JELZŐ NEM ÍRHATÓ" in hiba
     assert "mozgás NEM lesz letiltva" in hiba
+
+
+def test_a_torolhetetlen_jelzo_is_exit_2(tmp_path, monkeypatch, capsys):
+    """A kilépési kód MINDKÉT irányban tükrözze a valóságot.
+
+    Egészséges robot + bent ragadt safe-mode jelző = az orchestrátor nem mozog.
+    A 0 ("egészséges") ilyenkor az ellenkezőjét állítaná a valóságnak.
+    """
+    _patch_paths(tmp_path, monkeypatch)
+    monkeypatch.setattr("freedroid.health.remediation.run", lambda *a, **k: (0, "active\n", ""))
+    monkeypatch.setattr(cli, "heal_and_recheck",
+                        lambda s, t: HealthReport(generated_at=t, results=[]))
+
+    def nem_torolheto(flag_path=None):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr(cli, "clear_safe_mode", nem_torolheto)
+
+    assert cli.main() == 2
+    hiba = capsys.readouterr().err
+    assert "NEM TÖRÖLHETŐ" in hiba and "safe mode-ban marad" in hiba

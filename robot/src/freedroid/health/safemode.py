@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -33,12 +34,24 @@ def write_durably(path: str, content: str) -> None:
     """
     directory = os.path.dirname(path) or "."
     os.makedirs(directory, exist_ok=True)
-    tmp = f"{path}.tmp.{os.getpid()}"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    # `mkstemp` és nem `f"{path}.tmp.{os.getpid()}"` (PR #89/#88 review). A PID-es név
+    # két külön hívónál ütközhet — a folyamat MINDEN szála ugyanazt a PID-et látja —,
+    # és felül is írna egy ott felejtett fájlt.
+    #
+    # Miért nem elég egy `O_EXCL` a régi néven: azzal egy OTT FELEJTETT tmp (összeomlás
+    # + PID-újrafelhasználás) minden későbbi írást MEGBUKTATNA. Egy biztonsági jelzőnél
+    # a tartós írásképtelenség rosszabb, mint a felülírás. A `mkstemp` egyedi nevet ad,
+    # tehát egyik hibamód sem áll fenn.
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=os.path.basename(path) + ".tmp.")
     try:
-        os.write(fd, content.encode())
+        os.fchmod(fd, 0o644)   # a mkstemp 0600-at ad; ezt más is olvashatja
+        os.write(fd, content.encode("utf-8"))
         os.fsync(fd)
-    finally:
+    except BaseException:
+        os.close(fd)
+        os.unlink(tmp)   # ne hagyjunk szemetet a /run-ban
+        raise
+    else:
         os.close(fd)
     os.replace(tmp, path)
     dir_fd = os.open(directory, os.O_RDONLY)
@@ -65,12 +78,19 @@ def enter_safe_mode(report: HealthReport, flag_path: str | None = None) -> None:
 
 
 def clear_safe_mode(flag_path: str | None = None) -> None:
-    """Remove the safe-mode flag once vital functions are healthy again."""
+    """A safe-mode jelző törlése, ha az életfunkciók helyreálltak.
+
+    A testvérével (`enter_safe_mode`) AZONOS szerződés: hiba esetén DOB, és a hívó
+    dolga felszínre hozni. Korábban itt csak egy figyelmeztetés ment a stderr-re, a
+    `main` pedig 0-val (= egészséges) tért vissza — miközben a bent ragadt jelző miatt
+    az orchestrátor SAFE MODE-ban marad, azaz nem mozog. A kilépési kód tehát hazudott,
+    és pont az ellenkezőjét állította a valóságnak. (PR #89 review nyomán; a bejelentett
+    "őrizetlen kivétel" nem állt fenn — a valódi hiba a kilépési kód volt.)
+
+    A hiányzó fájl NEM hiba: a jelző törlése idempotens.
+    """
     flag_path = flag_path or SAFE_MODE_FLAG
     try:
         os.remove(flag_path)
     except FileNotFoundError:
         pass
-    except OSError as e:
-        # A stale flag leaves the droid stuck in safe-mode — surface it loudly.
-        print(f"health: WARNING cannot clear safe-mode flag {flag_path}: {e}", file=sys.stderr)
