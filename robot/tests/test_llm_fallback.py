@@ -99,7 +99,7 @@ def test_a_404_megmondja_a_JAVITO_parancsot(monkeypatch):
     nincs_modell.status_code = 404
     halo = Halo({CLOUD}, **{CLOUD: {"hiba": nincs_modell}})
     c = kliens(monkeypatch, halo)
-    with pytest.raises(LLMUnavailable, match="ollama create llama3.1:8b"):
+    with pytest.raises(LLMUnavailable, match="ollama create szabi-8b-v12"):
         c.generate("Ki vagy?")
 
 
@@ -140,3 +140,43 @@ def test_warmup_SOSEM_dob(monkeypatch):
     halo = Halo({CLOUD}, **{CLOUD: {"hiba": RuntimeError("boom")}})
     c = kliens(monkeypatch, halo)
     assert c.warmup() is None
+
+
+# --- „melyik modell felelt, és miért?" (a Teremtő kérdése, 2026-08-18) ---
+
+def test_a_dontesi_nyom_megmondja_MELYIK_es_MIERT(monkeypatch):
+    """A háttér neve önmagában nem diagnózis: abból nem derül ki, hogy a felhő HALOTT
+    volt, vagy csak HIBÁZOTT — a kettő teljesen más javítást kíván."""
+    halo = Halo({EDGE})
+    c = kliens(monkeypatch, halo)
+    c.generate("Ki vagy?")
+    indok = c.decision()
+    assert "cloud: nem elérhető" in indok and "10.0.0.1" in indok
+    assert "edge: felelt (szabi-3b-v12)" in indok
+    assert c.active_model() == "szabi-3b-v12"
+
+
+def test_a_nyom_megkulonbozteti_a_HALOTT_es_a_HIBAZO_felhot(monkeypatch):
+    halo = Halo({CLOUD, EDGE}, **{CLOUD: {"hiba": RuntimeError("out of memory")}})
+    c = kliens(monkeypatch, halo)
+    c.generate("Ki vagy?")
+    assert "cloud: RuntimeError: out of memory" in c.decision()
+
+
+def test_a_kihagyott_hatter_NAPLOZVA_van(monkeypatch, caplog):
+    """Egy némán edge-re esett kör semmilyen nyomot nem hagyna — pedig pont az érdekes."""
+    import logging
+    halo = Halo({EDGE})
+    c = kliens(monkeypatch, halo)
+    with caplog.at_level(logging.INFO, logger="freedroid.llm"):
+        c.generate("Ki vagy?")
+    uzenetek = " ".join(r.getMessage() for r in caplog.records)
+    assert "LLM háttér kihagyva" in uzenetek and "LLM válasz" in uzenetek
+
+
+def test_safe_mode_eseten_is_van_nyom(monkeypatch):
+    halo = Halo(set())
+    c = kliens(monkeypatch, halo)
+    with pytest.raises(LLMUnavailable):
+        c.generate("Ki vagy?")
+    assert c.decision().endswith("safe mode")

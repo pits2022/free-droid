@@ -186,6 +186,12 @@ class FakeLLM:
         from freedroid.llm import Backend
         return Backend.CLOUD
 
+    def active_model(self) -> str:
+        return "szabi-8b-v12"
+
+    def decision(self) -> str:
+        return "cloud: felelt (szabi-8b-v12)"
+
     def warmup(self):
         self.melegitve = True
 
@@ -250,3 +256,18 @@ def test_a_hianyzo_korpusz_nem_nemitja_el(monkeypatch):
     monkeypatch.setattr("freedroid.rag.corpus.load_corpus",
                         lambda *a, **k: (_ for _ in ()).throw(OSError("nincs korpusz")))
     assert o.ask("Mi az a Yotengrit?") == "Szia, Teremtőm."
+
+
+def test_az_atirat_rogziti_a_MODELLT_es_az_INDOKOT(monkeypatch):
+    """A `forras` csak annyit mond: „cloud". Az, hogy a v12-t vagy egy nyers
+    bázismodellt kérdeztük, a MODELL mezőből derül ki."""
+    naplo = []
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog(), llm=FakeLLM("Szia."))
+    monkeypatch.setattr("freedroid.orchestrator.transcript.log",
+                        lambda e, *a, **k: naplo.append(e))
+    monkeypatch.setattr(o, "_talalatok", lambda k: [])
+    o.ask("Ki vagy?")
+    (e,) = naplo
+    assert e.forras == "cloud"
+    assert e.modell == "szabi-8b-v12"
+    assert e.hatter_indok == "cloud: felelt (szabi-8b-v12)"

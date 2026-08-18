@@ -24,14 +24,17 @@ class LLMEndpoints:
     # Ollama tagje a KÉT KÜLÖN gépen — nem ugyanaz a modell két helyen, tehát nem lehet
     # egy mező.
     #
-    # ⚠️ Ezek a BÁZISMODELLEK, és szándékosan azonosak azzal, amit az Ansible ténylegesen
-    # telepít (`ai_stack/defaults/main.yml`: cloud_ollama_model / edge_ollama_model).
-    # A FINOMHANGOLT modell Ollama-tagje (a `training/Modelfile`-ból,
-    # `ollama create szabi -f Modelfile`) még nincs kiszállítva — amíg nincs, egy
-    # „szabi:..." alapértelmezés itt csak 404-et hozna a valódi Pi-n, és a health check
-    # is CRITICAL-t jelentene. A tag cseréje EGY konfigsor lesz, nem kódmódosítás.
-    cloud_model: str = "llama3.1:8b"
-    edge_model: str = "llama3.2:3b"
+    # A DEMÓ-MODELLEK (a Teremtő, 2026-08-18). A tagok léteznek — `ollama list`-tel
+    # ellenőrizve a fejlesztőgépen: `szabi-8b-v12:latest` és `szabi-3b-v12:latest`.
+    #
+    # ⚠️ Ez NEM az, amit az Ansible telepít: az `ai_stack/defaults/main.yml` a nyers
+    # bázismodelleket húzza le (`llama3.1:8b` / `llama3.2:3b`). A finomhangolt modellek
+    # az Ollamába `ollama create`-tel kerülnek be (training/Modelfile) — amíg ez nincs
+    # bekötve az Ansible-be, a felhő és a Pi tagjait KÉZZEL kell egyeztetni. A hiba
+    # nem néma: 404-re a naplóban ott a pontos `ollama create` parancs, és a
+    # `check_edge_model` CRITICAL-t jelent.
+    cloud_model: str = "szabi-8b-v12"
+    edge_model: str = "szabi-3b-v12"
 
     # HÁROM külön időkorlát, és a szétválasztás a lényeg (lásd `llm/__init__.py`):
     # a `probe` dönti el, MELYIK háttér válaszol, a generálási korlátok pedig csak

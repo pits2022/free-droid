@@ -72,6 +72,7 @@ class FallbackLLMClient:
         self._cfg: LLMEndpoints = (settings or load_settings()).llm
         self._factory = client_factory or _ollama_client
         self._backend: Backend | None = None
+        self._indok = ""
 
     # --- a hátterek leírása egy helyen ---
 
@@ -82,35 +83,72 @@ class FallbackLLMClient:
             return c.cloud_url, c.cloud_model, c.cloud_timeout_s
         return c.edge_url, c.edge_model, c.edge_timeout_s
 
-    def reachable(self, backend: Backend) -> bool:
-        """Él-e az Ollama az adott oldalon. RÖVID korlát — ez a döntés, nem a generálás."""
+    def _probe(self, backend: Backend) -> tuple[bool, str]:
+        """(elérhető-e, INDOK). Az indok azért jön vissza, mert a naplóban a
+        „miért az edge felelt?" kérdés csak így válaszolható meg utólag."""
         url, _, _ = self._params(backend)
         code, _ = http_get(f"{url}/api/tags", timeout=self._cfg.probe_timeout_s)
-        return code == 200
+        if code == 200:
+            return True, "elérhető"
+        if code == 0:
+            return False, f"nem elérhető ({url}, {self._cfg.probe_timeout_s:g} s alatt)"
+        return False, f"nem elérhető (HTTP {code}, {url})"
+
+    def reachable(self, backend: Backend) -> bool:
+        """Él-e az Ollama az adott oldalon. RÖVID korlát — ez a döntés, nem a generálás."""
+        return self._probe(backend)[0]
 
     def active_backend(self) -> Backend | None:
         """A LEGUTÓBB sikeres háttér. `None`, amíg nem volt sikeres hívás."""
         return self._backend
 
+    def active_model(self) -> str | None:
+        """A LEGUTÓBB sikeres háttér MODELLNEVE — a naplóban a háttérnél többet mond:
+        a „cloud" nem árulja el, hogy a v12-t vagy a nyers bázismodellt kérdeztük."""
+        if self._backend is None:
+            return None
+        return self._params(self._backend)[1]
+
+    def decision(self) -> str:
+        """MIÉRT az a háttér felelt, ami. Teljes döntési nyom, egy sorban:
+
+            "cloud: nem elérhető (http://10.0.0.1:11434, 2 s alatt) -> edge: felelt
+             (szabi-3b-v12)"
+
+        Ez az a mondat, amit fej nélküli Pi-n utólag olvasni akarunk. A háttér neve
+        önmagában nem elég: abból nem derül ki, hogy a felhő HALOTT volt, vagy csak
+        HIBÁZOTT — a kettő teljesen más javítást kíván.
+        """
+        return self._indok
+
     # --- generálás ---
 
     def generate(self, prompt: str) -> str:
-        hibak: list[str] = []
+        nyom: list[str] = []
         for backend in (Backend.CLOUD, Backend.EDGE):
-            if not self.reachable(backend):
-                hibak.append(f"{backend.value}: nem elérhető")
+            _, model, _ = self._params(backend)
+            elerheto, indok = self._probe(backend)
+            if not elerheto:
+                # NAPLÓZVA, nem csak eldobva. Enélkül egy némán edge-re esett kör
+                # semmilyen nyomot nem hagyna — és pont az a kör érdekes.
+                nyom.append(f"{backend.value}: {indok}")
+                log.warning("LLM háttér kihagyva — %s: %s", backend.value, indok)
                 continue
             try:
                 valasz = self._generate_on(backend, prompt)
             except Exception as e:  # noqa: BLE001 — bármi jön, a másik háttér a válasz
-                hibak.append(f"{backend.value}: {self._magyarazat(backend, e)}")
-                log.warning("%s LLM hívás sikertelen: %s", backend.value, e)
+                nyom.append(f"{backend.value}: {self._magyarazat(backend, e)}")
+                log.warning("LLM hívás sikertelen — %s: %s", backend.value, e)
                 continue
             self._backend = backend
+            nyom.append(f"{backend.value}: felelt ({model})")
+            self._indok = " -> ".join(nyom)
+            log.info("LLM válasz: %s", self._indok)
             return valasz
+        self._indok = " -> ".join([*nyom, "safe mode"])
         # A safe mode kiváltója. Az OKOKAT visszük magunkkal: fej nélküli Pi-n a
         # "nem válaszolt" önmagában nem diagnózis.
-        raise LLMUnavailable("egyik LLM háttér sem felelt — " + "; ".join(hibak))
+        raise LLMUnavailable("egyik LLM háttér sem felelt — " + "; ".join(nyom))
 
     def _generate_on(self, backend: Backend, prompt: str) -> str:
         url, model, timeout = self._params(backend)

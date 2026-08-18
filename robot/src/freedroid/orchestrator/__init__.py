@@ -141,12 +141,17 @@ class Orchestrator:
             # NEM némulunk el: a safe mode konzerv mondata megy ki. Egy néma robot a
             # színpadon megkülönböztethetetlen a lefagyottól.
             esemeny.forras, esemeny.hiba = "safe", str(e)
+            esemeny.hatter_indok = self._llm_indok()
             log.error("safe mode: %s", e)
             transcript.log(esemeny)
             return SAFE_MODE_VALASZ
 
         hatter = self.llm.active_backend()
         esemeny.forras = hatter.value if hatter is not None else ""
+        # A háttér neve önmagában nem diagnózis: a MODELL mondja meg, hogy a v12-t vagy
+        # egy nyers bázismodellt kérdeztük, az INDOK pedig azt, hogy miért arra esett.
+        esemeny.modell = getattr(self.llm, "active_model", lambda: None)() or ""
+        esemeny.hatter_indok = self._llm_indok()
         # A nyelvi őr a `generate()` és a kimondás KÖZÉ ékelődik — ugyanaz az elv, mint a
         # biztonsági watchdognál: a szabály a kódban áll, nem a súlyokban.
         valasz = enforce_hungarian(nyers, regenerate=lambda: self.llm.generate(MAGYARUL + prompt))
@@ -156,6 +161,10 @@ class Orchestrator:
         esemeny.toolok = [t.name for t in eredmeny.toolok]
         transcript.log(esemeny)
         return self.execute_guarded(eredmeny)
+
+    def _llm_indok(self) -> str:
+        indok = getattr(self.llm, "decision", None)
+        return indok() if indok is not None else ""
 
     def _talalatok(self, kerdes: str) -> list[Hit]:
         """RAG-találatok, vagy üres lista. A korpusz hiánya NEM némíthatja el a robotot:
