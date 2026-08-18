@@ -18,6 +18,12 @@ Amit érdemes leolvasni belőle:
   * `FORRÁS` — talált-e a RAG chunkot; üres lista tény-kérdésnél a keresés hibája.
   * `MOTOR:` — a tool-lánc végigment-e a parsertől a vezérlőig.
   * a másodperc — a 3B tok/s-a a Pi-n a hang-pipeline költségvetésének a fele.
+
+⚠️ **A script ALAPBÓL BEMELEGÍT** (`Orchestrator.start()`), mert a valódi robot is
+melegen áll: a `warmup()` bootkor kifizeti a modell betöltését ÉS a rendszerprompt
+prefilljét. E nélkül az első kérdés a Pi-n ~26 másodperccel többet mutat (mérve
+2026-08-18: 6 s betöltés + 19,5 s a 654 tokenes rendszerprompt hideg prefillje) — az
+a szám valós, de nem az üzemi állapoté. Hideg mérés: `--cold`.
 """
 
 from __future__ import annotations
@@ -72,6 +78,8 @@ def main() -> int:
                     help="folyamatos kérdezés (üres sor vagy Ctrl-D = kilépés)")
     ap.add_argument("--live-motion", action="store_true",
                     help="VALÓDI motorvezérlő — a robot MOZOGNI FOG. Polcold fel.")
+    ap.add_argument("--cold", action="store_true",
+                    help="NE melegítsen be — a hidegindítás árát méri (nem üzemi szám)")
     args = ap.parse_args()
 
     from freedroid.orchestrator import Orchestrator
@@ -82,6 +90,13 @@ def main() -> int:
         time.sleep(3)
 
     o = Orchestrator(motion=motion, watchdog=_alvo_watchdog())
+    if not args.cold:
+        # Ugyanaz, amit a robot bootkor csinál: modell betöltése + a rendszerprompt
+        # prefilljének cache-be melegítése. Enélkül a MÉRÉS a hidegindítást méri.
+        kezd = time.perf_counter()
+        hatter = o.llm.warmup()
+        print(f"bemelegítés: {hatter.value if hatter else 'egyik háttér sem felelt'} "
+              f"({time.perf_counter() - kezd:.1f} s)")
     try:
         for kerdes in (args.kerdes or ([] if args.interactive else ALAP_KERDESEK)):
             egy_kor(o, kerdes)
