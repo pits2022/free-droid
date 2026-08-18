@@ -52,15 +52,6 @@ class STT(Protocol):
 
 
 class TTS(Protocol):
-    @staticmethod
-    def _olvas(nev: str, folyam, ide: dict) -> None:
-        """Egy stderr teljes kiolvasása, saját szálon. Sosem dob: egy hibaüzenet
-        olvasása közben keletkező hiba nem buktathatja meg magát a beszédet."""
-        try:
-            ide[nev] = folyam.read()
-        except Exception:  # noqa: BLE001 — a diagnosztika sosem fontosabb a működésnél
-            ide[nev] = b""
-
     def speak(self, text: str) -> None: ...
 
 
@@ -163,8 +154,6 @@ class PiperTTS:
 
         # A SZÜLŐNEK el kell engednie a cső olvasó végét, különben az `aplay` sosem lát
         # EOF-ot, és a beszéd végén örökre várna. Ez a klasszikus cső-holtpont.
-        # A SZÜLŐNEK el kell engednie a cső olvasó végét, különben az `aplay` sosem lát
-        # EOF-ot, és a beszéd végén örökre várna.
         gen.stdout.close()
 
         # MINDKÉT stderr-t PÁRHUZAMOSAN olvassuk. Sorban olvasva ez holtpontba futhat:
