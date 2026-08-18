@@ -2,6 +2,9 @@ name: Gemini Code Review
 
 on: [pull_request]
 
+env:
+  PYTHONWARNINGS: "ignore"
+
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -14,6 +17,7 @@ jobs:
           fetch-depth: 0
 
       - uses: sshnaidm/gemini-code-review-action@v2
+
         with:
           gemini-key: ${{ secrets.GEMINI_API_KEY }}
           model: "gemini-3.6-flash"
