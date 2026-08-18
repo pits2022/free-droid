@@ -187,10 +187,10 @@ class FakeLLM:
         return Backend.CLOUD
 
     def active_model(self) -> str:
-        return "szabi-8b-v12"
+        return "jabba77/szabi-8b-v12"
 
     def decision(self) -> str:
-        return "cloud: felelt (szabi-8b-v12)"
+        return "cloud: felelt (jabba77/szabi-8b-v12)"
 
     def warmup(self):
         self.melegitve = True
@@ -269,5 +269,5 @@ def test_az_atirat_rogziti_a_MODELLT_es_az_INDOKOT(monkeypatch):
     o.ask("Ki vagy?")
     (e,) = naplo
     assert e.forras == "cloud"
-    assert e.modell == "szabi-8b-v12"
-    assert e.hatter_indok == "cloud: felelt (szabi-8b-v12)"
+    assert e.modell == "jabba77/szabi-8b-v12"
+    assert e.hatter_indok == "cloud: felelt (jabba77/szabi-8b-v12)"

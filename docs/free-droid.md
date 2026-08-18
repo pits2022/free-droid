@@ -570,6 +570,47 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 *   **Fontos:** Ne hajszold az alacsony loss-t (overfitting → robotikus, ismétlő válaszok). Validation set-en mérj, 2 epoch gyakran jobb mint 3.
 *   **Export:** GGUF (Q4_K_M edge-re, Q8/f16 cloud-ra) → Ollama Modelfile.
 
+#### 3.1 A modell TERJESZTÉSE — publikus ollama.com modell (döntés: 2026-08-18, a Teremtő)
+
+A finomhangolt modellek **publikus ollama.com modellként** kerülnek a felhőre és a Pi-re:
+
+| | |
+| :--- | :--- |
+| felhő (8B) | `jabba77/szabi-8b-v12` |
+| edge (3B) | `jabba77/szabi-3b-v12` |
+
+Az Ansible (`ai_stack`) `ollama pull`-lal húzza mindkettőt, és a `robot/` `Settings`-e
+**szó szerint ugyanezt a két nevet** használja — a névtérrel együtt, mert a `pull` után
+az `ollama list` `jabba77/szabi-3b-v12:latest`-et mutat, és egy rövidített név 404-et
+adna. A két fájlnak együtt kell mozognia.
+
+**Miért registry, és nem GGUF-szállítás + `ollama create`.** Az Unsloth GGUF **nem
+ágyazza be a chat sablont** (lásd `training/Modelfile`), tehát csupasz GGUF mellett a
+Modelfile-t is szállítani kellene a célgépre. Két külön fájl, ami elcsúszhat — és a
+hibája nem kivétel, hanem **zagyva kimenet a színpadon**. A `push`-olt modellbe a
+TEMPLATE/SYSTEM/paraméterek bele vannak égetve, tehát a súlyokkal EGYÜTT utaznak.
+Ugyanezért nem járható az `ollama pull hf.co/...` rövidítés sem: az a sablont a GGUF
+metaadatából venné, ami épp nincs benne.
+
+**Miért PUBLIKUS, és nem privát + hitelesítő.** Privát modellhez az ollama.com
+hitelesítője (`~/.ollama/id_ed25519`) kellene a Pi-re, ami három okból rossz csere:
+
+1. **A hitelesítő PUSH-jogot is ad** — egy ellopott robotból felül lehetne írni magát a
+   demó-modellt. Ez ellátásilánc-kompromittálás, és rosszabb, mint bármi, amit
+   elolvashatnának.
+2. A Pi-n **nincs lemeztitkosítás**, teljes kiolvasást feltételezünk (lásd a
+   biztonsági szakaszt), és a megőrzendő tulajdonság épp az, hogy *„nincs kimenő kulcs
+   a Pi-n"*.
+3. A modell **amúgy is publikus** a HF-en, szándékosan — a titkosítása nem véd semmit.
+
+Publikus modellt az `ollama pull` névtelenül húz, tehát a követelmény nem megoldásra
+vár: **eltűnik**. Sem a Pi-n, sem a felhőn nincs ollama.com hitelesítő.
+
+> ⚠️ **A helyszínen ne húzzunk modellt.** A 3B ~2 GB, a 8B ~4,9 GB; a Pi mobilneten ül,
+> a felhő pedig eldobható tervezés szerint (`terraform destroy`/`apply`), tehát minden
+> újraépítés újratölt. A provisioning otthoni feladat, nem a konferencia reggelén.
+> A **8B-t a Pi sosem kapja meg** — az felhő-only.
+
 ### 4. Hang-pipeline (offline, RPi 5-ön)
 
 A teljes hang-lánc offline fut a szuverenitás jegyében:

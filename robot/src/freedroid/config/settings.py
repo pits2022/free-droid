@@ -24,17 +24,18 @@ class LLMEndpoints:
     # Ollama tagje a KÉT KÜLÖN gépen — nem ugyanaz a modell két helyen, tehát nem lehet
     # egy mező.
     #
-    # A DEMÓ-MODELLEK (a Teremtő, 2026-08-18). A tagok léteznek — `ollama list`-tel
-    # ellenőrizve a fejlesztőgépen: `szabi-8b-v12:latest` és `szabi-3b-v12:latest`.
+    # A DEMÓ-MODELLEK (a Teremtő, 2026-08-18), PUBLIKUS ollama.com modellként terjesztve.
     #
-    # ⚠️ Ez NEM az, amit az Ansible telepít: az `ai_stack/defaults/main.yml` a nyers
-    # bázismodelleket húzza le (`llama3.1:8b` / `llama3.2:3b`). A finomhangolt modellek
-    # az Ollamába `ollama create`-tel kerülnek be (training/Modelfile) — amíg ez nincs
-    # bekötve az Ansible-be, a felhő és a Pi tagjait KÉZZEL kell egyeztetni. A hiba
-    # nem néma: 404-re a naplóban ott a pontos `ollama create` parancs, és a
-    # `check_edge_model` CRITICAL-t jelent.
-    cloud_model: str = "szabi-8b-v12"
-    edge_model: str = "szabi-3b-v12"
+    # A NÉV ITT SZÓ SZERINT AZ, AMIT AZ ANSIBLE HÚZ — `ai_stack/defaults/main.yml`.
+    # A névtérrel együtt: a `pull` után az `ollama list` `jabba77/szabi-3b-v12:latest`-et
+    # mutat, tehát egy rövidített „szabi-3b-v12" itt 404-et adna. A két fájlnak együtt
+    # kell mozognia; a `check_edge_model` pont ezt az eltérést fogja meg.
+    #
+    # ⚠️ A FEJLESZTŐGÉPEN más a helyzet: ott a modellek helyben, `ollama create`-tel
+    # készültek, tehát névtér nélkül állnak (`szabi-8b-v12:latest`). Lokális futtatáshoz
+    # ezt a két értéket kell felülírni — nem a kódot javítani.
+    cloud_model: str = "jabba77/szabi-8b-v12"
+    edge_model: str = "jabba77/szabi-3b-v12"
 
     # HÁROM külön időkorlát, és a szétválasztás a lényeg (lásd `llm/__init__.py`):
     # a `probe` dönti el, MELYIK háttér válaszol, a generálási korlátok pedig csak

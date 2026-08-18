@@ -99,7 +99,7 @@ def test_a_404_megmondja_a_JAVITO_parancsot(monkeypatch):
     nincs_modell.status_code = 404
     halo = Halo({CLOUD}, **{CLOUD: {"hiba": nincs_modell}})
     c = kliens(monkeypatch, halo)
-    with pytest.raises(LLMUnavailable, match="ollama create szabi-8b-v12"):
+    with pytest.raises(LLMUnavailable, match="ollama pull jabba77/szabi-8b-v12"):
         c.generate("Ki vagy?")
 
 
@@ -152,8 +152,8 @@ def test_a_dontesi_nyom_megmondja_MELYIK_es_MIERT(monkeypatch):
     c.generate("Ki vagy?")
     indok = c.decision()
     assert "cloud: nem elérhető" in indok and "10.0.0.1" in indok
-    assert "edge: felelt (szabi-3b-v12)" in indok
-    assert c.active_model() == "szabi-3b-v12"
+    assert "edge: felelt (jabba77/szabi-3b-v12)" in indok
+    assert c.active_model() == "jabba77/szabi-3b-v12"
 
 
 def test_a_nyom_megkulonbozteti_a_HALOTT_es_a_HIBAZO_felhot(monkeypatch):

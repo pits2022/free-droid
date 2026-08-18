@@ -169,8 +169,10 @@ class FallbackLLMClient:
         """Hibaüzenet, ami a fej nélküli Pi naplójában is elég a javításhoz."""
         _, model, _ = self._params(backend)
         if getattr(e, "status_code", None) == 404:
+            # A javító parancs a TÉNYLEGES terjesztési úthoz igazodik: a modellek
+            # publikus ollama.com modellek, tehát `pull` a javítás, nem `create`.
             return (f"a(z) '{model}' modell nincs betöltve — "
-                    f"`ollama create {model} -f Modelfile`, ellenőrzés: `ollama list`")
+                    f"`ollama pull {model}`, ellenőrzés: `ollama list`")
         return f"{type(e).__name__}: {e}"
 
     # --- hidegindítás ---
