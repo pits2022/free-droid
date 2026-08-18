@@ -12,9 +12,29 @@ from __future__ import annotations
 
 import json
 import shlex
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+
+
+def find_voice_binary(nev: str) -> str | None:
+    """A hang-bináris teljes útvonala: előbb a PROJEKT VENV-je, aztán a PATH.
+
+    A `piper` a `uv sync --extra tts`-ből jön, tehát a `.venv/bin`-be kerül — és az
+    NINCS a PATH-on, amikor a systemd a `{venv}/bin/freedroid`-ot indítja: a
+    szolgáltatás nem aktiválja a venv-et, csak a benne lévő futtathatót hívja. Kézzel,
+    `uv run` alatt működne (az beteszi a venv-et a PATH-ba), tehát a hiba pont a
+    FEJLESZTÉS alatt láthatatlan, és először a szolgáltatásként futó roboton jönne elő.
+
+    Ugyanez a keresés szolgálja ki a health-checket is (`check_voice_binaries`) —
+    egyetlen szabály, nem kettő, ami elcsúszhat.
+    """
+    venvben = Path(sys.executable).parent / nev
+    if venvben.exists():
+        return str(venvben)
+    return shutil.which(nev)
 
 if TYPE_CHECKING:
     from freedroid.config.settings import Settings
@@ -104,7 +124,8 @@ class PiperTTS:
         if not (text := text.strip()):
             return
 
-        gen_parancs = ["piper", "--model", self._model + ".onnx", "--output-raw",
+        gen_parancs = [find_voice_binary("piper") or "piper",
+                       "--model", self._model + ".onnx", "--output-raw",
                        "--length-scale", str(self._cfg.length_scale)]
         jatszo_parancs = shlex.split(self._cfg.play_command.format(rate=self.sample_rate()))
 

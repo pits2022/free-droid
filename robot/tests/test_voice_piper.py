@@ -67,7 +67,11 @@ def test_a_lejatszo_parancsba_a_MERT_rata_kerul(tmp_path, monkeypatch):
     hang(tmp_path).speak("Megyek, Teremtőm.")
 
     gen, jatszo = parancsok
-    assert gen[0] == "piper" and "--output-raw" in gen
+    # A bináris TELJES útvonallal megy: a `.venv/bin` nincs a PATH-on, amikor a systemd
+    # a `{venv}/bin/freedroid`-ot indítja — `uv run` alatt viszont igen, tehát ez a hiba
+    # pont a fejlesztés közben LÁTHATATLAN, és először a szolgáltatásként futó roboton
+    # jönne elő.
+    assert gen[0].endswith("piper") and "--output-raw" in gen
     assert gen[gen.index("--model") + 1].endswith(".onnx")   # a KITERJESZTÉS is kell
     assert "16000" in jatszo, jatszo
 
@@ -76,3 +80,23 @@ class _Nyelo:
     def write(self, _b): return None
     def close(self): return None
     def read(self): return b""
+
+
+def test_a_binaris_kereses_a_VENV_bol_indul(tmp_path, monkeypatch):
+    """Egyetlen szabály szolgálja ki a health-checket és a tényleges hívást.
+
+    Enélkül előfordulhatna, hogy az egészség-ellenőrzés MEGTALÁLJA a Pipert, a beszéd
+    pedig nem — és pont a szolgáltatásként futó roboton, ahol senki nem nézi.
+    """
+    import sys
+
+    from freedroid.voice import find_voice_binary
+
+    alvenv = tmp_path / "bin"
+    alvenv.mkdir()
+    (alvenv / "piper").write_text("#!/bin/sh\n")
+    monkeypatch.setattr(sys, "executable", str(alvenv / "python"))
+    assert find_voice_binary("piper") == str(alvenv / "piper")
+
+    # ami nincs se a venv-ben, se a PATH-on -> None (nem üres string, nem kivétel)
+    assert find_voice_binary("nincs-ilyen-binaris-remelem") is None

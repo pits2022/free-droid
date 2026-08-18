@@ -168,13 +168,13 @@ def test_disk_space_ample_is_ok(monkeypatch, settings):
 
 
 def test_voice_binaries_missing_is_warning_not_critical(monkeypatch, settings):
-    monkeypatch.setattr(checks, "which", lambda b: False)
+    monkeypatch.setattr("freedroid.voice.find_voice_binary", lambda b: None)
     r = checks.check_voice_binaries(settings)
     assert r.status is Status.WARN and r.severity is Severity.WARNING
 
 
 def test_voice_binaries_present_is_ok(monkeypatch, settings):
-    monkeypatch.setattr(checks, "which", lambda b: True)
+    monkeypatch.setattr("freedroid.voice.find_voice_binary", lambda b: f"/v/bin/{b}")
     assert checks.check_voice_binaries(settings).status is Status.OK
 
 
