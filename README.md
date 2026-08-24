@@ -106,7 +106,7 @@ free-droid/
 
 - [Terraform](https://www.terraform.io/) and [Ansible](https://www.ansible.com/) (for the infra)
 - [uv](https://docs.astral.sh/uv/) and Python ≥ 3.11 (for the robot software)
-- A **Hetzner Cloud** API token → `infra/terraform/.tfvars` as `hcloud_token = "…"` (git-ignored)
+- A **Hetzner Cloud** API token → `infra/terraform/terraform.tfvars` as `hcloud_token = "…"` (git-ignored; the name auto-loads)
 - **AWS** credentials for the Terraform S3 state backend (profile `terraform-s3-access`)
 - An SSH keypair (default `~/.ssh/id_rsa[.pub]`; override with `-var ssh_public_key_path=…`)
 
@@ -126,7 +126,7 @@ The cloud server type is a **one-line / one-flag switch** (default `cax31`):
 
 ```bash
 terraform apply -var cloud_server_type=cax41     # bigger ARM box
-# or set  cloud_server_type = "cax41"  in .tfvars
+# or set  cloud_server_type = "cax41"  in terraform.tfvars
 ```
 
 **On-demand / cost control** — tear the cloud down when the droid is offline:
