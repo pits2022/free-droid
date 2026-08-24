@@ -214,7 +214,9 @@ Exceptions (implemented + unit-tested, pure-python, off-Pi): `rag/` — chunker,
 BM25 retriever, grounding-prompt builder; and `tools/parser.py` — `parse_tools()` for the positional `<tool>NAME v…</tool>`
 grammar (the contract test drives it). Only the tool **handlers** (GPIO/camera/wifi) + orchestrator wiring remain Phase 4.
 - `README.md` (English, matches spec) · `GEMINI.md` / `PROJECT_BRIEF.md` / `CONTEXT.md` (legacy, historical).
-- `.env` is git-ignored; `infra/terraform/.tfvars` holds `hcloud_token` — **never commit secrets**.
+- `.env` is git-ignored; `infra/terraform/terraform.tfvars` holds `hcloud_token` — **never commit secrets**.
+  The name matters: `terraform.tfvars` auto-loads, a bare `.tfvars` does NOT (it needs `-var-file` on
+  every run, and the terraform even asks for the token of the cloud it is NOT creating).
 
 ## Commands
 
@@ -228,7 +230,9 @@ terraform apply         # creates the CAX31, then auto-runs the Ansible site.yml
 terraform apply -var cloud_server_type=cax41   # bigger cloud box
 terraform destroy       # tears down ONLY the cloud server — the Pi (Ansible-only) is untouched
 ```
-Requires `hcloud_token` (in `.tfvars`) and AWS S3 access for remote state.
+Requires `hcloud_token` (in `terraform.tfvars` — auto-loaded) and AWS S3 access for remote state.
+The Hetzner token is needed even for a DigitalOcean apply: terraform configures a provider
+even when its module is `count = 0`.
 
 ### Ansible (`infra/ansible/`)
 ```bash

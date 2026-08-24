@@ -33,7 +33,17 @@ variable "do_token" {
 }
 
 provider "hcloud" {
-  token = var.hcloud_token
+  # A `null`-fallback CSAK a hibaüzenetet teszi igazzá. Üres sztringnél a hcloud
+  # "entered token is invalid (must be exactly 64 characters long)"-ot mond, ami ROMLOTT
+  # tokenre gyanakodtat, holott nincs is token. `null` mellett "Missing Hetzner Cloud API
+  # token" jön — ez a valóság.
+  #
+  # ⚠️ AMIT NEM OLD MEG (mérve 2026-08-24): a terraform a providert AKKOR IS konfigurálja,
+  # ha a modulja `count = 0`, tehát egy DIGITALOCEAN-os terv is kéri a Hetzner-tokent. A
+  # fenti komment szándéka ("a DO-s apply ne várjon a .tfvars-ra") így nem teljesíthető a
+  # provider-blokk szintjén. A gyakorlati megoldás a fájlnév: `terraform.tfvars` MAGÁTÓL
+  # betöltődik (a régi `.tfvars` nem — az `-var-file .tfvars`-t kívánt minden futásnál).
+  token = var.hcloud_token != "" ? var.hcloud_token : null
 }
 
 provider "digitalocean" {
