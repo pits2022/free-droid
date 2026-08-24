@@ -123,9 +123,25 @@ def main() -> int:
                     help="csak középre áll és ott marad (a mechanika ellenőrzésére)")
     ap.add_argument("--diag", action="store_true",
                     help="regiszter-szintű ellenőrzés: megérkezik-e a parancs a chipre")
+    ap.add_argument("--hold", type=float, metavar="MS",
+                    help="tartsd a szervót EZEN az abszolút pulzuson (1.0-2.0 ms). "
+                         "A kalibráció műszere: a mechanikai vízszintes ritkán esik a "
+                         "szervó elektromos középjére (1,5 ms).")
+    ap.add_argument("--seconds", type=float, default=5.0, metavar="S",
+                    help="meddig tartsa a --hold pozíciót (alap: 5 s). Horn-áthelyezéshez "
+                         "adj hosszabbat — amíg tart a jel, a szervó tartja a pozíciót.")
     args = ap.parse_args()
     if not 0 < args.range <= TELJES_KITERES_MS:
         ap.error(f"--range 0 és {TELJES_KITERES_MS} között legyen (ms a középtől)")
+    # A végállás-korlát a --hold-ra is áll, és itt SZIGORÚBBAN fontos: a --range-et a
+    # kód a középhez ADJA, a --hold viszont abszolút — egy elgépelt 0.5 a szervót a
+    # végállásba küldi, ami épp az áramfelvételi eset, ami ellen az egész script óvatos.
+    if args.hold is not None and not (CENTRE_MS - TELJES_KITERES_MS <= args.hold
+                                      <= CENTRE_MS + TELJES_KITERES_MS):
+        ap.error(f"--hold {CENTRE_MS - TELJES_KITERES_MS} és "
+                 f"{CENTRE_MS + TELJES_KITERES_MS} ms között legyen")
+    if args.hold is not None and args.channel == "both":
+        ap.error("--hold egy csatornára szól: adj --channel pan vagy tilt értéket")
 
     import board
     import busio
@@ -150,6 +166,16 @@ def main() -> int:
             set_pulse(diag_ch, CENTRE_MS)
             time.sleep(0.2)
             _diagnosztika(i2c, G.PCA9685_ADDR, diag_ch)
+            return 0
+
+        if args.hold is not None:
+            channel, label = csatornak[0]
+            print(f"{label} (CH{channel}) -> TARTÁS {args.hold:.2f} ms, {args.seconds:.0f} s")
+            set_pulse(channel, args.hold)
+            time.sleep(args.seconds)
+            # A `finally` deinitel: a jel megszűnik, a szervó elengedi a pozíciót. Ez
+            # SZÁNDÉKOS — egy műszer ne hagyjon feszülő szervót maga után.
+            print("OK — vége a tartásnak. Amit fel kell írni: ezen a pulzuson VÍZSZINTES-e.")
             return 0
 
         for channel, label in csatornak:
