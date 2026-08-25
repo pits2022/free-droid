@@ -188,11 +188,86 @@ class VoiceSettings:
     # megállás. 17 szó kimondása a Pi-n 9,8 s volt (mérve), tehát a 60 s bőséges tartalék.
     speak_timeout_s: float = 60.0
 
+    # --- STT: whisper.cpp (natív bináris, NEM pip-csomag) ---
+    #
+    # A bináris a forrásból fordított whisper.cpp-ből jön, tehát NINCS sem a venv-ben,
+    # sem a PATH-on — ezért teljes útvonal az alapérték. Ha valaki mégis PATH-ra teszi,
+    # elég a puszta nevet megadni: a kód olyankor a `find_voice_binary`-re esik vissza,
+    # ugyanarra a szabályra, ami a Pipert is megtalálja.
+    whisper_binary: str = "~/whisper.cpp/build/bin/whisper-cli"
+
+    # A `small` a magyarhoz az a méret, ahol a felismerés használhatóvá válik; a
+    # `q5_1` kvantálás ARM-en érdemben gyorsít. A `base` a gyors tartalék — a váltás
+    # egy env-felülírás, nem kódmódosítás.
+    whisper_model: str = "~/.local/share/whisper-models/ggml-small-q5_1.bin"
+
+    # A nyelv KÖTÖTT, nem automatikus. Az autodetekció egy rövid magyar parancson
+    # ("Szabi, gyere ide") simán szlovákot vagy csehet tippel, és onnantól a
+    # transzkripció zagyva — a robot pedig egy zagyva mondatra válaszolna. A magyar
+    # egyébként is a szuverenitás-üzenet része, nem futásidejű döntés.
+    stt_language: str = "hu"
+    stt_threads: int = 4
+    stt_timeout_s: float = 60.0
+
+    # SZÓTÁR-PROMPT — nem finomhangolás, hanem MŰKÖDÉSI FELTÉTEL. Mérve 2026-08-25,
+    # ugyanazon a hangmintán:
+    #   prompt nélkül:  "Mit tanít aja TENVRÍT a szabadsagról?"
+    #   prompttal:      "mit tanít a YOTENGRIT a szabadsagról?"
+    # A "Yotengrit" kitalált szó, egyetlen Whisper-modell szótárában sincs benne — a
+    # robot legfontosabb fogalmát értené félre nélküle. A prompt a dekódolást a felsorolt
+    # szavak felé billenti (a modellt NEM módosítja).
+    #
+    # ⚠️ NE tömd tele: a prompt a 224 tokenes kontextusból eszik, és egy hosszú lista
+    # olyan szavakat is beleerőltet a szövegbe, amik el sem hangzottak.
+    stt_prompt: str = "Szabi, Yotengrit, Teremtő, szabadság, Büün, tudók."
+
+    # --- VAD: energia-alapú beszédvég-detektálás ---
+    #
+    # A Whisper 16 kHz-et vár; más rátán némán ROSSZUL ismer fel (nem hibázik, csak
+    # rosszul érti), ezért ez nem szabadon állítható kényelmi érték.
+    stt_sample_rate: int = 16000
+    record_command: str = "arecord -q -r {rate} -f S16_LE -c 1 -t raw -"
+
+    # A küszöb NEM beégetett szám: a felvétel elején megmérjük a zajszintet, és ahhoz
+    # képest szorzunk. Egy fix érték egy konferencia-teremben (zajos) és egy szobában
+    # (csendes) nem lehet ugyanaz — a demó pedig a zajos helyen lesz.
+    vad_calib_s: float = 0.3        # ennyiből becsüljük a zajszintet
+    vad_snr: float = 3.0            # a zajszint ennyiszerese számít beszédnek
+    vad_min_rms: float = 120.0      # abszolút alsó korlát (néma mikrofonnál a szorzó 0 lenne)
+    vad_silence_s: float = 0.8      # ennyi csend után vége a mondatnak
+    vad_max_s: float = 15.0         # felső korlát: egy beragadt mikrofon ne vegyen fel örökké
+    vad_start_timeout_s: float = 10.0   # ennyit várunk a beszéd KEZDETÉRE
+    vad_preroll_s: float = 0.3      # a beszédkezdet ELŐTTI ennyi másodperc is bekerül
+
     def __post_init__(self) -> None:
         if self.length_scale <= 0:
             raise ValueError("length_scale must be > 0")
         if self.speak_timeout_s <= 0:
             raise ValueError("speak_timeout_s must be > 0")
+        if self.stt_threads <= 0:
+            raise ValueError("stt_threads must be > 0")
+        if self.stt_timeout_s <= 0:
+            raise ValueError("stt_timeout_s must be > 0")
+        if self.stt_sample_rate <= 0:
+            raise ValueError("stt_sample_rate must be > 0")
+        for nev, ertek in (("vad_calib_s", self.vad_calib_s), ("vad_snr", self.vad_snr),
+                           ("vad_min_rms", self.vad_min_rms),
+                           ("vad_silence_s", self.vad_silence_s),
+                           ("vad_max_s", self.vad_max_s),
+                           ("vad_start_timeout_s", self.vad_start_timeout_s)):
+            if ertek <= 0:
+                raise ValueError(f"{nev} must be > 0")
+        if self.vad_preroll_s < 0:
+            raise ValueError("vad_preroll_s must be >= 0")
+        if self.vad_max_s <= self.vad_silence_s:
+            raise ValueError("vad_max_s legyen nagyobb a vad_silence_s-nél")
+        # Ugyanaz az indoklás, mint a play_command-nál: egy elgépelt helyőrző csak a
+        # FELVÉTEL pillanatában bukna ki — vagyis a színpadon.
+        try:
+            self.record_command.format(rate=16000)
+        except (KeyError, IndexError) as e:
+            raise ValueError(f"record_command ismeretlen helyőrzőt tartalmaz ({e}); "
+                             f"csak a {{rate}} tölthető ki") from e
         # A `{rate}` helyőrzőt a `PiperTTS` tölti ki. Egy elgépelt felülírás (pl.
         # `{sample_rate}`) enélkül csak a BESZÉD pillanatában bukna ki — vagyis a
         # színpadon. A validáció INDULÁSKOR ugyanazt mondja meg, órákkal korábban.

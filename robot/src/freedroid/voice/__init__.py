@@ -10,13 +10,19 @@ Interfaces + stubs only.
 
 from __future__ import annotations
 
+import array
+import collections
 import json
+import logging
+import math
 import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+import wave
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -40,6 +46,8 @@ def find_voice_binary(nev: str) -> str | None:
 
 if TYPE_CHECKING:
     from freedroid.config.settings import Settings
+
+log = logging.getLogger(__name__)
 
 
 class WakeWord(Protocol):
@@ -70,12 +78,173 @@ class OpenWakeWord:
         raise NotImplementedError
 
 
+def rms(pcm: bytes) -> float:
+    """16 bites mono PCM effektív értéke.
+
+    Saját implementáció, mert az `audioop` a Python 3.13-ból KI LETT VÉVE (PEP 594) —
+    a Pi pedig 3.13-on fut. Egy 50 ms-os darab 800 minta, tehát a költsége elhanyagolható.
+    """
+    if not pcm:
+        return 0.0
+    minta = array.array("h")
+    # Páratlan bájt = fél minta: az `array` ilyenkor kivételt dob. A felvétel VÉGÉN ez
+    # előfordulhat (a folyam félbevágva zárul), és egy hangfelvétel utolsó fél mintája
+    # miatt nem szabad elveszíteni az egész mondatot.
+    minta.frombytes(pcm[:len(pcm) // 2 * 2])
+    return math.sqrt(sum(x * x for x in minta) / len(minta))
+
+
 class WhisperCppSTT:
+    """whisper.cpp-alapú átirat (Pi-n, offline).
+
+    A `transcribe` NYERS PCM-et vár (16 bites, mono, `stt_sample_rate`), mert a VAD is
+    azt ad — a WAV-fejlécet itt tesszük rá, mert a `whisper-cli` fájlt olvas.
+    """
+
     def __init__(self, settings: Settings | None = None) -> None:
-        raise NotImplementedError("Phase 4.2: integrate whisper.cpp (Hungarian)")
+        from freedroid.config.settings import load_settings
+
+        self._cfg = (settings or load_settings()).voice
+        self._model = str(Path(self._cfg.whisper_model).expanduser())
+        self._binaris = self._binaris_utvonal(self._cfg.whisper_binary)
+
+    @staticmethod
+    def _binaris_utvonal(beallitas: str) -> str:
+        """Teljes útvonal -> az; puszta név -> a Piperrel KÖZÖS keresés (venv, majd PATH).
+
+        A whisper.cpp forrásból fordul, tehát alapból egyik helyen sincs; de ha valaki
+        telepíti, ne kelljen a configot átírnia."""
+        utvonal = Path(beallitas).expanduser()
+        if utvonal.parent != Path("."):
+            return str(utvonal)
+        return find_voice_binary(beallitas) or beallitas
 
     def transcribe(self, audio: bytes) -> str:
-        raise NotImplementedError
+        """PCM -> magyar szöveg. Üres hangra üres sztring (nem hiba).
+
+        Hiba esetén `RuntimeError`: az orchestrátor dönti el, mit kezd vele. Egy néma
+        `except: pass` itt azt jelentené, hogy a robot nem válaszol, és semmi nem árulja
+        el, miért — pont az a hibafajta, ami a színpadon lefagyásnak látszik.
+        """
+        if not audio:
+            return ""
+        if not Path(self._model).exists():
+            raise RuntimeError(f"a whisper modell nem található: {self._model}")
+
+        with tempfile.TemporaryDirectory() as konyvtar:
+            wav = Path(konyvtar) / "felvetel.wav"
+            with wave.open(str(wav), "wb") as ki:
+                ki.setnchannels(1)
+                ki.setsampwidth(2)
+                ki.setframerate(self._cfg.stt_sample_rate)
+                ki.writeframes(audio)
+            parancs = [self._binaris, "-m", self._model,
+                       "-l", self._cfg.stt_language,
+                       "-t", str(self._cfg.stt_threads),
+                       "-nt",                      # időbélyegek nélkül: csak a szöveg
+                       "-f", str(wav)]
+            if self._cfg.stt_prompt:
+                parancs[-2:-2] = ["--prompt", self._cfg.stt_prompt]
+            try:
+                kesz = subprocess.run(parancs, capture_output=True,
+                                      timeout=self._cfg.stt_timeout_s, check=False)
+            except OSError as e:
+                raise RuntimeError(f"a `whisper-cli` nem indult el ({self._binaris}): {e}") from e
+            except subprocess.TimeoutExpired as e:
+                raise RuntimeError(
+                    f"a whisper {self._cfg.stt_timeout_s} s alatt nem végzett") from e
+
+        if kesz.returncode != 0:
+            hiba = kesz.stderr.decode("utf-8", "replace").strip().splitlines()
+            raise RuntimeError(f"a whisper hibára futott ({kesz.returncode}): "
+                               f"{hiba[-1] if hiba else 'nincs üzenet'}")
+        return kesz.stdout.decode("utf-8", "replace").strip()
+
+
+class EnergyVAD:
+    """Beszédvég-detektálás a jel energiájából — felvétel a mondat végéig.
+
+    A küszöb NEM beégetett szám: a felvétel elején megmérjük a tényleges zajszintet, és
+    ahhoz képest szorzunk. Egy fix érték a konferencia-teremben (zajos) és a szobában
+    (csendes) nem lehet ugyanaz, a demó pedig a zajos helyen lesz.
+    """
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        from freedroid.config.settings import load_settings
+
+        self._cfg = (settings or load_settings()).voice
+        self._darab_s = 0.05
+        # Bájtban: 16 bites mono, tehát mintánként 2 bájt.
+        self._darab = int(self._cfg.stt_sample_rate * self._darab_s) * 2
+
+    def _darabszam(self, masodperc: float) -> int:
+        """Másodperc -> hány 50 ms-os darab. `round`, NEM `int`.
+
+        Az `int()` lefelé csonkít, és a lebegőpontos osztás pont a kerek értékeknél
+        téved alá: `0.3 / 0.05 = 5.999999999999999` -> 5 darab 6 helyett, `15 / 0.05
+        = 299.99999999999994` -> 299 darab 300 helyett. Minden időzítés NÉMÁN egy
+        darabbal rövidebb lett volna — az elő-roll levágná a szó elejét, a maximális
+        hossz pedig hamarabb vágna. Egy önmagát bizonyító teszt fogta meg.
+        """
+        return round(masodperc / self._darab_s)
+
+    def record_until_silence(self) -> bytes:
+        parancs = shlex.split(self._cfg.record_command.format(
+            rate=self._cfg.stt_sample_rate))
+        try:
+            felvevo = subprocess.Popen(parancs, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE)
+        except OSError as e:
+            raise RuntimeError(f"a felvevő nem indult el ({parancs[0]}): {e}") from e
+        try:
+            return self._felvesz(felvevo)
+        finally:
+            felvevo.kill()
+            felvevo.wait()
+
+    def _olvas_darab(self, felvevo) -> bytes:
+        darab = felvevo.stdout.read(self._darab)
+        if not darab:
+            hiba = (felvevo.stderr.read() or b"").decode("utf-8", "replace").strip()
+            raise RuntimeError(f"a felvétel megszakadt: {hiba or 'a felvevő kilépett'}")
+        return darab
+
+    def _felvesz(self, felvevo) -> bytes:
+        cfg = self._cfg
+        # 1. zajszint: ebből lesz a küszöb
+        zaj = [rms(self._olvas_darab(felvevo))
+               for _ in range(max(1, self._darabszam(cfg.vad_calib_s)))]
+        kuszob = max(sum(zaj) / len(zaj) * cfg.vad_snr, cfg.vad_min_rms)
+        log.debug("VAD: zajszint %.0f, küszöb %.0f", sum(zaj) / len(zaj), kuszob)
+
+        # 2. várunk a beszéd KEZDETÉRE. Közben gyűrűben tartjuk az utolsó néhány
+        # darabot: e nélkül a mondat első hangja LEVÁGVA kerülne a Whisperhez, mert a
+        # küszöböt már a szó közepén lépjük át. Egy levágott "Szabi" felismerhetetlen.
+        # `max(1, ...)` NÉLKÜL: a config engedi a 0-t, és akkor a 0 tényleg nullát
+        # jelentsen (a `max(1, ...)` egy darabot mindig megtartott — a szerződés és a
+        # kód nem egyezett).
+        eloroll = collections.deque(maxlen=self._darabszam(cfg.vad_preroll_s))
+        hatarido = time.monotonic() + cfg.vad_start_timeout_s
+        while True:
+            darab = self._olvas_darab(felvevo)
+            if rms(darab) >= kuszob:
+                break
+            eloroll.append(darab)
+            if time.monotonic() > hatarido:
+                return b""      # nem szólalt meg senki — NEM hiba, csak nincs mondat
+
+        # 3. felvétel a csend beálltáig
+        felvett = [*eloroll, darab]
+        csend_darab = 0
+        kell_csend = max(1, self._darabszam(cfg.vad_silence_s))
+        max_darab = self._darabszam(cfg.vad_max_s)
+        while len(felvett) < max_darab:
+            darab = self._olvas_darab(felvevo)
+            felvett.append(darab)
+            csend_darab = 0 if rms(darab) >= kuszob else csend_darab + 1
+            if csend_darab >= kell_csend:
+                break
+        return b"".join(felvett)
 
 
 class PiperTTS:

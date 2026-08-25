@@ -64,6 +64,28 @@ def _alvo_watchdog():
                                  distances_cm=lambda: {}, is_blocked=lambda: False)
 
 
+def _hallgat(vad, stt) -> str:
+    """Egy kör a mikrofonból: felvétel a mondat végéig, majd átirat.
+
+    A KÉT IDŐT KÜLÖN mérjük. A felvétel hossza a beszélőn múlik, az átiraté a gépen —
+    összevonva nem lehetne megmondani, melyik a szűk keresztmetszet. MÉRVE 2026-08-25:
+    a whisper `small` a Pi-n ~9-10 s, FÜGGETLENÜL a hang hosszától (a modell minden
+    bemenetet 30 s-os ablakra tölt fel), tehát a második szám nagyjából állandó.
+    """
+    kezd = time.perf_counter()
+    hang = vad.record_until_silence()
+    felvetel_s = time.perf_counter() - kezd
+    if not hang:
+        print("(nem hallottam semmit)")
+        return ""
+    kezd = time.perf_counter()
+    szoveg = stt.transcribe(hang)
+    print(f"HALLOTTAM: {szoveg!r}")
+    print(f"   felvétel {felvetel_s:.1f} s ({len(hang) / 32000:.1f} s hang), "
+          f"átirat {time.perf_counter() - kezd:.1f} s")
+    return szoveg
+
+
 def egy_kor(o, kerdes: str, tts=None) -> None:
     print(f"\n=== {kerdes}")
     kezd = time.perf_counter()
@@ -102,6 +124,10 @@ def main() -> int:
                     help="VALÓDI motorvezérlő — a robot MOZOGNI FOG. Polcold fel.")
     ap.add_argument("--cold", action="store_true",
                     help="NE melegítsen be — a hidegindítás árát méri (nem üzemi szám)")
+    ap.add_argument("--listen", action="store_true",
+                    help="MIKROFONBÓL kérdez (VAD + whisper.cpp) — a lánc HALLÓ eleje. "
+                         "Ébresztőszó NINCS (openWakeWord blokkolt), tehát minden kör "
+                         "ENTER-re indul: ez MÉRŐESZKÖZ, nem a demó kiváltója.")
     ap.add_argument("--speak", action="store_true",
                     help="mondja is KI a választ (Piper TTS) — a lánc HALLHATÓ vége")
     args = ap.parse_args()
@@ -118,6 +144,11 @@ def main() -> int:
         from freedroid.voice import PiperTTS
         tts = PiperTTS()
 
+    ful = None
+    if args.listen:
+        from freedroid.voice import EnergyVAD, WhisperCppSTT
+        ful = (EnergyVAD(), WhisperCppSTT())
+
     o = Orchestrator(motion=motion, watchdog=_alvo_watchdog())
     if not args.cold:
         # Ugyanaz, amit a robot bootkor csinál: modell betöltése + a rendszerprompt
@@ -129,6 +160,14 @@ def main() -> int:
     try:
         for kerdes in (args.kerdes or ([] if args.interactive else ALAP_KERDESEK)):
             egy_kor(o, kerdes, tts)
+        while ful is not None:
+            try:
+                input("\nENTER, és beszélj (Ctrl+D a kilépéshez)... ")
+            except EOFError:
+                break
+            kerdes = _hallgat(*ful)
+            if kerdes:
+                egy_kor(o, kerdes, tts)
         while args.interactive:
             try:
                 kerdes = input("\nkérdés> ").strip()
