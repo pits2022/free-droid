@@ -142,6 +142,11 @@ def main() -> int:
                  f"{CENTRE_MS + TELJES_KITERES_MS} ms között legyen")
     if args.hold is not None and args.channel == "both":
         ap.error("--hold egy csatornára szól: adj --channel pan vagy tilt értéket")
+    # A 0 nem ártalmatlan: beállítaná a pulzust, majd AZONNAL deinitelne — a szervó
+    # meg sem mozdulna, és pont azt a téves diagnózist adná ("nem mozdul"), aminek a
+    # szétválasztására ez a script készült. (PR #93 review.)
+    if args.seconds <= 0:
+        ap.error("--seconds 0-nál nagyobb legyen")
 
     import board
     import busio
@@ -170,7 +175,7 @@ def main() -> int:
 
         if args.hold is not None:
             channel, label = csatornak[0]
-            print(f"{label} (CH{channel}) -> TARTÁS {args.hold:.2f} ms, {args.seconds:.0f} s")
+            print(f"{label} (CH{channel}) -> TARTÁS {args.hold:.2f} ms, {args.seconds:g} s")
             set_pulse(channel, args.hold)
             time.sleep(args.seconds)
             # A `finally` deinitel: a jel megszűnik, a szervó elengedi a pozíciót. Ez

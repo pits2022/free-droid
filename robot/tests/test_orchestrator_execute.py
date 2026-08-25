@@ -213,6 +213,23 @@ def test_ask_vegigviszi_a_lancot(monkeypatch):
     assert llm.promptok == ["Gyere ide!"]   # forrás nélkül a prompt VÁLTOZATLAN
 
 
+def test_ask_elteszi_a_HASZNALT_talalatokat(monkeypatch):
+    """A FORRÁS-kiírás forrása UGYANAZ a lista, amit a prompt kapott.
+
+    Az azonosság (`is`) a tétel, nem az egyenlőség: egy második lekérdezés egyenlő
+    listát adna, de elcsúszhatna, ha a keresés valaha megváltozik (PR #93 review).
+    """
+    llm = FakeLLM("Ez az.")
+    o = kerdezo(llm, monkeypatch, rag=True)
+    import types
+    sajat = [types.SimpleNamespace(
+        chunk=types.SimpleNamespace(id="yot-000", title="ÁL-TALÁLAT"), score=1.0)]
+    monkeypatch.setattr(o, "_talalatok", lambda k: sajat)
+    monkeypatch.setattr("freedroid.orchestrator.build_prompt", lambda k, h: k)
+    o.ask("Mi az a Yotengrit?")
+    assert o.utolso_talalatok is sajat
+
+
 def test_ask_safe_mode_ha_egyik_elme_sem_felel(monkeypatch):
     """A robot NEM némul el: a néma robot a színpadon megkülönböztethetetlen a lefagyottól."""
     from freedroid.llm import LLMUnavailable

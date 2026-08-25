@@ -76,11 +76,9 @@ def egy_kor(o, kerdes: str, tts=None) -> None:
     # A docstring eddig ígérte a FORRÁS sort, de senki nem írta ki — és e nélkül NEM
     # dönthető el, hogy a válasz a korpuszból jött-e vagy a fine-tune-ból. A demó-modell
     # kifejezetten "v12 + RAG", tehát ez a különbség a lényeg, nem részletkérdés.
-    # ponytail: MÁSODIK lekérdezés (a retriever cache-elt, BM25 93 chunkon = ezredmásodperc).
-    # Determinisztikus, tehát ugyanazt adja, amit az `ask()` használt — ha az `ask()`
-    # valaha máshogy keresne (pl. átfogalmazott kérdéssel), ez elcsúszna, és akkor az
-    # `ask()`-nak kell megjegyeznie a találatait.
-    talalatok = o._talalatok(kerdes)
+    # Az `ask()` által ELTETT találatok, nem egy második lekérdezés: így a kiírt lista
+    # akkor sem csúszhat el a valóságtól, ha a keresés egyszer megváltozik.
+    talalatok = o.utolso_talalatok
     if talalatok:
         print("FORRÁS: " + ", ".join(f"{h.chunk.id}({h.score:.1f}) {h.chunk.title}"
                                      for h in talalatok))
