@@ -132,6 +132,14 @@ def guard(valasz: str) -> GuardResult:
     # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
     # kell vonni, különben a TTS-nek adott szövegben "Megyek.\n\nViszlát." marad.
     beszed = _TOOL_BLOKK.sub("", valasz)
+    # MINDEN maradék jelölés kiesik, nem csak a `<tool>`. MÉRVE 2026-08-25, a Pi-n: a
+    # modell `<giggle>`-t és `<br>`-t is kiadott, és a Piper KIMONDTA őket ("br",
+    # "giggle") — a hangszórón, a demó-úton. Nem egyedi eset: a `<puska/>` (az orákulum
+    # jelzése) ugyanígy sosem kimondható.
+    #
+    # A hosszkorlát nem kozmetika: egy PÁRATLAN `<` enélkül a következő `>`-ig MINDENT
+    # letörölne — akár egy egész mondatot. Egy jelölés rövid; ami hosszú, az szöveg.
+    beszed = re.sub(r"<[^<>]{0,40}>", "", beszed)
     beszed = re.sub(r"[ \t]{2,}", " ", beszed)
     beszed = re.sub(r"\n\s*\n+", "\n", beszed).strip()
 

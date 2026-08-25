@@ -52,6 +52,17 @@ def _naplozo_motor():
     )
 
 
+def _naplozo_kamera():
+    """Kameravezérlő helyett napló — ugyanaz az elv, mint a motoroknál: a tool-lánc
+    végigmenjen, és LÁTSZÓDJON, mit hívott volna."""
+    def naplo(nev):
+        def hivas(*a):
+            print(f"KAMERA: {nev} {' '.join(str(x) for x in a)}")
+        return hivas
+    return types.SimpleNamespace(pan=naplo("pan"), tilt=naplo("tilt"),
+                                 action=naplo("action"), close=lambda: None)
+
+
 def _alvo_watchdog():
     """Nem mérünk ultrahangot: a füstpróba a NYELVI láncról szól, és egy futó
     watchdog-szál a `fault`-jával feleslegesen tiltaná le a mozgás-tool-okat."""
@@ -62,6 +73,31 @@ def _alvo_watchdog():
     return types.SimpleNamespace(fault=None, start=lambda: None,
                                  stop_monitoring=lambda: None,
                                  distances_cm=lambda: {}, is_blocked=lambda: False)
+
+
+def _hallgat(vad, stt) -> str:
+    """Egy kör a mikrofonból: felvétel a mondat végéig, majd átirat.
+
+    A KÉT IDŐT KÜLÖN mérjük. A felvétel hossza a beszélőn múlik, az átiraté a gépen —
+    összevonva nem lehetne megmondani, melyik a szűk keresztmetszet. MÉRVE 2026-08-25:
+    a whisper `small` a Pi-n ~9-10 s, FÜGGETLENÜL a hang hosszától (a modell minden
+    bemenetet 30 s-os ablakra tölt fel), tehát a második szám nagyjából állandó.
+    """
+    kezd = time.perf_counter()
+    hang = vad.record_until_silence()
+    felvetel_s = time.perf_counter() - kezd
+    if not hang:
+        # A puszta "nem hallottam" nem diagnózis: a MÉRT számok mondják meg, hogy a
+        # küszöb volt magas, vagy tényleg csend volt.
+        print(f"(nem hallottam semmit — zajszint {vad.zajszint:.0f}, "
+              f"küszöb {vad.kuszob:.0f}; halkabb küszöb: FREEDROID_VOICE_VAD_SNR=2)")
+        return ""
+    kezd = time.perf_counter()
+    szoveg = stt.transcribe(hang)
+    print(f"HALLOTTAM: {szoveg!r}")
+    print(f"   felvétel {felvetel_s:.1f} s ({len(hang) / 32000:.1f} s hang), "
+          f"átirat {time.perf_counter() - kezd:.1f} s")
+    return szoveg
 
 
 def egy_kor(o, kerdes: str, tts=None) -> None:
@@ -102,6 +138,10 @@ def main() -> int:
                     help="VALÓDI motorvezérlő — a robot MOZOGNI FOG. Polcold fel.")
     ap.add_argument("--cold", action="store_true",
                     help="NE melegítsen be — a hidegindítás árát méri (nem üzemi szám)")
+    ap.add_argument("--listen", action="store_true",
+                    help="MIKROFONBÓL kérdez (VAD + whisper.cpp) — a lánc HALLÓ eleje. "
+                         "Ébresztőszó NINCS (openWakeWord blokkolt), tehát minden kör "
+                         "ENTER-re indul: ez MÉRŐESZKÖZ, nem a demó kiváltója.")
     ap.add_argument("--speak", action="store_true",
                     help="mondja is KI a választ (Piper TTS) — a lánc HALLHATÓ vége")
     args = ap.parse_args()
@@ -113,12 +153,28 @@ def main() -> int:
         print("⚠️  VALÓDI MOTORVEZÉRLŐ — a robot mozogni fog. 3 másodperced van.")
         time.sleep(3)
 
+    # A KAMERA nem esik a `--live-motion` alá: a fejet mozgatni veszélytelen (a robot
+    # nem hajt le az asztalról tőle), és e nélkül minden `camera` tool-hívás LookupError.
+    # MÉRVE 2026-08-25: a modell "fordulj jobbra 90 fokot"-ra `camera pan right 90`-et
+    # adott, és a füstpróba elhasalt rajta — a lánc jó volt, a vezérlő hiányzott.
+    try:
+        from freedroid.camera import PanTiltCamera
+        camera = PanTiltCamera()
+    except Exception as e:  # noqa: BLE001 — off-Pi ez a VÁRT eset, nem hiba
+        print(f"kamera nélkül (naplózó): {type(e).__name__}: {e}")
+        camera = _naplozo_kamera()
+
     tts = None
     if args.speak:
         from freedroid.voice import PiperTTS
         tts = PiperTTS()
 
-    o = Orchestrator(motion=motion, watchdog=_alvo_watchdog())
+    ful = None
+    if args.listen:
+        from freedroid.voice import EnergyVAD, WhisperCppSTT
+        ful = (EnergyVAD(), WhisperCppSTT())
+
+    o = Orchestrator(motion=motion, camera=camera, watchdog=_alvo_watchdog())
     if not args.cold:
         # Ugyanaz, amit a robot bootkor csinál: modell betöltése + a rendszerprompt
         # prefilljének cache-be melegítése. Enélkül a MÉRÉS a hidegindítást méri.
@@ -127,8 +183,20 @@ def main() -> int:
         print(f"bemelegítés: {hatter.value if hatter else 'egyik háttér sem felelt'} "
               f"({time.perf_counter() - kezd:.1f} s)")
     try:
-        for kerdes in (args.kerdes or ([] if args.interactive else ALAP_KERDESEK)):
+        # A `--listen` ugyanúgy kihagyja a beégetett kérdéseket, mint az `--interactive`:
+        # aki a mikrofonhoz ült, nem a két alap-kérdésre kíváncsi (és az edge-ágon
+        # kettő EGYENKÉNT fél perc, mire egyáltalán szóhoz jutna).
+        sajat_kerdes = args.interactive or args.listen
+        for kerdes in (args.kerdes or ([] if sajat_kerdes else ALAP_KERDESEK)):
             egy_kor(o, kerdes, tts)
+        while ful is not None:
+            try:
+                input("\nENTER, és beszélj (Ctrl+D a kilépéshez)... ")
+            except EOFError:
+                break
+            kerdes = _hallgat(*ful)
+            if kerdes:
+                egy_kor(o, kerdes, tts)
         while args.interactive:
             try:
                 kerdes = input("\nkérdés> ").strip()

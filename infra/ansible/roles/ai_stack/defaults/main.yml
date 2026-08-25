@@ -27,3 +27,46 @@
 # `params` réteg a súlyok mellett — vagyis a sablon tényleg együtt utazik a modellel.
 cloud_ollama_model: "csaba_ajtony/szabi-8b-v12"   # felhő (DO GPU / CAX) — csak inferencia, 8B
 edge_ollama_model: "csaba_ajtony/szabi-3b-v12"    # RPi 5 — offline fallback (Q4_K_M), 3B
+
+# ── whisper.cpp (STT) ─────────────────────────────────────────────────────────────
+#
+# Natív bináris, NEM pip-csomag: forrásból fordul mindkét csomóponton. Eddig KÉZZEL
+# került a Pi-re (2026-08-25), az Ansible nem tudott róla — vagyis egy kártyacsere
+# nyomtalanul elvitte volna. Ez a blokk teszi újra előállíthatóvá.
+
+whisper_repo: "https://github.com/ggerganov/whisper.cpp"
+
+# ⚠️ RÖGZÍTETT COMMIT, nem HEAD. Nem óvatoskodás: a whisper.cpp MÁR átnevezte a `main`
+# binárist `whisper-cli`-re. Ha HEAD-et követnénk, egy demó előtti újrahúzás
+# megismételhetne egy ilyen változást, és a robot MEGNÉMULNA — a hiba pedig futásidőben
+# jönne elő. Rögzítve a frissítés tudatos döntés, diffel és újramérve.
+whisper_version: "978113305b2ead22249b881deafa131dc8884911"   # 2026-08-25, mérve
+
+whisper_dir: /opt/whisper.cpp
+whisper_models_dir: "/home/{{ robot_user | default('creator') }}/.local/share/whisper-models"
+whisper_model_url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
+
+# A modellek CSOMÓPONTONKÉNT mások, ugyanúgy, mint az Ollamánál — és ugyanazért: az
+# edge-en a méret a korlát, a felhőben a GPU.
+#
+# EDGE: a `small` az a méret, ahol a magyar felismerés használhatóvá válik; a `base` a
+# GYORS TARTALÉK (3 s vs 10 s), ha a small valamiért nem indul. Mérve 2026-08-25 a Pi-n.
+edge_whisper_models:
+  - name: ggml-small-q5_1.bin
+    sha256: ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb
+  - name: ggml-base-q5_1.bin
+    sha256: 422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898
+
+# CLOUD: `large-v3-turbo`, de a KVANTÁLT változat (574 MB), nem a teljes (1,6 GB). Ez
+# üzemeltetési döntés, nem minőségi: a felhő ELDOBHATÓ, tehát MINDEN `terraform apply`
+# újratölti a modellt — a demó napján a különbség a felállás idejében jelentkezik.
+cloud_whisper_models:
+  - name: ggml-large-v3-turbo-q5_0.bin
+    sha256: 394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2
+
+# A felhőben GPU van, az edge-en nincs. Ez NEM automatikus: a 2026-07-29-i Ollama-mérés
+# fő tanulsága épp az volt, hogy egy GPU nélkül fordított/futtatott stack NÉMÁN esik
+# vissza CPU-ra — a kártya megvan, a sebesség nincs. Ezért a flag explicit, és a build
+# HANGOSAN hasal el, ha a CUDA nem elérhető, ahelyett hogy lassan működne.
+cloud_whisper_cmake_flags: ["-DGGML_CUDA=ON"]
+edge_whisper_cmake_flags: []
