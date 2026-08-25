@@ -226,12 +226,100 @@ class RAGSettings:
 
 
 @dataclass(frozen=True)
+class CameraSettings:
+    """Pan/tilt szervók a PCA9685-ön.
+
+    MINDEN érték MÉRT (2026-08-25, `scripts/calibrate_camera.py`, a felszerelt kamerán),
+    és TENGELYENKÉNT KÜLÖN — ez nem óvatosság, hanem lelet: a két szervó skálája 19%-kal
+    tér el (0,0133 vs 0,0112 ms/fok), és a mechanikai középük sem esik egybe. Egyetlen
+    közös érték az egyik tengelyre biztosan hazudna.
+
+    Env-ből felülírható (`FREEDROID_CAMERA_PAN_MS_PER_DEG` stb.): a kalibrációs érték a
+    GÉPHEZ tartozik, nem a repóhoz — egy szervócsere vagy egy áthelyezett horn átírja.
+    """
+
+    pwm_frequency_hz: int = 50      # a hobbiszervók szabványos kerete (20 ms)
+
+    # A MECHANIKAI közép, tengelyenként. A pané NEM 1,5 ms: a felszerelt tartón az
+    # egyenesen előre 1,65 ms-nál van. A tilté szándékosan olyan, hogy a kamera kissé
+    # FELFELÉ nézzen — a robot a földön áll és álló emberre néz.
+    pan_centre_ms: float = 1.65
+    tilt_centre_ms: float = 1.50
+
+    # Hány ms egy fok. KÉT ÁLLÓ HELYZET szögéből, nem egy mozdulat megsaccolásából.
+    #
+    # ⚠️ A tilt értéke JAVÍTVA 0,0112-ről (2026-08-25): a végállások közti TELJES
+    # kitérés mérése 160 fokot adott, egy közép körüli ellenőrzés viszont 0,336 ms-ra
+    # pontosan 20 fokot -> 0,0168. Az utóbbi a hiteles, és a különbség 50%.
+    #
+    # A TANULSÁG A MÓDSZERRŐL SZÓL: a két végállás közti NAGY szöget rosszul becsli az
+    # ember (a kamera ott le-föl néz, nincs mihez viszonyítani), egy 20-30 fokos
+    # kitérést a közép körül viszont jól. A `calibrate_camera.py` ezért záró
+    # ELLENŐRZÉST is végez — ez a hibát elfogta volna.
+    pan_ms_per_deg: float = 0.0133
+    tilt_ms_per_deg: float = 0.0168
+
+    # A biztonságos pulzus-sáv, VÉGIGPRÓBÁLVA kifelé lépegetve (--explore): eddig megy a
+    # szervó anélkül, hogy nekifeszülne. A korábbi 1,0-2,0 ÓVATOS TIPP volt, és drágán:
+    # a mért skálával csak ±25 fokot engedett, amiben egy "fordulj balra 45 fokot"
+    # mindig vágásba futott. A valóság ±68 (pan) / ±80 (tilt) fok.
+    min_ms: float = 0.60
+    max_ms: float = 2.40
+
+    # HOLTJÁTÉK (a fogaskerekek hézaga), tengelyenként mérve: ugyanarra a pulzusra
+    # alulról és felülről közelítve ennyivel áll meg máshol a kamera. EZ okozta, hogy a
+    # gesztusok után nem pontosan a kiindulóba tért vissza — a szoftver a helyes pulzust
+    # adta ki. A pan 10 foka nem elhanyagolható.
+    pan_backlash_deg: float = 10.0
+    tilt_backlash_deg: float = 5.0
+
+    # Gesztusok. A bólintás kicsi és FÜRGE (egy lassú bólintás nem bólintás).
+    # ⚠️ A fok-értékek a JÓVÁHAGYOTT mozgásból lettek visszaszámolva: a Teremtő a régi
+    # (rossz) skálán látta és fogadta el őket, tehát a FIZIKAI kitérést tartjuk meg, nem
+    # a számot. A bólintás pulzus-kitérése végig 0,235 ms; a skála javításával (0,0112 ->
+    # 0,0168) a hozzá tartozó FOK lett kisebb, a mozdulat ugyanaz maradt.
+    nod_deg: float = 14.0
+    nod_count: int = 2
+    step_s: float = 0.35            # egy bólintás-lépés kivárása
+
+    # A pásztázás MÁS: a kamerának LÁTNIA kell közben (a Teremtő, 2026-08-25 — a gyors
+    # változat "nem fog látni semmit"). A szervónak nincs sebesség-bemenete: egy nagy
+    # lépésre teljes gyorsasággal odaugrik. Lassítani CSAK úgy lehet, hogy a mozgást kis
+    # lépésekre bontjuk. A 30 fok / 45 fok/s ugyanaz a FIZIKAI pásztázás, amit a Teremtő
+    # jóváhagyott (régi 20 fok / 30 fok/s @ 0,020 skálán).
+    scan_deg: float = 30.0
+    scan_deg_per_s: float = 45.0
+    scan_step_deg: float = 2.0      # ekkora lépésekben, hogy folyamatosnak lássék
+
+    def __post_init__(self) -> None:
+        if self.pwm_frequency_hz <= 0:
+            raise ValueError("pwm_frequency_hz must be > 0")
+        if self.pan_ms_per_deg <= 0 or self.tilt_ms_per_deg <= 0:
+            raise ValueError("a ms_per_deg értékek > 0 kell legyenek")
+        for nev, kozep in (("pan", self.pan_centre_ms), ("tilt", self.tilt_centre_ms)):
+            if not self.min_ms < kozep < self.max_ms:
+                raise ValueError(f"min_ms < {nev}_centre_ms < max_ms kell legyen")
+        # A keretnél hosszabb pulzus értelmezhetetlen: 50 Hz-en a 20 ms a teljes periódus.
+        if self.max_ms >= 1000.0 / self.pwm_frequency_hz:
+            raise ValueError("max_ms nem érheti el a PWM-keretet (1000/frekvencia ms)")
+        if self.pan_backlash_deg < 0 or self.tilt_backlash_deg < 0:
+            raise ValueError("a holtjáték nem lehet negatív")
+        if self.nod_count <= 0 or self.nod_deg <= 0 or self.scan_deg <= 0:
+            raise ValueError("nod_count, nod_deg, scan_deg mind > 0 kell legyen")
+        if self.step_s <= 0:
+            raise ValueError("step_s must be > 0")
+        if self.scan_deg_per_s <= 0 or self.scan_step_deg <= 0:
+            raise ValueError("scan_deg_per_s és scan_step_deg > 0 kell legyen")
+
+
+@dataclass(frozen=True)
 class Settings:
     llm: LLMEndpoints = field(default_factory=LLMEndpoints)
     safety: SafetySettings = field(default_factory=SafetySettings)
     motion: MotionSettings = field(default_factory=MotionSettings)
     voice: VoiceSettings = field(default_factory=VoiceSettings)
     rag: RAGSettings = field(default_factory=RAGSettings)
+    camera: CameraSettings = field(default_factory=CameraSettings)
 
 
 # Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt
@@ -244,7 +332,7 @@ _EGYEB_ENV = frozenset({
 
 _SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
              "MOTION": ("motion", MotionSettings), "VOICE": ("voice", VoiceSettings),
-             "RAG": ("rag", RAGSettings)}
+             "RAG": ("rag", RAGSettings), "CAMERA": ("camera", CameraSettings)}
 
 # Csak skalár mezők írhatók felül. A `per_sensor_cm` (Mapping) szándékosan kimarad:
 # egy env-be sűrített dict saját mini-nyelvtant kívánna, és az elgépelése némán
