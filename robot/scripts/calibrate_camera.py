@@ -6,8 +6,9 @@ futtatás az ÚJRAMÉRÉS eszköze: szervócsere, áthelyezett horn vagy új tar
 
   1. `ms_per_deg` — hány ms a szervón egy fok. A `camera pan left 45` enélkül nem 45
      fok, csak "arra". MÉRVE: pan 0,0133, tilt 0,0112 — a kettő 19%-kal eltér, tehát
-     tengelyenként kell. (Két korábbi SZEMMÉRTÉKES becslés, 0,010 és 0,020, is tévedett.)
-  2. `min_ms` / `max_ms` — a biztonsági sáv. MÉRVE: 0,60-2,40 ms, ami ±68 (pan) / ±80
+     tengelyenként kell. (Két korábbi SZEMMÉRTÉKES becslés, 0,010 és 0,020, is tévedett,
+     és a tilt VÉGÁLLÁSOKBÓL számolt 0,0112-je is — lásd az ELLENŐRZÉS szakaszt.)
+  2. `min_ms` / `max_ms` — a biztonsági sáv. MÉRVE: 0,60-2,40 ms, ami ±68 (pan) / ±54
      (tilt) fok. A korábbi 1,0-2,0-es TIPP csak ±25 fokot engedett, amiben egy
      "fordulj balra 45 fokot" mindig vágásba futott.
   3. A HOLTJÁTÉK (a fogaskerekek hézaga). MÉRVE: pan 10, tilt 5 fok. Ez magyarázza, hogy
@@ -136,6 +137,25 @@ def main() -> int:
         else:
             print("   kihagyva — a skála marad a jelenlegi")
             ms_per_deg = t.ms_per_deg
+
+        # ── 2b. ELLENŐRZÉS: a skála a KÖZÉP körül is stimmel-e ──────────────────
+        # Ez a lépés MA 50%-os hibát fogott volna el (tilt: 0,0112 helyett 0,0168). A
+        # végállások közti nagy szöget rosszul becsli az ember; egy 30 fokos kitérést a
+        # közép körül jól. Ha a kettő nem egyezik, a KÖZÉP KÖRÜLI a hiteles: a
+        # `camera tilt up 30` is ott dolgozik, nem a végállásban.
+        print("\n=== ELLENŐRZÉS ===")
+        probe_fok = 30.0
+        eltolas = probe_fok * ms_per_deg
+        tarts(t.centre_ms, "ez a KÖZÉP — jelöld meg")
+        tarts(t.centre_ms + eltolas,
+              f"ennek pontosan {probe_fok:.0f} foknak kell lennie a középtől")
+        mert = _szam(f"   Hány FOK valójában? (ENTER, ha {probe_fok:.0f}) ")
+        if mert and mert > 0 and abs(mert - probe_fok) > 2:
+            javitott = eltolas / mert
+            print("   ⚠️ NEM EGYEZIK. A közép körüli mérés a hiteles:")
+            print(f"      ms_per_deg = {eltolas:.4f} / {mert} = {javitott:.4f} "
+                  f"(a végállásokból {ms_per_deg:.4f} jött)")
+            ms_per_deg = javitott
 
         # ── 3. holtjáték: ugyanaz a pulzus, két IRÁNYBÓL megközelítve ────────────
         print("\n=== HOLTJÁTÉK ===")

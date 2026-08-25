@@ -246,10 +246,18 @@ class CameraSettings:
     pan_centre_ms: float = 1.65
     tilt_centre_ms: float = 1.50
 
-    # Hány ms egy fok. Két álló végállás közti szög méréséből, nem egy mozdulat
-    # megsaccolásából — a korábbi szemmértékes 0,010 és 0,020 is tévedés volt.
+    # Hány ms egy fok. KÉT ÁLLÓ HELYZET szögéből, nem egy mozdulat megsaccolásából.
+    #
+    # ⚠️ A tilt értéke JAVÍTVA 0,0112-ről (2026-08-25): a végállások közti TELJES
+    # kitérés mérése 160 fokot adott, egy közép körüli ellenőrzés viszont 0,336 ms-ra
+    # pontosan 20 fokot -> 0,0168. Az utóbbi a hiteles, és a különbség 50%.
+    #
+    # A TANULSÁG A MÓDSZERRŐL SZÓL: a két végállás közti NAGY szöget rosszul becsli az
+    # ember (a kamera ott le-föl néz, nincs mihez viszonyítani), egy 20-30 fokos
+    # kitérést a közép körül viszont jól. A `calibrate_camera.py` ezért záró
+    # ELLENŐRZÉST is végez — ez a hibát elfogta volna.
     pan_ms_per_deg: float = 0.0133
-    tilt_ms_per_deg: float = 0.0112
+    tilt_ms_per_deg: float = 0.0168
 
     # A biztonságos pulzus-sáv, VÉGIGPRÓBÁLVA kifelé lépegetve (--explore): eddig megy a
     # szervó anélkül, hogy nekifeszülne. A korábbi 1,0-2,0 ÓVATOS TIPP volt, és drágán:
@@ -268,8 +276,9 @@ class CameraSettings:
     # Gesztusok. A bólintás kicsi és FÜRGE (egy lassú bólintás nem bólintás).
     # ⚠️ A fok-értékek a JÓVÁHAGYOTT mozgásból lettek visszaszámolva: a Teremtő a régi
     # (rossz) skálán látta és fogadta el őket, tehát a FIZIKAI kitérést tartjuk meg, nem
-    # a számot. Régi 12 fok @ 0,020 = 0,24 ms = 21 fok a valódi tilt-skálán.
-    nod_deg: float = 21.0
+    # a számot. A bólintás pulzus-kitérése végig 0,235 ms; a skála javításával (0,0112 ->
+    # 0,0168) a hozzá tartozó FOK lett kisebb, a mozdulat ugyanaz maradt.
+    nod_deg: float = 14.0
     nod_count: int = 2
     step_s: float = 0.35            # egy bólintás-lépés kivárása
 
