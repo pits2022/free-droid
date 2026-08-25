@@ -79,6 +79,14 @@ PCA9685_ADDR = 0x40
 PAN_CHANNEL = 0       # CH0
 TILT_CHANNEL = 1      # CH1
 
+# A szervók IRÁNYA — mért hardver-tény, ugyanúgy, mint a motorok "előre" szintje.
+# MÉRVE 2026-08-25 a felszerelt kamerán: a rövidebb pulzus (1,35 ms) JOBBRA és LEFELÉ
+# vitte a képet, a hosszabb (1,65 ms) BALRA és FELFELÉ. Tehát mindkét tengelyen a
+# NÖVEKVŐ pulzus = balra / felfelé. Egy tükörben felszerelt szervónál ez megfordul,
+# ezért nem konstans a kódban, hanem itt: átírni egy karakter.
+PAN_LEFT_SIGN = +1    # +1: nagyobb pulzus = balra
+TILT_UP_SIGN = +1     # +1: nagyobb pulzus = felfelé
+
 # --- Ultrasonic: HC-SR04P (trig, echo), BCM pins ---
 # ELÖL + HÁTUL, két szenzor. (2026-08-16, a Teremtő: a 45°-os szenzorokat a mechanika
 # nem fogadja be.) A `rear` a régi `front_left` ütközésmentes lábpárját örökli.

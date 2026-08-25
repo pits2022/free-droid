@@ -226,12 +226,82 @@ class RAGSettings:
 
 
 @dataclass(frozen=True)
+class CameraSettings:
+    """Pan/tilt szervók a PCA9685-ön. Minden érték KALIBRÁCIÓS: a mechanika, a horn
+    állása és a szervó típusa mind beleszól, tehát env-ből felülírható (a robot NEM a
+    fejlesztőgépen áll)."""
+
+    pwm_frequency_hz: int = 50      # a hobbiszervók szabványos kerete (20 ms)
+
+    # A szervó elektromos középje. NEM feltétlenül a mechanikai közép: a kamera 2026-08-25
+    # óta a középen kb. 15 fokkal FELFELÉ néz, és ez SZÁNDÉKOS — a robot a földön áll és
+    # álló emberre néz. Ezért nincs külön "trim": az alaphelyzet az, amit a horn ad.
+    centre_ms: float = 1.5
+
+    # MÉRVE 2026-08-25 a felszerelt kamerán, a tool-láncon keresztül: a `camera pan
+    # left 30` (= 0,30 ms kitérés) szemre ~15 fokot adott, MINDKÉT tengelyen -> 0,020.
+    #
+    # ⚠️ Ez még mindig SZEMMÉRTÉK, és ELLENTMOND az előző napi leolvasásnak (0,15 ms ~
+    # 10-15 fok, azaz 0,010-0,015). A mai a megbízhatóbb — nagyobb elmozdulás, kimondott
+    # várakozással, a valódi kódúton -, de a kettő különbsége kétszeres.
+    #
+    # A PONTOS MÉRÉS OLCSÓBB, MINT HINNÉD, és nem relatív szöget kell becsülni: hajtsd a
+    # tengelyt VÉGIG a sávon (`camera pan left 200` -> vágás a max_ms-re, majd
+    # `pan right 200` -> min_ms), és mérd meg SZÖGMÉRŐVEL a két végállás közti teljes
+    # kitérést. Onnan: ms_per_deg = (max_ms - min_ms) / teljes_szög. Két álló helyzetet
+    # kell összehasonlítani, nem egy mozdulat nagyságát megsaccolni.
+    ms_per_deg: float = 0.020
+
+    # A biztonsági sáv: a szervó VÉGÁLLÁSA ezen kívül van, ahol nekifeszül az ütközőnek
+    # és megrántott áramot vesz fel (MG996R ~2,5 A/db a 2 A-es LM2596-sínről) — két
+    # szervó ott a TÁPOT viszi el, a Pi-vel együtt. A vezérlő ezért VÁG, nem hibázik:
+    # egy "nézz még balrább" a demón álljon meg a szépen, ne dobjon kivételt.
+    min_ms: float = 1.0
+    max_ms: float = 2.0
+
+    # Gesztusok. A bólintás kicsi és FÜRGE (egy lassú bólintás nem bólintás).
+    nod_deg: float = 12.0
+    nod_count: int = 2
+    step_s: float = 0.35            # egy bólintás-lépés kivárása
+
+    # A pásztázás MÁS: a kamerának LÁTNIA kell közben (a Teremtő, 2026-08-25 — a gyors
+    # változat "nem fog látni semmit"). A szervónak nincs sebesség-bemenete: egy nagy
+    # lépésre teljes gyorsasággal odaugrik. Lassítani CSAK úgy lehet, hogy a mozgást kis
+    # lépésekre bontjuk, és a lépések közé várunk — a sebességet tehát ez a két szám
+    # adja, nem a step_s.
+    #
+    # A 20 fok nem véletlen: a 0,020 ms/fok mellett a biztonsági sávban ±25 fok fér el
+    # tengelyenként, tehát egy 40 fokos kitérés VÁGÁSBA futna. Ha a sáv tágul, ez is nőhet.
+    scan_deg: float = 20.0
+    scan_deg_per_s: float = 30.0    # pásztázási szögsebesség
+    scan_step_deg: float = 2.0      # ekkora lépésekben, hogy folyamatosnak lássék
+
+    def __post_init__(self) -> None:
+        if self.pwm_frequency_hz <= 0:
+            raise ValueError("pwm_frequency_hz must be > 0")
+        if self.ms_per_deg <= 0:
+            raise ValueError("ms_per_deg must be > 0")
+        if not self.min_ms < self.centre_ms < self.max_ms:
+            raise ValueError("min_ms < centre_ms < max_ms kell legyen")
+        # A keretnél hosszabb pulzus értelmezhetetlen: 50 Hz-en a 20 ms a teljes periódus.
+        if self.max_ms >= 1000.0 / self.pwm_frequency_hz:
+            raise ValueError("max_ms nem érheti el a PWM-keretet (1000/frekvencia ms)")
+        if self.nod_count <= 0 or self.nod_deg <= 0 or self.scan_deg <= 0:
+            raise ValueError("nod_count, nod_deg, scan_deg mind > 0 kell legyen")
+        if self.step_s <= 0:
+            raise ValueError("step_s must be > 0")
+        if self.scan_deg_per_s <= 0 or self.scan_step_deg <= 0:
+            raise ValueError("scan_deg_per_s és scan_step_deg > 0 kell legyen")
+
+
+@dataclass(frozen=True)
 class Settings:
     llm: LLMEndpoints = field(default_factory=LLMEndpoints)
     safety: SafetySettings = field(default_factory=SafetySettings)
     motion: MotionSettings = field(default_factory=MotionSettings)
     voice: VoiceSettings = field(default_factory=VoiceSettings)
     rag: RAGSettings = field(default_factory=RAGSettings)
+    camera: CameraSettings = field(default_factory=CameraSettings)
 
 
 # Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt
@@ -244,7 +314,7 @@ _EGYEB_ENV = frozenset({
 
 _SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
              "MOTION": ("motion", MotionSettings), "VOICE": ("voice", VoiceSettings),
-             "RAG": ("rag", RAGSettings)}
+             "RAG": ("rag", RAGSettings), "CAMERA": ("camera", CameraSettings)}
 
 # Csak skalár mezők írhatók felül. A `per_sensor_cm` (Mapping) szándékosan kimarad:
 # egy env-be sűrített dict saját mini-nyelvtant kívánna, és az elgépelése némán
