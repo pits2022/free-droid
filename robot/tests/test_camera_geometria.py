@@ -103,3 +103,23 @@ def test_a_nulla_lepeskoz_HANGOSAN_bukik():
     for rossz in (0.0, -2.0):
         with pytest.raises(ValueError):
             lepesekre(20.0, rossz)
+
+
+def test_minden_gesztusnak_van_sajat_aga():
+    """Egy jövőbeli `CameraAction`-tag ne csússzon át némán a SCAN ágába (PR #94 review).
+
+    A vezérlő Pi-only, tehát nem példányosítható itt — de az ELÁGAZÁS teljessége
+    forrásból is ellenőrizhető, és pont az a tétel: minden tagnak legyen saját ága.
+
+    ⚠️ Ez DRÓTAKADÁLY, nem szemantikai ellenőrzés: forrásszöveget néz, tehát egy jogos
+    átírás is elbuktatja (mutációval mérve: `action.name == "NOD"` megbukik rajta, pedig
+    helyes kód). Ha emiatt pirosodik, a helyes válasz az, hogy MEGNÉZED, tényleg minden
+    tagnak van-e ága, és utána igazítod a tesztet — nem az, hogy törlöd.
+    """
+    import inspect
+
+    from freedroid.camera import CameraAction, PanTiltCamera
+
+    forras = inspect.getsource(PanTiltCamera.action)
+    for tag in CameraAction:
+        assert f"CameraAction.{tag.name}" in forras, f"{tag.name} nincs kezelve"

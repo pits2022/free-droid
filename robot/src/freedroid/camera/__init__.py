@@ -216,10 +216,16 @@ class PanTiltCamera:
                 for _ in range(self._cfg.nod_count):
                     self._lepes(self.tilt, "down", self._cfg.nod_deg)
                     self._lepes(self.tilt, "up", self._cfg.nod_deg)
-            else:  # SCAN — LASSAN pásztáz balról jobbra, majd vissza középre
+            elif action is CameraAction.SCAN:
+                # LASSAN pásztáz balról jobbra, majd vissza középre
                 self._pasztaz("left", self._cfg.scan_deg)
                 self._pasztaz("right", 2 * self._cfg.scan_deg)
                 self._pasztaz("left", self._cfg.scan_deg)
+            else:
+                # Egy JÖVŐBELI enum-tag különben némán SCAN-t futtatna (PR #94 review).
+                # Ugyanaz az elv, mint a `face_speaker`-nél: egy nem támogatott gesztus
+                # ne egy MÁSIK gesztusként jelenjen meg a színpadon.
+                raise NotImplementedError(f"camera action={action.value}: nincs mozdulata")
         finally:
             # A NYILVÁNTARTOTT szög a mérvadó, nem a lépések összege: ha valamelyik
             # lépés a határba ütközött, az oda-vissza már nem egyenlíti ki magát.
