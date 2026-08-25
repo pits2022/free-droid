@@ -48,7 +48,7 @@ class CameraController(Protocol):
 @dataclass(frozen=True)
 class Tengely:
     """Egy tengely kalibrációja. Azért külön típus, mert a két tengely MÉRHETŐEN
-    különbözik (2026-08-25: 0,0133 vs 0,0112 ms/fok, más közép, más holtjáték) — egy
+    különbözik (2026-08-25: 0,0133 vs 0,0168 ms/fok, más közép, más holtjáték) — egy
     közös értékkészlet az egyikre biztosan hazudna."""
 
     nev: str
@@ -93,6 +93,13 @@ def lepesekre(fok: float, lepes: float) -> list[float]:
     kozmetika — a gesztus végén a kamerának oda kell visszaállnia, ahonnan indult, és
     egy lebegőpontos maradék minden pásztázásnál elcsúsztatná.
     """
+    # A NULLA/NEGATÍV lépésköz nem védhető ki csendben (PR #94 review). Nullánál
+    # ZeroDivisionError jönne; negatívnál viszont a `max(1, ...)` miatt EGYETLEN nagy
+    # lépés lenne — a szervó odaugrana, néma no-opként megszüntetve pont a lassú
+    # pásztázást, amiért ez a függvény létezik. A javasolt `return []` szintén néma
+    # (nem mozdul, és nem mondja meg, miért), ezért itt kivétel a helyes válasz.
+    if lepes <= 0:
+        raise ValueError(f"a lépésköz > 0 kell legyen, kapott: {lepes!r}")
     if fok <= 0:
         return []
     darab = max(1, math.ceil(fok / lepes))

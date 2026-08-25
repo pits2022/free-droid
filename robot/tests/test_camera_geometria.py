@@ -94,3 +94,12 @@ def test_a_nulla_es_a_negativ_nem_mozdit():
     from freedroid.camera import lepesekre
     assert lepesekre(0.0, 2.0) == []
     assert lepesekre(-5.0, 2.0) == []
+
+
+def test_a_nulla_lepeskoz_HANGOSAN_bukik():
+    """Nem néma no-op: negatív lépésköznél a `max(1, ...)` egyetlen NAGY lépést adna —
+    a szervó odaugrana, csendben megszüntetve a lassú pásztázást. (PR #94 review.)"""
+    from freedroid.camera import lepesekre
+    for rossz in (0.0, -2.0):
+        with pytest.raises(ValueError):
+            lepesekre(20.0, rossz)
