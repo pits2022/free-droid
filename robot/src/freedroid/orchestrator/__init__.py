@@ -80,6 +80,12 @@ class Orchestrator:
         # történik), tehát alapból megépíthető — Pi nélkül is.
         self.llm = llm or FallbackLLMClient(settings)
         self._retriever = None
+        # Az UTOLSÓ `ask()` RAG-találatai. Diagnosztikai kimenet: e nélkül nem
+        # dönthető el, hogy a válasz a korpuszból jött-e vagy a modellből — a
+        # demó-modell pedig kifejezetten "v12 + RAG". Azért ITT áll és nem egy
+        # második lekérdezésben (PR #93 review), mert így IGAZ MARAD akkor is, ha az
+        # `ask()` valaha máshogy keresne: pontosan azt őrzi, amit a prompt kapott.
+        self.utolso_talalatok: list[Hit] = []
         self.motion = motion or CytronMotionController(settings)
         self.camera = camera
         # A watchdog a `motion`-től olvassa a haladási irányt — EGYETLEN forrás, nem
@@ -130,7 +136,7 @@ class Orchestrator:
         Ez a lánc a hang nélkül is teljes, tehát billentyűzetről végigvihető. Ami
         hiányzik belőle, az kizárólag a `voice/` (ébresztőszó, STT, TTS).
         """
-        hits = self._talalatok(kerdes)
+        hits = self.utolso_talalatok = self._talalatok(kerdes)
         prompt = build_prompt(kerdes, hits)
         esemeny = transcript.Interakcio(
             hallott=kerdes, prompt=prompt,
