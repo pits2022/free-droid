@@ -176,6 +176,11 @@ class EnergyVAD:
         self._darab_s = 0.05
         # Bájtban: 16 bites mono, tehát mintánként 2 bájt.
         self._darab = int(self._cfg.stt_sample_rate * self._darab_s) * 2
+        # Az UTOLSÓ felvétel mért értékei. Diagnosztika: a "nem hallottam semmit" magában
+        # nem mond semmit — e nélkül nem lehet eldönteni, hogy túl magas a küszöb, vagy
+        # tényleg csend volt. A hívó ezeket kiírja.
+        self.zajszint = 0.0
+        self.kuszob = 0.0
 
     def _darabszam(self, masodperc: float) -> int:
         """Másodperc -> hány 50 ms-os darab. `round`, NEM `int`.
@@ -211,11 +216,22 @@ class EnergyVAD:
 
     def _felvesz(self, felvevo) -> bytes:
         cfg = self._cfg
-        # 1. zajszint: ebből lesz a küszöb
+        # 1. zajszint: ebből lesz a küszöb.
+        #
+        # MINIMUM, nem átlag — MÉRVE 2026-08-25, és ez a különbség tette használhatatlanná
+        # az első változatot. A mérőablak a felvétel ELEJÉN van; ha a beszélő azonnal
+        # megszólal (márpecig ENTER után azt teszi), az átlagba BELESZÁMÍT a saját hangja,
+        # és a küszöb ANNAK a háromszorosa lesz. Ilyenkor a normál beszéd sosem lépi át —
+        # csak a kiabálás. A minimum a mérőablak legcsendesebb darabját veszi, tehát a
+        # beleló beszéd nem fújja fel; a `vad_min_rms` pedig alulról fog egy néma
+        # mikrofont (aminél a szorzó 0-t adna).
         zaj = [rms(self._olvas_darab(felvevo))
                for _ in range(max(1, self._darabszam(cfg.vad_calib_s)))]
-        kuszob = max(sum(zaj) / len(zaj) * cfg.vad_snr, cfg.vad_min_rms)
-        log.debug("VAD: zajszint %.0f, küszöb %.0f", sum(zaj) / len(zaj), kuszob)
+        self.zajszint = min(zaj)
+        self.kuszob = max(self.zajszint * cfg.vad_snr, cfg.vad_min_rms)
+        log.debug("VAD: zajszint %.0f (átlag %.0f), küszöb %.0f",
+                  self.zajszint, sum(zaj) / len(zaj), self.kuszob)
+        kuszob = self.kuszob
 
         # 2. várunk a beszéd KEZDETÉRE. Közben gyűrűben tartjuk az utolsó néhány
         # darabot: e nélkül a mondat első hangja LEVÁGVA kerülne a Whisperhez, mert a

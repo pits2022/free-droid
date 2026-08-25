@@ -185,3 +185,22 @@ def test_a_hianyzo_modell_HANGOS(tmp_path):
     stt = WhisperCppSTT(beallitas(whisper_model=str(tmp_path / "nincs.bin")))
     with pytest.raises(RuntimeError, match="nem található"):
         stt.transcribe(pcm(1000))
+
+
+def test_a_BELELOGO_beszed_nem_fujja_fel_a_kuszobot(monkeypatch):
+    """MÉRVE 2026-08-25, és ez tette használhatatlanná az első változatot.
+
+    A zajszint-mérés a felvétel ELEJÉN van. Ha a beszélő azonnal megszólal (ENTER után
+    azt teszi), ÁTLAGgal a küszöb a saját hangja háromszorosa lesz — a normál beszéd
+    sosem lépi át, csak a kiabálás. MINIMUMmal a mérőablak legcsendesebb darabja számít.
+
+    Itt a mérőablak fele csend (100), fele beszéd (5000):
+      átlaggal:  (100+5000)/2 * 3 = 7650  -> a 3000-es beszédet NEM hallaná meg
+      minimummal: 100 * 3        =  300  -> meghallja
+    """
+    kalib = [pcm(100)] * 3 + [pcm(5000)] * 3
+    beszed = [pcm(3000)] * 2
+    csend = [pcm(0)] * 20
+    felvett = vad_futtat(kalib + beszed + csend, monkeypatch,
+                         vad_min_rms=1.0, vad_snr=3.0, vad_preroll_s=0.0)
+    assert felvett, "a normál hangerőt is meg kell hallania"

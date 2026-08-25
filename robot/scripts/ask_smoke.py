@@ -76,7 +76,10 @@ def _hallgat(vad, stt) -> str:
     hang = vad.record_until_silence()
     felvetel_s = time.perf_counter() - kezd
     if not hang:
-        print("(nem hallottam semmit)")
+        # A puszta "nem hallottam" nem diagnózis: a MÉRT számok mondják meg, hogy a
+        # küszöb volt magas, vagy tényleg csend volt.
+        print(f"(nem hallottam semmit — zajszint {vad.zajszint:.0f}, "
+              f"küszöb {vad.kuszob:.0f}; halkabb küszöb: FREEDROID_VOICE_VAD_SNR=2)")
         return ""
     kezd = time.perf_counter()
     szoveg = stt.transcribe(hang)
@@ -158,7 +161,11 @@ def main() -> int:
         print(f"bemelegítés: {hatter.value if hatter else 'egyik háttér sem felelt'} "
               f"({time.perf_counter() - kezd:.1f} s)")
     try:
-        for kerdes in (args.kerdes or ([] if args.interactive else ALAP_KERDESEK)):
+        # A `--listen` ugyanúgy kihagyja a beégetett kérdéseket, mint az `--interactive`:
+        # aki a mikrofonhoz ült, nem a két alap-kérdésre kíváncsi (és az edge-ágon
+        # kettő EGYENKÉNT fél perc, mire egyáltalán szóhoz jutna).
+        sajat_kerdes = args.interactive or args.listen
+        for kerdes in (args.kerdes or ([] if sajat_kerdes else ALAP_KERDESEK)):
             egy_kor(o, kerdes, tts)
         while ful is not None:
             try:
