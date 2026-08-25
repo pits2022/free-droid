@@ -145,3 +145,20 @@ def test_tobbsoros_tool_blokk_utan_nem_marad_ures_sor():
     r = guard("Megyek, Teremtőm.\n<tool>move forward 2</tool>\nMindjárt ott vagyok.")
     assert r.beszed == "Megyek, Teremtőm.\nMindjárt ott vagyok."
     assert "\n\n" not in r.beszed
+
+
+def test_a_maradek_JELOLES_nem_kerul_a_hangszorora():
+    """MÉRVE 2026-08-25 a Pi-n: a modell `<giggle>`-t és `<br>`-t adott ki, és a Piper
+    KIMONDTA ("br", "giggle") — a demó-úton, a hangszórón. A `<puska/>` (az orákulum
+    jelzése) ugyanilyen: sosem kimondható."""
+    assert guard("Vicces. <giggle> Vége. <br>").beszed == "Vicces. Vége."
+    assert guard("Tudom. <puska/>").beszed == "Tudom."
+
+
+def test_a_PARATLAN_kisebb_jel_nem_eszi_meg_a_mondatot():
+    """A hosszkorlát nem kozmetika: korlát nélkül egy páratlan `<` a következő `>`-ig
+    MINDENT letörölne. Egy jelölés rövid; ami hosszú, az szöveg."""
+    szoveg = ("A 3 < 5 egyenlőtlenség igaz, és ez egy elég hosszú mondat ahhoz, "
+              "hogy a korlátot túllépje > vége.")
+    assert "egyenlőtlenség igaz" in guard(szoveg).beszed
+    assert "vége" in guard(szoveg).beszed

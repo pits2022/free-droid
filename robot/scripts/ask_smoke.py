@@ -52,6 +52,17 @@ def _naplozo_motor():
     )
 
 
+def _naplozo_kamera():
+    """Kameravezérlő helyett napló — ugyanaz az elv, mint a motoroknál: a tool-lánc
+    végigmenjen, és LÁTSZÓDJON, mit hívott volna."""
+    def naplo(nev):
+        def hivas(*a):
+            print(f"KAMERA: {nev} {' '.join(str(x) for x in a)}")
+        return hivas
+    return types.SimpleNamespace(pan=naplo("pan"), tilt=naplo("tilt"),
+                                 action=naplo("action"), close=lambda: None)
+
+
 def _alvo_watchdog():
     """Nem mérünk ultrahangot: a füstpróba a NYELVI láncról szól, és egy futó
     watchdog-szál a `fault`-jával feleslegesen tiltaná le a mozgás-tool-okat."""
@@ -142,6 +153,17 @@ def main() -> int:
         print("⚠️  VALÓDI MOTORVEZÉRLŐ — a robot mozogni fog. 3 másodperced van.")
         time.sleep(3)
 
+    # A KAMERA nem esik a `--live-motion` alá: a fejet mozgatni veszélytelen (a robot
+    # nem hajt le az asztalról tőle), és e nélkül minden `camera` tool-hívás LookupError.
+    # MÉRVE 2026-08-25: a modell "fordulj jobbra 90 fokot"-ra `camera pan right 90`-et
+    # adott, és a füstpróba elhasalt rajta — a lánc jó volt, a vezérlő hiányzott.
+    try:
+        from freedroid.camera import PanTiltCamera
+        camera = PanTiltCamera()
+    except Exception as e:  # noqa: BLE001 — off-Pi ez a VÁRT eset, nem hiba
+        print(f"kamera nélkül (naplózó): {type(e).__name__}: {e}")
+        camera = _naplozo_kamera()
+
     tts = None
     if args.speak:
         from freedroid.voice import PiperTTS
@@ -152,7 +174,7 @@ def main() -> int:
         from freedroid.voice import EnergyVAD, WhisperCppSTT
         ful = (EnergyVAD(), WhisperCppSTT())
 
-    o = Orchestrator(motion=motion, watchdog=_alvo_watchdog())
+    o = Orchestrator(motion=motion, camera=camera, watchdog=_alvo_watchdog())
     if not args.cold:
         # Ugyanaz, amit a robot bootkor csinál: modell betöltése + a rendszerprompt
         # prefilljének cache-be melegítése. Enélkül a MÉRÉS a hidegindítást méri.

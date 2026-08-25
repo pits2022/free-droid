@@ -1,3 +1,4 @@
+
 # 🧪 Free-Droid persona-benchmark — eredmény
 
 *Futtatva: 2026-08-11 12:28*  
