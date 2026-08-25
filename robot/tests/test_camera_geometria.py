@@ -9,27 +9,43 @@ from __future__ import annotations
 
 import pytest
 
-from freedroid.camera import pulzus_ms, szog_hatarok, vagott_szog
+from freedroid.camera import pulzus_ms, szog_hatarok, tengelyek, vagott_szog
 from freedroid.config.settings import CameraSettings
 
-CFG = CameraSettings()   # centre 1.5 ms, 0.010 ms/fok, sáv 1.0-2.0 ms
+CFG = CameraSettings()
+PAN, TILT = tengelyek(CFG)
 
 
 def test_a_kozep_a_kozepso_pulzus():
-    assert pulzus_ms(CFG, 0.0) == pytest.approx(CFG.centre_ms)
+    assert pulzus_ms(PAN, 0.0) == pytest.approx(PAN.centre_ms)
 
 
 def test_a_szog_a_kalibraciobol_szamol():
     """A kitérés a KALIBRÁCIÓBÓL jön, nem beégetett számból: ha a `ms_per_deg` változik
     (márpedig változott, 0,010 -> 0,020), a pulzus vele mozdul."""
-    assert pulzus_ms(CFG, 20.0) == pytest.approx(CFG.centre_ms + 20 * CFG.ms_per_deg)
-    assert pulzus_ms(CFG, -20.0) == pytest.approx(CFG.centre_ms - 20 * CFG.ms_per_deg)
+    assert pulzus_ms(PAN, 20.0) == pytest.approx(PAN.centre_ms + 20 * PAN.ms_per_deg)
+    assert pulzus_ms(PAN, -20.0) == pytest.approx(PAN.centre_ms - 20 * PAN.ms_per_deg)
 
 
 def test_a_hatarok_a_biztonsagi_savbol_jonnek():
-    also, felso = szog_hatarok(CFG)
-    assert pulzus_ms(CFG, also) == pytest.approx(CFG.min_ms)
-    assert pulzus_ms(CFG, felso) == pytest.approx(CFG.max_ms)
+    also, felso = szog_hatarok(PAN)
+    assert pulzus_ms(PAN, also) == pytest.approx(CFG.min_ms)
+    assert pulzus_ms(PAN, felso) == pytest.approx(CFG.max_ms)
+
+
+def test_a_ket_tengely_KULON_kalibraciot_kap():
+    """MÉRVE 2026-08-25: a két szervó skálája 19%-kal eltér, és a középük sem egyezik.
+    Egy közös értékkészlet az egyikre biztosan hazudna."""
+    assert PAN.ms_per_deg != TILT.ms_per_deg
+    assert PAN.centre_ms != TILT.centre_ms
+    assert PAN.csatorna != TILT.csatorna
+
+
+def test_a_hatarok_ASZIMMETRIKUSAK_ha_a_kozep_nem_kozepen_van():
+    """A pan közepe 1,65 ms a 0,60-2,40-es sávban: lefelé több hely van, mint fölfelé.
+    Egy szimmetrikusnak feltételezett tartomány itt az egyik irányban túllőne."""
+    also, felso = szog_hatarok(PAN)
+    assert abs(also) > abs(felso)
 
 
 def test_a_vagas_SZOGBEN_tortenik_nem_pulzusban():
@@ -41,20 +57,20 @@ def test_a_vagas_SZOGBEN_tortenik_nem_pulzusban():
     A robot ilyenkor néma és mozdulatlan — a demón megkülönböztethetetlen egy döglött
     szervótól. Szögben vágva a határról az első ellenirányú parancs elmozdul.
     """
-    _, felso = szog_hatarok(CFG)
+    _, felso = szog_hatarok(PAN)
     szog = 0.0
     for _ in range(3):
-        szog = vagott_szog(CFG, szog + 45.0)
+        szog = vagott_szog(PAN, szog + 45.0)
     assert szog == pytest.approx(felso)          # a határon áll, nem azon túl
-    assert vagott_szog(CFG, szog - 10.0) < felso  # és onnan VAN visszaút
+    assert vagott_szog(PAN, szog - 10.0) < felso  # és onnan VAN visszaút
 
 
 def test_a_kalibracio_atskalazza_a_szoget():
     """A `ms_per_deg` a valódi kalibrációs gomb: ugyanaz a fok más pulzust ad."""
-    finomabb = CameraSettings(ms_per_deg=CFG.ms_per_deg / 2)
-    assert pulzus_ms(finomabb, 20.0) == pytest.approx(CFG.centre_ms + 20 * CFG.ms_per_deg / 2)
+    finomabb, _ = tengelyek(CameraSettings(pan_ms_per_deg=PAN.ms_per_deg / 2))
+    assert pulzus_ms(finomabb, 20.0) == pytest.approx(PAN.centre_ms + 20 * PAN.ms_per_deg / 2)
     # a PULZUS-sáv ugyanaz marad, tehát a szög-határ pont kétszeresére TÁGUL
-    assert szog_hatarok(finomabb)[1] == pytest.approx(2 * szog_hatarok(CFG)[1])
+    assert szog_hatarok(finomabb)[1] == pytest.approx(2 * szog_hatarok(PAN)[1])
 
 
 # --- a lassú pásztázás lépés-felbontása ---

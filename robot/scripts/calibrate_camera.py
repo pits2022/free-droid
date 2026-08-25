@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """A kamera-szervók bemérése — `ms_per_deg`, a biztonságos pulzus-sáv, és a holtjáték.
 
-HÁROM SZÁM, és mindhárom eddig BECSLÉS volt:
+HÁROM SZÁM tengelyenként. Mindhárom MÉRVE van (2026-08-25, ezzel a scripttel) — ez a
+futtatás az ÚJRAMÉRÉS eszköze: szervócsere, áthelyezett horn vagy új tartó után.
 
-  1. `ms_per_deg` — hány ms a szervón egy fok. A `camera pan left 45` addig nem 45 fok,
-     csak "arra". Két szemmértékes leolvasásunk van (0,010 és 0,020), kétszeres
-     eltéréssel — ezért mérünk.
-  2. `min_ms` / `max_ms` — a biztonsági sáv. Az alapértelmezett 1,0-2,0 ms ÓVATOS
-     tipp, nem a szervó képessége: a 0,020-as skálával csak ±25 fokot enged, amiben egy
-     "fordulj balra 45 fokot" mindig vágásba fut.
-  3. A HOLTJÁTÉK (a fogaskerekek hézaga). Ez magyarázza, hogy a gesztusok után a kamera
-     nem pontosan oda áll vissza, ahonnan indult (mérve 2026-08-25): a szoftver a
-     kiinduló pulzust adja ki, tehát a hiba a mechanikában van, nem a számításban.
+  1. `ms_per_deg` — hány ms a szervón egy fok. A `camera pan left 45` enélkül nem 45
+     fok, csak "arra". MÉRVE: pan 0,0133, tilt 0,0112 — a kettő 19%-kal eltér, tehát
+     tengelyenként kell. (Két korábbi SZEMMÉRTÉKES becslés, 0,010 és 0,020, is tévedett.)
+  2. `min_ms` / `max_ms` — a biztonsági sáv. MÉRVE: 0,60-2,40 ms, ami ±68 (pan) / ±80
+     (tilt) fok. A korábbi 1,0-2,0-es TIPP csak ±25 fokot engedett, amiben egy
+     "fordulj balra 45 fokot" mindig vágásba futott.
+  3. A HOLTJÁTÉK (a fogaskerekek hézaga). MÉRVE: pan 10, tilt 5 fok. Ez magyarázza, hogy
+     a gesztusok után a kamera nem pontosan oda állt vissza, ahonnan indult — a szoftver
+     végig a HELYES pulzust adta ki, tehát a hiba a mechanikában volt, nem a számításban.
+     A vezérlő ezt most a záró mozdulat egyirányú közelítésével egyenlíti ki.
 
 A MÉRÉS ELVE, és ezért olcsóbb, mint hinnéd: nem egy MOZDULAT nagyságát saccoljuk meg
 (azt rosszul csinálja az ember), hanem KÉT ÁLLÓ HELYZETET hasonlítunk össze. A szervó
@@ -32,6 +34,7 @@ from __future__ import annotations
 import argparse
 import time
 
+from freedroid.camera import tengelyek
 from freedroid.config import gpio as G
 from freedroid.config.settings import load_settings
 
@@ -74,7 +77,9 @@ def main() -> int:
     args = ap.parse_args()
 
     cfg = load_settings().camera
-    csatorna = G.PAN_CHANNEL if args.channel == "pan" else G.TILT_CHANNEL
+    pan_t, tilt_t = tengelyek(cfg)
+    t = pan_t if args.channel == "pan" else tilt_t
+    csatorna = t.csatorna
 
     import board
     import busio
@@ -93,7 +98,7 @@ def main() -> int:
         time.sleep(args.seconds)
 
     try:
-        also, felso = cfg.min_ms, cfg.max_ms
+        also, felso = t.min_ms, t.max_ms
 
         # ── 1. a sáv végállásai (opcionálisan tágítva) ───────────────────────────
         if args.explore:
@@ -130,7 +135,7 @@ def main() -> int:
             print(f"   -> ms_per_deg = ({felso:.2f} - {also:.2f}) / {teljes} = {ms_per_deg:.4f}")
         else:
             print("   kihagyva — a skála marad a jelenlegi")
-            ms_per_deg = cfg.ms_per_deg
+            ms_per_deg = t.ms_per_deg
 
         # ── 3. holtjáték: ugyanaz a pulzus, két IRÁNYBÓL megközelítve ────────────
         print("\n=== HOLTJÁTÉK ===")
@@ -138,10 +143,10 @@ def main() -> int:
         print("Ha a két helyzet eltér, az a fogaskerekek hézaga — ez az, ami miatt a")
         print("gesztusok után a kamera nem pontosan oda áll vissza, ahonnan indult.")
         kiteres = min(10 * ms_per_deg, (felso - also) / 4)
-        tarts(cfg.centre_ms - kiteres, "elmegyünk EGYIK oldalra")
-        tarts(cfg.centre_ms, "vissza a középre — ALULRÓL érkezve. Jelöld meg.")
-        tarts(cfg.centre_ms + kiteres, "elmegyünk a MÁSIK oldalra")
-        tarts(cfg.centre_ms, "vissza a középre — FELÜLRŐL érkezve. Mérd meg az eltérést.")
+        tarts(t.centre_ms - kiteres, "elmegyünk EGYIK oldalra")
+        tarts(t.centre_ms, "vissza a középre — ALULRÓL érkezve. Jelöld meg.")
+        tarts(t.centre_ms + kiteres, "elmegyünk a MÁSIK oldalra")
+        tarts(t.centre_ms, "vissza a középre — FELÜLRŐL érkezve. Mérd meg az eltérést.")
         holtjatek = _szam("   Hány FOK a két 'közép' közti eltérés? (0, ha nincs) ")
 
         # ── összefoglaló ────────────────────────────────────────────────────────
@@ -150,13 +155,18 @@ def main() -> int:
         print(f"  ms_per_deg = {ms_per_deg:.4f}")
         print(f"  min_ms     = {also:.2f}")
         print(f"  max_ms     = {felso:.2f}")
-        print(f"  hatótáv    = ±{(felso - cfg.centre_ms) / ms_per_deg:.0f} fok a középtől")
+        print(f"  hatótáv    = +{(felso - t.centre_ms) / ms_per_deg:.0f} / "
+              f"-{(t.centre_ms - also) / ms_per_deg:.0f} fok a középtől")
+        print("               (ASZIMMETRIKUS, ha a közép nincs a sáv közepén — a pané nincs)")
         if holtjatek is not None:
             print(f"  holtjáték  = {holtjatek:.1f} fok")
         print("\nKipróbálni ELŐBB env-ből, a settings.py bántása nélkül:")
-        print(f"  FREEDROID_CAMERA_MS_PER_DEG={ms_per_deg:.4f} \\")
+        elonev = f"FREEDROID_CAMERA_{args.channel.upper()}"
+        print(f"  {elonev}_MS_PER_DEG={ms_per_deg:.4f} \\")
         print(f"  FREEDROID_CAMERA_MIN_MS={also:.2f} FREEDROID_CAMERA_MAX_MS={felso:.2f} \\")
-        print("  .venv/bin/python scripts/servo_test.py --channel pan --range 0.15")
+        if holtjatek:
+            print(f"  {elonev}_BACKLASH_DEG={holtjatek:.1f} \\")
+        print(f"  .venv/bin/python scripts/servo_test.py --channel {args.channel} --range 0.15")
         print("=" * 66)
         return 0
     except KeyboardInterrupt:

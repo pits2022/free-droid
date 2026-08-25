@@ -227,65 +227,74 @@ class RAGSettings:
 
 @dataclass(frozen=True)
 class CameraSettings:
-    """Pan/tilt szervók a PCA9685-ön. Minden érték KALIBRÁCIÓS: a mechanika, a horn
-    állása és a szervó típusa mind beleszól, tehát env-ből felülírható (a robot NEM a
-    fejlesztőgépen áll)."""
+    """Pan/tilt szervók a PCA9685-ön.
+
+    MINDEN érték MÉRT (2026-08-25, `scripts/calibrate_camera.py`, a felszerelt kamerán),
+    és TENGELYENKÉNT KÜLÖN — ez nem óvatosság, hanem lelet: a két szervó skálája 19%-kal
+    tér el (0,0133 vs 0,0112 ms/fok), és a mechanikai középük sem esik egybe. Egyetlen
+    közös érték az egyik tengelyre biztosan hazudna.
+
+    Env-ből felülírható (`FREEDROID_CAMERA_PAN_MS_PER_DEG` stb.): a kalibrációs érték a
+    GÉPHEZ tartozik, nem a repóhoz — egy szervócsere vagy egy áthelyezett horn átírja.
+    """
 
     pwm_frequency_hz: int = 50      # a hobbiszervók szabványos kerete (20 ms)
 
-    # A szervó elektromos középje. NEM feltétlenül a mechanikai közép: a kamera 2026-08-25
-    # óta a középen kb. 15 fokkal FELFELÉ néz, és ez SZÁNDÉKOS — a robot a földön áll és
-    # álló emberre néz. Ezért nincs külön "trim": az alaphelyzet az, amit a horn ad.
-    centre_ms: float = 1.5
+    # A MECHANIKAI közép, tengelyenként. A pané NEM 1,5 ms: a felszerelt tartón az
+    # egyenesen előre 1,65 ms-nál van. A tilté szándékosan olyan, hogy a kamera kissé
+    # FELFELÉ nézzen — a robot a földön áll és álló emberre néz.
+    pan_centre_ms: float = 1.65
+    tilt_centre_ms: float = 1.50
 
-    # MÉRVE 2026-08-25 a felszerelt kamerán, a tool-láncon keresztül: a `camera pan
-    # left 30` (= 0,30 ms kitérés) szemre ~15 fokot adott, MINDKÉT tengelyen -> 0,020.
-    #
-    # ⚠️ Ez még mindig SZEMMÉRTÉK, és ELLENTMOND az előző napi leolvasásnak (0,15 ms ~
-    # 10-15 fok, azaz 0,010-0,015). A mai a megbízhatóbb — nagyobb elmozdulás, kimondott
-    # várakozással, a valódi kódúton -, de a kettő különbsége kétszeres.
-    #
-    # A PONTOS MÉRÉS OLCSÓBB, MINT HINNÉD, és nem relatív szöget kell becsülni: hajtsd a
-    # tengelyt VÉGIG a sávon (`camera pan left 200` -> vágás a max_ms-re, majd
-    # `pan right 200` -> min_ms), és mérd meg SZÖGMÉRŐVEL a két végállás közti teljes
-    # kitérést. Onnan: ms_per_deg = (max_ms - min_ms) / teljes_szög. Két álló helyzetet
-    # kell összehasonlítani, nem egy mozdulat nagyságát megsaccolni.
-    ms_per_deg: float = 0.020
+    # Hány ms egy fok. Két álló végállás közti szög méréséből, nem egy mozdulat
+    # megsaccolásából — a korábbi szemmértékes 0,010 és 0,020 is tévedés volt.
+    pan_ms_per_deg: float = 0.0133
+    tilt_ms_per_deg: float = 0.0112
 
-    # A biztonsági sáv: a szervó VÉGÁLLÁSA ezen kívül van, ahol nekifeszül az ütközőnek
-    # és megrántott áramot vesz fel (MG996R ~2,5 A/db a 2 A-es LM2596-sínről) — két
-    # szervó ott a TÁPOT viszi el, a Pi-vel együtt. A vezérlő ezért VÁG, nem hibázik:
-    # egy "nézz még balrább" a demón álljon meg a szépen, ne dobjon kivételt.
-    min_ms: float = 1.0
-    max_ms: float = 2.0
+    # A biztonságos pulzus-sáv, VÉGIGPRÓBÁLVA kifelé lépegetve (--explore): eddig megy a
+    # szervó anélkül, hogy nekifeszülne. A korábbi 1,0-2,0 ÓVATOS TIPP volt, és drágán:
+    # a mért skálával csak ±25 fokot engedett, amiben egy "fordulj balra 45 fokot"
+    # mindig vágásba futott. A valóság ±68 (pan) / ±80 (tilt) fok.
+    min_ms: float = 0.60
+    max_ms: float = 2.40
+
+    # HOLTJÁTÉK (a fogaskerekek hézaga), tengelyenként mérve: ugyanarra a pulzusra
+    # alulról és felülről közelítve ennyivel áll meg máshol a kamera. EZ okozta, hogy a
+    # gesztusok után nem pontosan a kiindulóba tért vissza — a szoftver a helyes pulzust
+    # adta ki. A pan 10 foka nem elhanyagolható.
+    pan_backlash_deg: float = 10.0
+    tilt_backlash_deg: float = 5.0
 
     # Gesztusok. A bólintás kicsi és FÜRGE (egy lassú bólintás nem bólintás).
-    nod_deg: float = 12.0
+    # ⚠️ A fok-értékek a JÓVÁHAGYOTT mozgásból lettek visszaszámolva: a Teremtő a régi
+    # (rossz) skálán látta és fogadta el őket, tehát a FIZIKAI kitérést tartjuk meg, nem
+    # a számot. Régi 12 fok @ 0,020 = 0,24 ms = 21 fok a valódi tilt-skálán.
+    nod_deg: float = 21.0
     nod_count: int = 2
     step_s: float = 0.35            # egy bólintás-lépés kivárása
 
     # A pásztázás MÁS: a kamerának LÁTNIA kell közben (a Teremtő, 2026-08-25 — a gyors
     # változat "nem fog látni semmit"). A szervónak nincs sebesség-bemenete: egy nagy
     # lépésre teljes gyorsasággal odaugrik. Lassítani CSAK úgy lehet, hogy a mozgást kis
-    # lépésekre bontjuk, és a lépések közé várunk — a sebességet tehát ez a két szám
-    # adja, nem a step_s.
-    #
-    # A 20 fok nem véletlen: a 0,020 ms/fok mellett a biztonsági sávban ±25 fok fér el
-    # tengelyenként, tehát egy 40 fokos kitérés VÁGÁSBA futna. Ha a sáv tágul, ez is nőhet.
-    scan_deg: float = 20.0
-    scan_deg_per_s: float = 30.0    # pásztázási szögsebesség
+    # lépésekre bontjuk. A 30 fok / 45 fok/s ugyanaz a FIZIKAI pásztázás, amit a Teremtő
+    # jóváhagyott (régi 20 fok / 30 fok/s @ 0,020 skálán).
+    scan_deg: float = 30.0
+    scan_deg_per_s: float = 45.0
     scan_step_deg: float = 2.0      # ekkora lépésekben, hogy folyamatosnak lássék
 
     def __post_init__(self) -> None:
         if self.pwm_frequency_hz <= 0:
             raise ValueError("pwm_frequency_hz must be > 0")
-        if self.ms_per_deg <= 0:
-            raise ValueError("ms_per_deg must be > 0")
-        if not self.min_ms < self.centre_ms < self.max_ms:
-            raise ValueError("min_ms < centre_ms < max_ms kell legyen")
+        if self.pan_ms_per_deg <= 0 or self.tilt_ms_per_deg <= 0:
+            raise ValueError("a ms_per_deg értékek > 0 kell legyenek")
+        for nev, kozep in (("pan", self.pan_centre_ms), ("tilt", self.tilt_centre_ms)):
+            if not self.min_ms < kozep < self.max_ms:
+                raise ValueError(f"min_ms < {nev}_centre_ms < max_ms kell legyen")
         # A keretnél hosszabb pulzus értelmezhetetlen: 50 Hz-en a 20 ms a teljes periódus.
         if self.max_ms >= 1000.0 / self.pwm_frequency_hz:
             raise ValueError("max_ms nem érheti el a PWM-keretet (1000/frekvencia ms)")
+        if self.pan_backlash_deg < 0 or self.tilt_backlash_deg < 0:
+            raise ValueError("a holtjáték nem lehet negatív")
         if self.nod_count <= 0 or self.nod_deg <= 0 or self.scan_deg <= 0:
             raise ValueError("nod_count, nod_deg, scan_deg mind > 0 kell legyen")
         if self.step_s <= 0:
