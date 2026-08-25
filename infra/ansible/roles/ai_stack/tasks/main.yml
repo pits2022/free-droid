@@ -147,3 +147,109 @@
           Az Ollama wildcard címen (0.0.0.0 vagy [::]) hallgat a 11434-en — a felhő
           inferencia-végpont így a publikus NIC-en is elérhető. VPN-only kötés kell.
         success_msg: "Az Ollama csak a VPN-címen ({{ ollama_bind }}) hallgat."
+
+# ── whisper.cpp (STT) ─────────────────────────────────────────────────────────────
+#
+# Ugyanaz a szerkezet, mint az Ollamánál: csomópont-függő értékek egy `set_fact`-be,
+# utána közös taszkok. A `stt` címkével kihagyható (a fordítás a Pi-n ~2 perc, négy
+# magon — akkun futó roboton ez nem mindegy).
+
+- name: Resolve node-specific whisper settings
+  set_fact:
+    whisper_models: "{{ cloud_whisper_models if 'cloud' in group_names else edge_whisper_models }}"
+    whisper_cmake_flags: "{{ cloud_whisper_cmake_flags if 'cloud' in group_names else edge_whisper_cmake_flags }}"
+  tags: [stt]
+
+- name: Install whisper.cpp build prerequisites
+  apt:
+    name:
+      - cmake
+      - g++
+      - git
+    state: present
+    update_cache: yes
+  tags: [stt]
+
+- name: Check out whisper.cpp at the PINNED commit
+  git:
+    repo: "{{ whisper_repo }}"
+    dest: "{{ whisper_dir }}"
+    version: "{{ whisper_version }}"
+    depth: 1
+  register: whisper_checkout
+  tags: [stt]
+
+# STATIKUSAN (`BUILD_SHARED_LIBS=OFF`). MÉRVE 2026-08-25: a megosztott build binárisa
+# NÉGY .so-t húz, ABSZOLÚT útvonallal a build-könyvtárba (libwhisper, libggml,
+# libggml-base, libggml-cpu). Egy sima másolat a PATH-ra ilyenkor csak VÉLETLENÜL
+# működik — amíg a build-fa megvan; aki kitakarítja, az a robotot némítja el, és a hiba
+# FUTÁSIDŐBEN jön elő. Statikusan egyetlen, önhordó fájl marad.
+# Verzió-váltáskor a build-fa MEGY: a `creates:` őrök különben egy régi binárist
+# tartanának életben az új forrás mellett — és a "melyik kód fut valójában" kérdés
+# ebben a projektben már egyszer napokat vitt el (a Pi hetekig régi branchen állt).
+- name: Drop the whisper build tree when the pinned version changed
+  file:
+    path: "{{ whisper_dir }}/build"
+    state: absent
+  when: whisper_checkout.changed
+  tags: [stt]
+
+- name: Configure whisper.cpp (static, single self-contained binary)
+  command: >-
+    cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+    -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON
+    {{ whisper_cmake_flags | join(' ') }}
+  args:
+    chdir: "{{ whisper_dir }}"
+    creates: "{{ whisper_dir }}/build/CMakeCache.txt"
+  tags: [stt]
+
+- name: Compile whisper.cpp
+  command: "cmake --build build -j {{ ansible_processor_vcpus | default(2) }}"
+  args:
+    chdir: "{{ whisper_dir }}"
+    creates: "{{ whisper_dir }}/build/bin/whisper-cli"
+  tags: [stt]
+
+# A PATH-ra kerül, és ez nem kényelmi döntés: a `freedroid.health.check_voice_binaries`
+# és a TÉNYLEGES hívás UGYANAZT a keresést használja (`find_voice_binary`: venv, majd
+# PATH). Ha a bináris a build-könyvtárban maradna, a health-check "hiányzik"-ot mondana
+# egy működő roboton — vagy fordítva, és a kettő csendben elcsúszna.
+- name: Install whisper-cli onto the PATH
+  copy:
+    src: "{{ whisper_dir }}/build/bin/whisper-cli"
+    dest: /usr/local/bin/whisper-cli
+    remote_src: yes
+    mode: "0755"
+  tags: [stt]
+
+- name: Ensure the whisper model directory exists
+  file:
+    path: "{{ whisper_models_dir }}"
+    state: directory
+    owner: "{{ robot_user | default('creator') }}"
+    group: "{{ robot_user | default('creator') }}"
+    mode: "0755"
+  register: whisper_dir_allapot
+  tags: [stt]
+
+# CHECKSUMMAL. Egy félbeszakadt 190 MB-os letöltés LÉTEZŐ fájlt hagy maga után: a
+# jelenlét-ellenőrzés átmegy, és a hiba az ELSŐ ÁTIRATNÁL jön elő — vagyis a színpadon.
+# A `get_url` a rossz összegű fájlt eldobja és újratölti.
+#
+# A `when` ugyanaz a száraz-futás-védelem, mint a Piper hangnál: check módban a fenti
+# `file:` csak SZIMULÁLJA a könyvtárat, a `get_url` viszont ellenőrizné — egy friss
+# gépen a száraz futás elhasalna, pedig az éles rendben lefutna.
+- name: Download the whisper models ({{ whisper_models | map(attribute='name') | join(', ') }})
+  when: not (ansible_check_mode and (whisper_dir_allapot.changed | default(false)))
+  get_url:
+    url: "{{ whisper_model_url }}/{{ item.name }}"
+    dest: "{{ whisper_models_dir }}/{{ item.name }}"
+    checksum: "sha256:{{ item.sha256 }}"
+    owner: "{{ robot_user | default('creator') }}"
+    group: "{{ robot_user | default('creator') }}"
+    mode: "0644"
+  loop: "{{ whisper_models }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [stt]

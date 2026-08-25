@@ -190,11 +190,13 @@ class VoiceSettings:
 
     # --- STT: whisper.cpp (natív bináris, NEM pip-csomag) ---
     #
-    # A bináris a forrásból fordított whisper.cpp-ből jön, tehát NINCS sem a venv-ben,
-    # sem a PATH-on — ezért teljes útvonal az alapérték. Ha valaki mégis PATH-ra teszi,
-    # elég a puszta nevet megadni: a kód olyankor a `find_voice_binary`-re esik vissza,
-    # ugyanarra a szabályra, ami a Pipert is megtalálja.
-    whisper_binary: str = "~/whisper.cpp/build/bin/whisper-cli"
+    # PUSZTA NÉV, tehát a `find_voice_binary` keresi meg (venv, majd PATH) — UGYANAZ a
+    # szabály, ami a Pipert is megtalálja, és amit a `health.check_voice_binaries`
+    # használ. Ez nem kényelmi döntés: ha a health-check máshol keresné a binárist, mint
+    # a tényleges hívás, a kettő CSENDBEN elcsúszhatna (a health "hiányzik"-ot mondana
+    # egy működő roboton, vagy fordítva). Az Ansible ezért a `/usr/local/bin`-be
+    # telepíti, nem a build-könyvtárban hagyja. Teljes útvonal is megadható.
+    whisper_binary: str = "whisper-cli"
 
     # A `small` a magyarhoz az a méret, ahol a felismerés használhatóvá válik; a
     # `q5_1` kvantálás ARM-en érdemben gyorsít. A `base` a gyors tartalék — a váltás
