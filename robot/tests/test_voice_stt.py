@@ -204,3 +204,10 @@ def test_a_BELELOGO_beszed_nem_fujja_fel_a_kuszobot(monkeypatch):
     felvett = vad_futtat(kalib + beszed + csend, monkeypatch,
                          vad_min_rms=1.0, vad_snr=3.0, vad_preroll_s=0.0)
     assert felvett, "a normál hangerőt is meg kell hallania"
+
+
+def test_az_EGYETLEN_bajt_sem_hasal_el():
+    """PR #95 review, igazolva: a `not pcm` egy bájtra még hamis, a fél minta
+    csonkítása után viszont NULLA minta marad -> ZeroDivisionError. A felvételi folyam
+    vége pontosan így zárulhat, és a kivétel a `run()` hurkot vinné el."""
+    assert rms(b"\x01") == 0.0

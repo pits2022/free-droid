@@ -91,6 +91,10 @@ def rms(pcm: bytes) -> float:
     # előfordulhat (a folyam félbevágva zárul), és egy hangfelvétel utolsó fél mintája
     # miatt nem szabad elveszíteni az egész mondatot.
     minta.frombytes(pcm[:len(pcm) // 2 * 2])
+    # EGYETLEN bájtnál a `not pcm` még hamis, a csonkítás után viszont NULLA minta marad
+    # -> ZeroDivisionError (PR #95 review, igazolva). A folyam vége pontosan így zárulhat.
+    if not minta:
+        return 0.0
     return math.sqrt(sum(x * x for x in minta) / len(minta))
 
 
@@ -138,13 +142,16 @@ class WhisperCppSTT:
                 ki.setsampwidth(2)
                 ki.setframerate(self._cfg.stt_sample_rate)
                 ki.writeframes(audio)
+            # Sorban épül, nem beszúrással: a korábbi `parancs[-2:-2]` a `-f` POZÍCIÓJÁRA
+            # támaszkodott, tehát egy későbbi kapcsoló hozzáadása csendben rossz helyre
+            # tette volna a promptot. (PR #95 review.)
             parancs = [self._binaris, "-m", self._model,
                        "-l", self._cfg.stt_language,
                        "-t", str(self._cfg.stt_threads),
-                       "-nt",                      # időbélyegek nélkül: csak a szöveg
-                       "-f", str(wav)]
+                       "-nt"]                      # időbélyegek nélkül: csak a szöveg
             if self._cfg.stt_prompt:
-                parancs[-2:-2] = ["--prompt", self._cfg.stt_prompt]
+                parancs += ["--prompt", self._cfg.stt_prompt]
+            parancs += ["-f", str(wav)]
             try:
                 kesz = subprocess.run(parancs, capture_output=True,
                                       timeout=self._cfg.stt_timeout_s, check=False)
