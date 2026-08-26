@@ -153,6 +153,19 @@ def terheles_indit(mod: str, model: str) -> subprocess.Popen | None:
         start_new_session=True)
 
 
+def _csoportnak(terheles: subprocess.Popen, sig: int) -> None:
+    """A jelzés a TELJES folyamatcsoportnak; ha az nem megy, legalább a főfolyamatnak.
+
+    Egy helyen, mert MINDKÉT jelzésre ugyanez a szabály. A második kör SIGKILL-je az
+    előző változatban csak a főfolyamatot ütötte volna — épp a `stress-ng` worker-eit
+    hagyva életben, azaz pont azt, ami ellen az egész függvény szól. (PR #96 review.)
+    """
+    try:
+        os.killpg(os.getpgid(terheles.pid), sig)
+    except (ProcessLookupError, PermissionError):
+        terheles.send_signal(sig)
+
+
 def terheles_leall(terheles: subprocess.Popen | None) -> None:
     """A TELJES folyamatcsoportot állítja le, nem csak a főfolyamatot.
 
@@ -163,10 +176,7 @@ def terheles_leall(terheles: subprocess.Popen | None) -> None:
     """
     if terheles is None:
         return
-    try:
-        os.killpg(os.getpgid(terheles.pid), signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
-        terheles.terminate()
+    _csoportnak(terheles, signal.SIGTERM)
     # És MEGVÁRJUK, hogy tényleg megszűnt-e. NEM a zombi miatt (azt a kilépő szülő után az
     # init learatja): enélkül a függvény akkor is visszatér, ha a terhelés MÉG FUT, és a
     # következő mérés ÜRESJÁRATI alapvonala lenne tőle hamis. Ugyanaz a hiba, amit az árva
@@ -174,7 +184,7 @@ def terheles_leall(terheles: subprocess.Popen | None) -> None:
     try:
         terheles.wait(timeout=5.0)
     except subprocess.TimeoutExpired:
-        terheles.kill()
+        _csoportnak(terheles, signal.SIGKILL)
         terheles.wait()
 
 

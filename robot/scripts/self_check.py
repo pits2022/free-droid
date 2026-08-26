@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import select
 import shlex
 import statistics
@@ -226,19 +227,26 @@ def check_kamera_kep(_: Settings, eszkoz: str | None) -> CheckResult:
 def _olvas_idokorlattal(folyam, byte_szam: int, hatarido_s: float) -> bytes:
     """Legfeljebb `byte_szam` bájt, legfeljebb `hatarido_s` ideig.
 
-    `select` + `read1`, mert a `read(n)` a TELJES hosszra vár, és egy beragadt
+    `select` + `os.read`, mert a `read(n)` a TELJES hosszra vár, és egy beragadt
     hangeszköznél sosem tér vissza. A rövid vagy üres eredmény NEM baj: a hívó abból
     "túl rövid felvétel"-t mond, ami pontos diagnózis — szemben egy örökre álló
     scripttel, ami semmit nem mond.
+
+    A NYERS leíróról olvasunk, nem a pufferelt folyamról: a `select` a leírót nézi, a
+    `BufferedReader` viszont tarthat vissza már beolvasott bájtokat, amikről a `select`
+    nem tud. (Ebben a hívásban ez nem sülhet el: leftover csak akkor marad, ha a kért
+    hossz kisebb a pufferben lévőnél, márpedig olyankor a hurok épp be is fejeződik.
+    De egy segédfüggvénynek ne a HÍVÓJA legyen a helyességi bizonyítéka. PR #96 review.)
     """
     darabok: list[bytes] = []
     olvasva = 0
+    leiro = folyam.fileno()
     veg = time.monotonic() + hatarido_s
     while olvasva < byte_szam:
         maradek = veg - time.monotonic()
-        if maradek <= 0 or not select.select([folyam], [], [], maradek)[0]:
+        if maradek <= 0 or not select.select([leiro], [], [], maradek)[0]:
             break
-        darab = folyam.read1(min(65536, byte_szam - olvasva))
+        darab = os.read(leiro, min(65536, byte_szam - olvasva))
         if not darab:                   # a felvevő kilépett -> EOF
             break
         darabok.append(darab)
