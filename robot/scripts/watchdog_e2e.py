@@ -137,7 +137,7 @@ def _idozites(wd: MertWatchdog, motion: CytronMotionController,
 
 
 def _live(wd: MertWatchdog, motion: CytronMotionController, fek: Fek,
-          tavolsag_m: float, speed: Speed, kuszob_cm: float) -> int:
+          tavolsag_m: float, speed: Speed, kuszob_cm: float, keresen: bool) -> int:
     cfg = load_settings().motion
     v_cm_s = cfg.cm_per_s_at_full * SPEED_DUTY[speed]
 
@@ -146,8 +146,11 @@ def _live(wd: MertWatchdog, motion: CytronMotionController, fek: Fek,
     print("  Tegyél akadályt a robot ELÉ, kb. 70-100 cm-re. A watchdognak kell")
     print("  megállítania — a megtett út deadmanje viszont a parancsba adott távolság,")
     print("  tehát egy HALOTT watchdog mellett is megáll ennyi után.")
-    input("  ENTER, ha az út szabad és az akadály a helyén van (Ctrl-C = mégsem): ")
+    if keresen:
+        input("  ENTER, ha az út szabad és az akadály a helyén van (Ctrl-C = mégsem): ")
 
+    # A visszaszámlálás `--yes` mellett is megmarad: az elrettentés nem a kérdés, hanem
+    # a három másodperc, amíg a robot még elkapható.
     for i in (3, 2, 1):
         print(f"  {i}...")
         time.sleep(1.0)
@@ -208,7 +211,17 @@ def main() -> int:
                     help="a menet deadman-távolsága méterben (alap: 1.0)")
     ap.add_argument("--speed", choices=[s.value for s in Speed], default=Speed.SLOW.value,
                     help="menet-sebesség (alap: slow — először a leglassabb)")
+    ap.add_argument("--yes", action="store_true",
+                    help="a menet ENTER-es megerősítése nélkül (terminál nélküli futáshoz)")
     args = ap.parse_args()
+
+    # ELÖL, nem a menetnél: a megerősítés az időzítés-mérés UTÁN jönne, tehát terminál
+    # nélkül a futás két perc mérés után hasalt el EOFError-ral (mérve 2026-08-26, a
+    # Claude Code `!` prefixe nem ad TTY-t). Egy előfeltételt az elején kell megnézni.
+    if args.live_motion and not args.yes and not sys.stdin.isatty():
+        print("nincs terminál (a megerősítést nem lehet bekérni) — vagy valódi "
+              "terminálból indítsd, vagy add hozzá a --yes kapcsolót", file=sys.stderr)
+        return 2
 
     cfg = load_settings()
     kuszob = cfg.safety.stop_threshold_cm
@@ -261,7 +274,8 @@ def main() -> int:
 
         kod = 0
         if args.live_motion:
-            kod = _live(wd, motion, fek, args.distance, Speed(args.speed), kuszob)
+            kod = _live(wd, motion, fek, args.distance, Speed(args.speed), kuszob,
+                        keresen=not args.yes)
         else:
             print("\n(A valódi fékút méréséhez: --live-motion)")
         return kod
