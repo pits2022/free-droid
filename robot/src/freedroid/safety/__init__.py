@@ -110,7 +110,14 @@ class UltrasonicWatchdog:
             self._thread = None
 
     def distances_cm(self) -> dict[str, float | None]:
-        """A legutóbbi mérések. `inf` = szabad az út, `None` = NÉMA szenzor (hiba)."""
+        """A legutóbbi mérések. `inf` = szabad az út, `None` = NÉMA szenzor (hiba).
+
+        ⚠️ MENET KÖZBEN a haladási iránnyal ELLENTÉTES szenzor értéke ELAVULT: azt a
+        `poll_once` szándékosan nem méri (lásd ott). Álló helyzetben és fordulás után
+        mindkettő friss. Biztonsági döntéshez ez nem baj — egy szenzor pontosan akkor
+        avulhat el, amikor a haladási irány miatt nem is állíthat meg —, de egy
+        "mi van körülöttem" válasznál tudni kell róla.
+        """
         return dict(self._distances)
 
     def is_blocked(self) -> bool:
@@ -166,11 +173,29 @@ class UltrasonicWatchdog:
         heading, turning = self._heading_source()
         watched = relevant_sensors(heading, turning)
 
+        # MENET KÖZBEN CSAK A FIGYELT SZENZORT MÉRJÜK — ez a watchdog ÜTEMÉNEK a
+        # kérdése, nem takarékosságé. MÉRVE 2026-08-26: egy teljes kör 158 ms, amiből
+        # ~114 ms azé a szenzoré, amelyik ÜRES TERET lát: a HC-SR04 "nincs visszhang"
+        # jelzése egy ~38 ms-os impulzus (datasheet), és a `min(3)` ezt háromszor
+        # fizeti ki. Előremenetben ez a HÁTSÓ szenzor, aminek az adatát a döntés nem is
+        # használja. A watchdog emiatt 20 Hz helyett 4,8-on járt, és a fékút-büdzsé
+        # ettől fogyott el a `fast` fokozaton.
+        #
+        # A nem mért szenzor értéke a `distances_cm()`-ben az UTOLSÓ mérés marad, tehát
+        # menet közben ELAVULT lehet. Ez tudatos csere, és biztonságilag semleges: egy
+        # szenzor akkor és csak akkor avulhat el, amikor a haladási irány miatt nem is
+        # állíthat meg (hátrafelé a hátsó a figyelt, álló helyzetben MINDKETTŐ az).
+        #
+        # Forduláskor a `watched` ÜRES (a súrolt ívet egyik szenzor sem látja), és
+        # olyankor MINDKETTŐT mérjük: megállítani nem fog, de a fordulás rövid, és így
+        # a `distances_cm()` a manőver után friss. Egy üres halmazra mért "semmi" néma
+        # vakságot jelentene ott, ahol ma legalább adat van.
+        merendo = watched or frozenset(G.ULTRASONIC)
+
         blocked = False
         for name, pins in G.ULTRASONIC.items():
-            # A nem figyelt szenzort MÉRJÜK, de nem állít meg: a `distances_cm()` így a
-            # teljes képet mutatja (naplózás, "mi van körülöttem" kérdés), miközben a
-            # megállítás szabálya irány-függő marad.
+            if name not in merendo:
+                continue
             cm = measure_cm_min3(self._lgpio, self._h, pins["trig"], pins["echo"])
             self._distances[name] = cm
             # A NÉMA szenzor (None) szándékosan akadály: egy meg sem szólaló szenzor nem

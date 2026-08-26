@@ -27,10 +27,12 @@ def test_speed_duty_is_monotonic():
 
 
 # A watchdog döntéséig eltelő idő MÉRT felső korlátja, ollama-terhelés alatt, a Pi-n
-# (`scripts/watchdog_e2e.py`, 2026-08-26, négy egyező futás: 365-467 ms).
-WATCHDOG_FELSO_KORLAT_S = 0.467
-# A kalibráció (2026-08-17) és a friss akku közti eltérés: a mért sebesség ~16%-kal
-# nagyobb a névlegesnél. A 1.25 ezt fedi le, tartalékkal.
+# (`scripts/watchdog_e2e.py`, 2026-08-26). A korábbi 0.467 még azt a watchdogot mérte,
+# amelyik MINDKÉT szenzort lekérdezte körönként; mióta menet közben csak a haladási
+# irány szenzorát méri, a korlát 223 ms. Felkerekítve.
+WATCHDOG_FELSO_KORLAT_S = 0.25
+# Akku- és felület-tartalék. A 2026-08-26-i kalibráció TELI AKKUN készült, tehát a
+# "az érték elavult" indok elfogyott — a tartalék most a merülés/padló szórására van.
 AKKU_TARTALEK = 1.25
 
 
