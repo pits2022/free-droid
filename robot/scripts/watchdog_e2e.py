@@ -60,7 +60,8 @@ class MertWatchdog(UltrasonicWatchdog):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.korok: list[tuple[float, float]] = []
+        # (kezdet, vég, az adott körben mért távolságok)
+        self.korok: list[tuple[float, float, dict[str, float | None]]] = []
 
     def poll_once(self) -> None:
         t0 = time.perf_counter()
@@ -69,7 +70,7 @@ class MertWatchdog(UltrasonicWatchdog):
         finally:
             # `finally`: egy hibázó kör is KÖR — pont az a leglassabb (időtúllépések),
             # és ha kimaradna a mintából, a farok eltűnne a statisztikából.
-            self.korok.append((t0, time.perf_counter()))
+            self.korok.append((t0, time.perf_counter(), self.distances_cm()))
 
 
 class Fek:
@@ -131,9 +132,29 @@ def _idozites(wd: MertWatchdog, motion: CytronMotionController,
     wd.stop_monitoring()
 
     korok = wd.korok
-    hossz = [v - k for k, v in korok]
+    hossz = [v - k for k, v, _ in korok]
     ciklus = [b[0] - a[0] for a, b in zip(korok, korok[1:])]
     return ciklus, hossz, stop_idok
+
+
+def _kiir_kozelites(wd: MertWatchdog, t0: float, v_cm_s: float, db: int = 8) -> None:
+    """A megállítás előtti utolsó körök elülső mérései.
+
+    EGYENES közelítésnél a lépés körönként ~v * ciklusidő (slow-on ~4 cm). Ha a
+    lépések ugrálnak vagy nőnek, a robot nem az akadály felé ment — pontosan az a
+    hiba, amit a végén a negatív reakcióidő elárul, csak itt LÁTHATÓ is.
+    """
+    nyom = [(t, tav.get(FRONT)) for t, _v, tav in wd.korok][-db:]
+    if not nyom:
+        return
+    print("  a közelítés nyoma (front, a menet kezdetétől):")
+    elozo = None
+    for t, cm in nyom:
+        szoveg = "néma" if cm is None else f"{cm:7.1f} cm"
+        lepes = "" if elozo is None or cm is None else f"   lépés {elozo - cm:+5.1f} cm"
+        print(f"    {t - t0:5.2f} s  {szoveg}{lepes}")
+        elozo = cm
+    print(f"    (egyenes közelítésnél a várható lépés ~{v_cm_s * 0.21:.1f} cm/kör)")
 
 
 def _live(wd: MertWatchdog, motion: CytronMotionController, fek: Fek,
@@ -156,6 +177,7 @@ def _live(wd: MertWatchdog, motion: CytronMotionController, fek: Fek,
         time.sleep(1.0)
 
     fek.esemenyek.clear()
+    wd.korok.clear()          # a nyom CSAK a menetről szóljon, ne az időzítés-mérésről
     wd.start()
     t0 = time.perf_counter()
     motion.move(direction=Direction.FORWARD, distance=tavolsag_m, speed=speed)
@@ -174,18 +196,40 @@ def _live(wd: MertWatchdog, motion: CytronMotionController, fek: Fek,
     print(f"    (a kettő különbsége = a `stop()` és a menet-hurok bontása: "
           f"{(t_vissza - t_stop)*1e3:.0f} ms)")
     print(f"  a megállítás pillanatában mért távolságok: {wd.distances_cm()}")
+    _kiir_kozelites(wd, t0, v_cm_s)
 
     # A megállás UTÁNI hézag. Külön kör kell hozzá: a fenti szám a döntés pillanatáé,
     # a robot pedig a tehetetlenségével még csúszik valamennyit.
     time.sleep(0.5)
-    wd.poll_once()
-    hezag = wd.distances_cm().get(FRONT)
-    if hezag is None or not math.isfinite(hezag):  # néma szenzor, vagy üres tér
-        print(f"  ⚠️ a megállás utáni hézag nem mérhető ({hezag}) — mérőszalaggal ellenőrizd")
+    utolagos = []
+    for _ in range(3):
+        wd.poll_once()
+        utolagos.append(wd.distances_cm().get(FRONT))
+    ervenyes = [v for v in utolagos if v is not None and math.isfinite(v)]
+    hezag = statistics.median(ervenyes) if ervenyes else None
+    if len(ervenyes) > 1:
+        print(f"  a megállás utáni három mérés: "
+              f"{', '.join(f'{v:.1f}' for v in ervenyes)} cm")
+    if hezag is None:  # néma szenzor, vagy üres tér mindhárom körben
+        print(f"  ⚠️ a megállás utáni hézag nem mérhető ({utolagos}) — mérőszalaggal ellenőrizd")
+        return 0
+
+    print(f"  MEGÁLLÁS UTÁNI HÉZAG: {hezag:.1f} cm  (a küszöb {kuszob_cm:.0f} cm)")
+
+    if hezag > kuszob_cm:
+        # FIZIKAILAG LEHETETLEN egyenes közelítésnél: a döntés a küszöb ALATT született,
+        # a robot pedig előre ment. Ha a megállás után NAGYOBB a hézag, akkor a két mérés
+        # nem ugyanazt a pontot nézte — a robot elfordult (a trim alacsony kitöltésen
+        # nem tartja az irányt), és az akadály kicsúszott az ultrahang kúpjából, ami
+        # mögötte a KÖVETKEZŐ felületet méri. A reakcióidőt ilyenkor NEM számoljuk ki:
+        # egy negatív ms-szám nem "gyorsabb a fénynél", hanem érvénytelen mérés, és a
+        # műszer dolga ezt kimondani, nem lenyelni.
+        print("  ⚠️ ÉRVÉNYTELEN MÉRÉS: a megállás utáni hézag NAGYOBB, mint a döntéskori.")
+        print("     A robot nem egyenesen közelített (elfordult), vagy az akadály")
+        print("     kicsúszott a szenzor kúpjából. ISMÉTELD MEG — a fékút ebből nem jön ki.")
         return 0
 
     befutas = kuszob_cm - hezag
-    print(f"  MEGÁLLÁS UTÁNI HÉZAG: {hezag:.1f} cm  (a küszöb {kuszob_cm:.0f} cm)")
     print(f"  a küszöbön TÚL megtett út: {befutas:.1f} cm  ->  reakcióidő "
           f"{befutas / v_cm_s * 1e3:.0f} ms  ({v_cm_s:.0f} cm/s mellett)")
     print("  ⚠️ Ez a szenzor száma. Mérőszalaggal is nézd meg: egy ferde vagy puha")
