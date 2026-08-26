@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import select
 import shlex
 import statistics
 import subprocess
@@ -57,6 +58,11 @@ TONE_S = 1.0
 TONE_MIN_ARANY = 50.0
 # Ez alatt a kép EGYENLETES: letakart lencse, leszakadt kábel, vagy fekete képkocka.
 KEP_MIN_SZORAS = 5.0
+# A felvétel olvasásának FELSŐ HATÁRA. Ugyanaz az elv, mint a `speak_timeout_s`-nél: egy
+# beragadt hangeszköz mellett az `arecord` ÉL, csak nem ad mintát — a `read(n)` ilyenkor
+# örökre blokkol, és a takarítás (`finally`) sem fut le. Egy hangos hiba mindig jobb, mint
+# egy néma megállás. (PR #96 review.)
+FELVETEL_HATARIDO_S = 5.0
 
 
 def _cr(nev: str, layer: Layer, rendben: bool, reszlet: str,
@@ -217,6 +223,29 @@ def check_kamera_kep(_: Settings, eszkoz: str | None) -> CheckResult:
 
 # --- hang: hangszóró + mikrofon EGY méréssel ---------------------------------
 
+def _olvas_idokorlattal(folyam, byte_szam: int, hatarido_s: float) -> bytes:
+    """Legfeljebb `byte_szam` bájt, legfeljebb `hatarido_s` ideig.
+
+    `select` + `read1`, mert a `read(n)` a TELJES hosszra vár, és egy beragadt
+    hangeszköznél sosem tér vissza. A rövid vagy üres eredmény NEM baj: a hívó abból
+    "túl rövid felvétel"-t mond, ami pontos diagnózis — szemben egy örökre álló
+    scripttel, ami semmit nem mond.
+    """
+    darabok: list[bytes] = []
+    olvasva = 0
+    veg = time.monotonic() + hatarido_s
+    while olvasva < byte_szam:
+        maradek = veg - time.monotonic()
+        if maradek <= 0 or not select.select([folyam], [], [], maradek)[0]:
+            break
+        darab = folyam.read1(min(65536, byte_szam - olvasva))
+        if not darab:                   # a felvevő kilépett -> EOF
+            break
+        darabok.append(darab)
+        olvasva += len(darab)
+    return b"".join(darabok)
+
+
 def _hangminta(rate: int, freq: float, masodperc: float, amp: float = 0.35) -> bytes:
     import numpy as np
 
@@ -279,7 +308,8 @@ def check_hang_hurok(settings: Settings) -> CheckResult:
                         f"{jatek_hiba.decode('utf-8', 'replace').strip()[:120]}")
         # A csővezeték kapacitása 64 KB; 1,3 s 16 kHz-es 16 bites mono ~42 KB, tehát
         # a felvétel NEM akad meg addig, amíg a lejátszásra várunk.
-        pcm = felvevo.stdout.read(int(rate * 2 * (TONE_S + 0.3)))
+        pcm = _olvas_idokorlattal(felvevo.stdout, int(rate * 2 * (TONE_S + 0.3)),
+                                  FELVETEL_HATARIDO_S)
     except subprocess.TimeoutExpired:
         return fail("audio_loopback", Layer.HARDWARE, Severity.CRITICAL,
                     "a lejátszás beragadt (foglalt hangeszköz?)")
@@ -386,17 +416,19 @@ def _kiir(r: CheckResult) -> None:
     print(f"  [{JEL[r.status]}]{kritikus} {r.name:<24} {r.detail}")
 
 
-def _biztonsagos(nev: str, fv, *args) -> list[CheckResult]:
+def _biztonsagos(nev: str, fv, *args, layer: Layer = Layer.HARDWARE) -> list[CheckResult]:
     """Egy elhasaló check ne vigye magával a többit — a hiba maga is eredmény.
 
     Bring-up teszten ez nem kényelem: pont az a helyzet, amikor egy alrendszer nincs
-    bekötve, és a többiről akkor is tudni akarunk.
+    bekötve, és a többiről akkor is tudni akarunk. A rendszer-checkek is ezen mennek át
+    (PR #96 review): a `/proc/meminfo` olvasása vagy egy hiányzó `timedatectl` a lista
+    ELEJÉN hasalna el, azaz elvinné a mögötte lévő ultrahang- és hang-mérést is.
     """
     try:
         eredmeny = fv(*args)
         return eredmeny if isinstance(eredmeny, list) else [eredmeny]
     except Exception as e:  # noqa: BLE001
-        return [fail(nev, Layer.HARDWARE, Severity.WARNING, f"a check elhasalt: {e!r}")]
+        return [fail(nev, layer, Severity.WARNING, f"a check elhasalt: {e!r}")]
 
 
 def main() -> int:
@@ -428,14 +460,19 @@ def main() -> int:
         eredmenyek.extend(uj)
 
     szakasz("PASSZÍV (freedroid-health, ugyanaz a 15 check)", run_checks(settings))
-    szakasz("RENDSZER", [check_ora(settings), check_memoria(settings),
-                         check_safe_mode(settings)])
+    szakasz("RENDSZER",
+            _biztonsagos("clock", check_ora, settings, layer=Layer.SOFTWARE)
+            + _biztonsagos("memory", check_memoria, settings, layer=Layer.SOFTWARE)
+            + _biztonsagos("safe_mode", check_safe_mode, settings, layer=Layer.SOFTWARE))
     szakasz("ULTRAHANG", _biztonsagos("ultrasonic", check_ultrahang, settings, args.rounds))
     szakasz("KAMERA", _biztonsagos("camera_servo", check_kamera_szervo, settings)
             + _biztonsagos("camera_frame", check_kamera_kep, settings, args.camera))
     szakasz("HANG (hurok-teszt)", _biztonsagos("audio_loopback", check_hang_hurok, settings))
     szakasz("LLM + ALAGÚT", _biztonsagos("llm_generate", check_llm, settings))
-    if args.live_motion:
+    # A `kihagy` vizsgálata a HÍVÁS ELŐTT, nem a `szakasz()`-ban: az az eredményt szűri,
+    # a `check_lanctalp` viszont addigra már ELMOZDÍTOTTA a robotot. Egy `--skip tracks`
+    # pont attól akar megvédeni. (PR #96 review.)
+    if args.live_motion and "tracks" not in kihagy:
         szakasz("LÁNCTALP (a robot mozog)",
                 _biztonsagos("tracks", check_lanctalp, settings, args.distance))
     elif "tracks" not in kihagy:
