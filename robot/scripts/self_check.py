@@ -296,6 +296,7 @@ def check_hang_hurok(settings: Settings) -> CheckResult:
 
     felvevo = subprocess.Popen(shlex.split(cfg.record_command.format(rate=rate)),
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    lejatszo = None
     try:
         time.sleep(0.3)  # az arecord felfutása — enélkül a hang eleje kimarad
         lejatszo = subprocess.Popen(shlex.split(cfg.play_command.format(rate=rate)),
@@ -314,6 +315,13 @@ def check_hang_hurok(settings: Settings) -> CheckResult:
         return fail("audio_loopback", Layer.HARDWARE, Severity.CRITICAL,
                     "a lejátszás beragadt (foglalt hangeszköz?)")
     finally:
+        # A `communicate(timeout=)` időtúllépéskor NEM öli meg a gyereket (dokumentált
+        # viselkedés) — a beragadt `aplay` tehát tovább FOGVA TARTANÁ a hangeszközt, és a
+        # KÖVETKEZŐ futás "foglalt eszköz"-t találna. Pont az a hiba öröklődne át, amit ez
+        # az ág diagnosztizálni akar. (PR #96 review.)
+        if lejatszo is not None:
+            lejatszo.kill()
+            lejatszo.wait()
         felvevo.kill()
         felvevo.wait()
 

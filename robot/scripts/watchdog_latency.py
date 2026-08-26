@@ -167,6 +167,15 @@ def terheles_leall(terheles: subprocess.Popen | None) -> None:
         os.killpg(os.getpgid(terheles.pid), signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
         terheles.terminate()
+    # És MEGVÁRJUK, hogy tényleg megszűnt-e. NEM a zombi miatt (azt a kilépő szülő után az
+    # init learatja): enélkül a függvény akkor is visszatér, ha a terhelés MÉG FUT, és a
+    # következő mérés ÜRESJÁRATI alapvonala lenne tőle hamis. Ugyanaz a hiba, amit az árva
+    # stress-ng workereknél már kifizettünk. (PR #96 review.)
+    try:
+        terheles.wait(timeout=5.0)
+    except subprocess.TimeoutExpired:
+        terheles.kill()
+        terheles.wait()
 
 
 def _cpu_ido() -> tuple[float, float]:
