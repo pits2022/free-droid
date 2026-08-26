@@ -220,13 +220,24 @@ class TestTrimSzamitas:
             MotionSettings(left_duty_trim=bal, right_duty_trim=jobb)
 
 
-def _bare_watchdog(on_obstacle) -> UltrasonicWatchdog:
+def _bare_watchdog(on_obstacle=lambda: None, heading=None,
+                   turning=False) -> UltrasonicWatchdog:
+    """Watchdog hardver-megnyitás nélkül — az `__init__` a gpiochipet nyitná.
+
+    EGY segédfüggvény a szál-teszthez és a mérési-szabály tesztekhez is: két azonos
+    nevű változat közül a később definiált elfedi a másikat, csendben, és a hibaüzenet
+    egy egészen máshová mutató AttributeError lenne.
+    """
     wd = object.__new__(UltrasonicWatchdog)
+    wd._lgpio = None
     wd._stop_flag = threading.Event()
     wd._cfg = SafetySettings(poll_interval_s=0.001)
     wd._on_obstacle = on_obstacle
+    wd._heading_source = lambda: (heading, turning)
+    wd._distances = dict.fromkeys(G.ULTRASONIC)
     wd._blocked = False
     wd._fault = None
+    wd._h = 0
     return wd
 
 
@@ -250,3 +261,62 @@ def test_a_watchdog_szal_tulel_egy_meresi_hibat():
     # És kívülről is LÁTSZIK — enélkül a hibázó watchdog ugyanúgy néz ki, mint a jó.
     assert wd.is_blocked()
     assert wd.fault is not None and "lgpio" in wd.fault
+
+
+# --- HARMADIK szabály: menet közben CSAK a figyelt szenzort mérjük ------------------
+
+def _mert_szenzorok(monkeypatch, heading, turning=False, ertek=math.inf) -> list[str]:
+    """MELYIK szenzorokat mérte meg egy kör. A lábakból fejtjük vissza a nevet."""
+    labbol = {p["trig"]: nev for nev, p in G.ULTRASONIC.items()}
+    mertek: list[str] = []
+
+    def hamis_meres(lgpio, h, trig, echo, **kw):
+        mertek.append(labbol[trig])
+        return ertek
+
+    monkeypatch.setattr("freedroid.safety.measure_cm_min3", hamis_meres)
+    _bare_watchdog(heading=heading, turning=turning).poll_once()
+    return mertek
+
+
+class TestCsakAFigyeltSzenzortMerjuk:
+    """MÉRVE 2026-08-26: egy kör 158 ms, amiből ~114 ms azé a szenzoré, amelyik ÜRES
+    teret lát (a HC-SR04 "nincs visszhang" jelzése ~38 ms, a `min(3)` háromszor fizeti).
+    Előremenetben ez a HÁTSÓ szenzor — az adatát a döntés nem is használja. Emiatt járt
+    a watchdog 20 Hz helyett 4,8-on, és emiatt fogyott el a fékút-büdzsé a `fast`-on.
+
+    Ha ezek a tesztek elbuknak, a watchdog ÜTEME romlott el, nem a logikája — és az a
+    fajta romlás, ami csak a következő fékút-mérésen látszana meg."""
+
+    def test_elore_menet_csak_az_elulsot_meri(self, monkeypatch):
+        assert _mert_szenzorok(monkeypatch, Direction.FORWARD) == [FRONT]
+
+    def test_hatramenet_csak_a_hatsot_meri(self, monkeypatch):
+        assert _mert_szenzorok(monkeypatch, Direction.BACKWARD) == [REAR]
+
+    def test_allo_helyzetben_MINDKETTOT_meri(self, monkeypatch):
+        # Álló helyzetben mindkettő MEGÁLLÍTHAT (fail-safe), tehát mindkettő friss kell.
+        assert set(_mert_szenzorok(monkeypatch, None)) == set(G.ULTRASONIC)
+
+    def test_forduláskor_MINDKETTOT_meri(self, monkeypatch):
+        """A `watched` forduláskor ÜRES (a súrolt ívet egyik szenzor sem látja). Ha az
+        üres halmazt szó szerint vennénk, a watchdog a manőver alatt semmit nem mérne,
+        és utána ELAVULT adattal indulna — ott a néma vakság rosszabb, mint a plusz idő.
+        """
+        assert set(_mert_szenzorok(monkeypatch, None, turning=True)) == set(G.ULTRASONIC)
+
+    def test_a_nem_mert_szenzor_erteke_MEGMARAD(self, monkeypatch):
+        """A csere ára: menet közben a nem figyelt szenzor értéke elavul. Ez tudatos, és
+        biztonságilag semleges (az a szenzor olyankor nem is állíthat meg) — de NEM
+        `None`-ra vált, mert a `None` NÉMA SZENZORT jelent, azaz hibát jelezne ott, ahol
+        csak nem mértünk."""
+        labbol = {p["trig"]: nev for nev, p in G.ULTRASONIC.items()}
+        wd = _bare_watchdog(heading=Direction.FORWARD)
+        wd._distances[REAR] = 42.0          # egy korábbi kör mérése
+
+        monkeypatch.setattr("freedroid.safety.measure_cm_min3",
+                            lambda lgpio, h, trig, echo, **kw: 100.0
+                            if labbol[trig] == FRONT else 0.0)
+        wd.poll_once()
+        assert wd.distances_cm()[FRONT] == 100.0
+        assert wd.distances_cm()[REAR] == 42.0

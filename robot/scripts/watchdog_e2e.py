@@ -73,6 +73,26 @@ class MertWatchdog(UltrasonicWatchdog):
             self.korok.append((t0, time.perf_counter(), self.distances_cm()))
 
 
+class Irany:
+    """A watchdognak adott haladási irány, szimulálhatóan.
+
+    MIÉRT KELL. Az időzítés-fázisban a robot ÁLL, tehát a `heading` `None`, tehát a
+    watchdog a fail-safe ágra esik és MINDKÉT szenzort méri. A fékút-büdzsé viszont a
+    MENETRŐL szól, ahol csak a haladási irány szenzorát mérjük — a kettő ütemre
+    KÉTSZERES eltérés. Szimulált irány nélkül a mérés annak a helyzetnek a számát adná,
+    amelyikben a robot nem is mozog.
+    """
+
+    def __init__(self, motion: CytronMotionController) -> None:
+        self._motion = motion
+        self.szimulalt: Direction | None = None
+
+    def __call__(self) -> tuple[Direction | None, bool]:
+        if self.szimulalt is not None:
+            return (self.szimulalt, False)
+        return (self._motion.heading, self._motion.is_turning)
+
+
 class Fek:
     """A watchdog `on_obstacle` callbackje: a VALÓDI `stop()`-ot hívja, idővel körítve."""
 
@@ -275,13 +295,18 @@ def main() -> int:
 
     motion = CytronMotionController()
     fek = Fek(motion)
-    wd = MertWatchdog(on_obstacle=fek,
-                      heading_source=lambda: (motion.heading, motion.is_turning))
+    irany = Irany(motion)
+    wd = MertWatchdog(on_obstacle=fek, heading_source=irany)
     terheles = None
     try:
         print(f"küszöb {kuszob:.0f} cm, tervezett ciklus "
               f"{cfg.safety.poll_interval_s*1e3:.0f} ms "
               f"({1/cfg.safety.poll_interval_s:.0f} Hz)")
+        # Az időzítés SZIMULÁLT ELŐREMENET mellett megy: a büdzsé a menetről szól, és
+        # álló robotnál a watchdog mindkét szenzort mérné (lásd `Irany`).
+        irany.szimulalt = Direction.FORWARD
+        print(f"az időzítés-mérés szimulált haladási iránya: {irany.szimulalt.value} "
+              f"(csak az elülső szenzort méri a watchdog)")
 
         print("\n--- ÜRESJÁRAT (alapvonal) ---")
         ciklus_a, hossz_a, stop_a = _idozites(wd, motion, args.seconds)
@@ -307,16 +332,23 @@ def main() -> int:
         print("\n=== A FELSŐ KORLÁT ===")
         print(f"  T = max(ciklus) {max(ciklus)*1e3:.0f} ms + max(kör) {max(hossz)*1e3:.0f} ms"
               f" + max(stop) {max(stop_idok)*1e3:.1f} ms = {t_felso*1e3:.0f} ms")
+        kifutas = cfg.motion.coast_s
+        print(f"  a lánctalp KIFUTÁSA a stop() után: {kifutas*1e3:.0f} ms (mért, "
+              f"felületfüggő) -> a teljes fékút T + kifutás")
         for speed in Speed:
             v = cfg.motion.cm_per_s_at_full * SPEED_DUTY[speed]
-            ut = v * t_felso
-            jel = "OK " if ut < kuszob else "🔴 "
-            print(f"  {jel}{speed.value:<7} {v:5.1f} cm/s -> a döntésig megtett út "
-                  f"{ut:5.1f} cm   (küszöb {kuszob:.0f} cm)")
-        print("  A megtett út a küszöbBŐL fogy: ami marad, az a fékút + a tartalék.")
-        print("  A tehetetlenség ebben NINCS benne — azt csak a --live-motion mutatja meg.")
+            ut, ki = v * t_felso, v * kifutas
+            jel = "OK " if ut + ki < kuszob else "🔴 "
+            print(f"  {jel}{speed.value:<7} {v:5.1f} cm/s -> döntés {ut:5.1f} + kifutás "
+                  f"{ki:5.1f} = {ut + ki:5.1f} cm   (küszöb {kuszob:.0f}, marad "
+                  f"{kuszob - ut - ki:5.1f})")
+        print("  A KIFUTÁS a mért legrosszabb; a --live-motion az AKTUÁLIS felületen"
+              " mutatja meg.")
 
         kod = 0
+        # Az éles menetre a VALÓDI állapot kell: ott a `motion` mondja meg az irányt,
+        # és a fordulás/megállás is helyesen kell látszódjon.
+        irany.szimulalt = None
         if args.live_motion:
             kod = _live(wd, motion, fek, args.distance, Speed(args.speed), kuszob,
                         keresen=not args.yes)

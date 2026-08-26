@@ -73,6 +73,14 @@ def test_motion_rejects_nonpositive_pwm_freq():
         MotionSettings(pwm_frequency_hz=0)
 
 
+def test_motion_rejects_negative_coast():
+    """A NULLA megengedett (elvben egy azonnal fékező hajtás), a negatív nem: az a
+    fékút-büdzsében NEGATÍV utat jelentene, azaz a robot a döntés előtt állna meg."""
+    MotionSettings(coast_s=0.0)
+    with pytest.raises(ValueError):
+        MotionSettings(coast_s=-0.1)
+
+
 def test_per_sensor_overrides_are_read_only():
     s = SafetySettings()
     with pytest.raises(TypeError):
@@ -101,13 +109,17 @@ def test_env_felulirja_a_szekciok_mezoit():
     assert s.llm.edge_model == "szabi-3b-v12"
     assert s.rag.top_k == 1
     assert s.safety.stop_threshold_cm == 40.0
-    # amit nem írtunk felül, az érintetlen
-    assert s.motion.cm_per_s_at_full == 66.6
+    # amit nem írtunk felül, az érintetlen. A KALIBRÁCIÓS ÉRTÉKHEZ mérünk, nem egy
+    # beírt számhoz: a `cm_per_s_at_full` MÉRÉS eredménye (2026-08-26 óta 66.6 -> 76.6),
+    # és egy ide másolt literál minden újrakalibrálásnál vörösre váltana — anélkül, hogy
+    # bármit is mondana arról, amit ez a teszt valójában őriz (a felül NEM írt mező
+    # érintetlen marad).
+    assert s.motion.cm_per_s_at_full == MotionSettings().cm_per_s_at_full
 
 
 def test_env_nelkul_az_alapertelmezes_marad():
     s = load_settings({})
-    assert s.motion.deg_per_s_at_full == 280.0
+    assert s.motion.deg_per_s_at_full == MotionSettings().deg_per_s_at_full
     assert s.llm.edge_model == "csaba_ajtony/szabi-3b-v12"
 
 

@@ -94,21 +94,43 @@ class MotionSettings:
     default_speed: float = 0.5      # 0.0–1.0 duty
     pwm_frequency_hz: int = 1000
 
-    # MÉRVE 2026-08-17, padlón, a trimmel együtt: 100 cm-es parancsra a robot 222 cm-t
-    # tett meg, tehát a korábbi 30.0-s BECSLÉS a valós sebesség kevesebb mint felét
-    # mondta — a robot minden utat több mint kétszer hosszabbra hajtott volna.
+    # ÚJRAMÉRVE 2026-08-26, TELI AKKUN, a mai trimmel: 200 cm-es parancsra a robot
+    # 230 cm-t tett meg (115%), és ez KÉT KÜLÖNBÖZŐ PADLÓN, kétszer ugyanannyi.
+    # A korábbi 66.6 (2026-08-17) tehát 15%-kal alábecsülte a sebességet.
+    #
+    # A szám FÜGGETLEN megerősítést is kapott, más módszerrel: a `watchdog_e2e.py`
+    # közelítés-nyoma szerint a robot 38,5 cm/s-mal záródott az akadályra 0,5
+    # kitöltésen (= ~77 cm/s teljesen). Két külön mérés, ugyanaz az érték.
     #
     # ⚠️ A szám a TRIMMEL EGYÜTT érvényes (a trim lassítja az egyik oldalt, tehát az
     # átlagsebességet is). Ha a trim változik, ezt újra kell mérni.
+    # ⚠️ AKKUFÜGGŐ: ez a mérés teli akkun készült. Merülő akkuval a robot lassul, azaz
+    # a parancsolt utaknál RÖVIDEBBET tesz meg — a hiba iránya ártalmatlan.
     #
     # A duty→sebesség viszonyt LINEÁRISnak vesszük, ami alacsony kitöltésnél nem igaz
     # (holtsáv) — ha a `move 0.5` rendre rövidebb lesz a kelleténél, ott kezdd.
-    cm_per_s_at_full: float = 66.6
-    # MÉRVE 2026-08-17: a 90.0-s becslés a valós fordulási sebesség HARMADÁT mondta —
-    # egy 90 fokos fordulás 2.0 s helyett 0.64 s. Helyben forduláskor a két lánctalp
-    # egymással szemben forog, tehát a szögsebesség jóval nagyobb, mint amit az
-    # egyenes menetből "arányosítva" várnánk; ezt tényleg meg kellett mérni.
-    deg_per_s_at_full: float = 280.0
+    cm_per_s_at_full: float = 76.6
+    # ÚJRAMÉRVE 2026-08-26, teli akkun, a mai trimmel: 360 fokos parancsra 420 fok
+    # (117%). A 2026-08-17-i 280.0 tehát ugyanabba az irányba tévedett, mint a
+    # menetsebesség. (A 90.0-s eredeti BECSLÉS a valós érték harmadát mondta: helyben
+    # forduláskor a két lánctalp egymással SZEMBEN forog, tehát a szögsebesség sokkal
+    # nagyobb, mint amit az egyenes menetből "arányosítva" várnánk.)
+    #
+    # A mérés a MAI trimmel készült (jobb oldal 0,991) — ez nem mellékes: a fordulás
+    # sebessége a két oldal kitöltésének ÖSSZEGÉN múlik, tehát egy trim-változás ezt
+    # is elmozdítja. A 0,991 -> 0,997 lépés 0,6%, ami ezen a számon nem látszik.
+    deg_per_s_at_full: float = 326.7
+
+    # A LÁNCTALP KIFUTÁSA a `stop()` UTÁN — mért fizikai tulajdonság, mint a fenti
+    # kettő, és ugyanúgy ide tartozik: a fékút-büdzsé enélkül a valóság ~60%-át
+    # számolná, épp a veszélyes irányban.
+    #
+    # MÉRVE 2026-08-26, három éles menetből (`scripts/watchdog_e2e.py --live-motion`):
+    # 2,9 cm @ 23 cm/s, 4,0 cm @ 38 cm/s, 7,1 cm @ 38 cm/s MÁS PADLÓN = 126/104/185 ms.
+    # A legrosszabbat vesszük. A döntő megfigyelés: a `stop()` maga 0,2 ms, tehát ez NEM
+    # szoftveres késleltetés — mechanika, és a FELÜLET érdemben számít (a csúszósabbon
+    # hosszabb). A helyszínen érdemes újramérni: FREEDROID_MOTION_COAST_S.
+    coast_s: float = 0.20
 
     # Deadman: távolság nélküli `move` (pl. `move forward until obstacle`) sem futhat
     # örökké. Ha a watchdog szála elhal, ez az utolsó határ, ami leállítja a robotot.
@@ -121,10 +143,18 @@ class MotionSettings:
     #
     # A GYORSABB oldalt LASSÍTSD (szorzó < 1), ne a lassabbat gyorsítsd: teljes
     # kitöltésen már nincs hová gyorsítani, és a trim csendben hatástalan lenne.
-    # MÉRVE 2026-08-17: ezekkel az értékekkel a robot 222 cm-t ment EGYENESEN.
-    # A jobb oldal a gyorsabb, 8%-kal — mérés: scripts/calibrate_motion.py.
+    #
+    # ÚJRAMÉRVE 2026-08-26: a korábbi 0.92 TÚLKORREKCIÓ volt. Azzal a robot JOBBRA
+    # húzott (30 cm / 130 cm), azaz a jobb oldal lett túl lassú — a 8%-os fékezés a
+    # valós különbség sokszorosa. A mai érték 230 cm alatt 8 cm elsodródásból jött.
+    #
+    # ⚠️ A TRIM PADLÓFÜGGŐ, és ezt ma meg is mértük: ugyanaz a beállítás az egyik
+    # felületen alig húzott, a másikon sokkal jobban. Egy konstans szorzó tehát
+    # KOMPROMISSZUM, nem abszolút igazság — a helyszínen érdemes ránézni, és a
+    # demó-manővereket rövid szakaszokra tervezni, nem hosszú egyenesekre.
+    # Felülírás újramérés nélkül: FREEDROID_MOTION_RIGHT_DUTY_TRIM.
     left_duty_trim: float = 1.0
-    right_duty_trim: float = 0.92
+    right_duty_trim: float = 0.997
 
     # A két lánctalp KÖZÉPVONALÁNAK távolsága. Csak a trim kiszámításához kell
     # (az oldalirányú elsodródásból ebből jön ki a szögelfordulás).
@@ -147,6 +177,8 @@ class MotionSettings:
             raise ValueError("deg_per_s_at_full must be > 0")
         if self.max_run_s <= 0:
             raise ValueError("max_run_s must be > 0")
+        if self.coast_s < 0:
+            raise ValueError("coast_s must be >= 0")
         self._validate_trim("left_duty_trim", self.left_duty_trim)
         self._validate_trim("right_duty_trim", self.right_duty_trim)
         if self.track_width_cm <= 0:
