@@ -123,7 +123,7 @@ def _kiir(cimke: str, s: dict) -> None:
           f"{s['veszelyes_db']} db")
 
 
-def _terheles_indit(mod: str, model: str) -> subprocess.Popen | None:
+def terheles_indit(mod: str, model: str) -> subprocess.Popen | None:
     if mod == "none":
         return None
     if mod == "stress":
@@ -153,6 +153,41 @@ def _terheles_indit(mod: str, model: str) -> subprocess.Popen | None:
         start_new_session=True)
 
 
+def _csoportnak(terheles: subprocess.Popen, sig: int) -> None:
+    """A jelzés a TELJES folyamatcsoportnak; ha az nem megy, legalább a főfolyamatnak.
+
+    Egy helyen, mert MINDKÉT jelzésre ugyanez a szabály. A második kör SIGKILL-je az
+    előző változatban csak a főfolyamatot ütötte volna — épp a `stress-ng` worker-eit
+    hagyva életben, azaz pont azt, ami ellen az egész függvény szól. (PR #96 review.)
+    """
+    try:
+        os.killpg(os.getpgid(terheles.pid), sig)
+    except (ProcessLookupError, PermissionError):
+        terheles.send_signal(sig)
+
+
+def terheles_leall(terheles: subprocess.Popen | None) -> None:
+    """A TELJES folyamatcsoportot állítja le, nem csak a főfolyamatot.
+
+    Kiemelve, mert a `watchdog_e2e.py` ugyanezt a terhelést indítja: a `stress-ng`
+    árva worker-eiről szóló tanulság (lásd `terheles_indit`) két másolatban előbb-
+    utóbb szétcsúszik, és az árván maradt terhelés MINDEN következő mérést csendben
+    meghamisít.
+    """
+    if terheles is None:
+        return
+    _csoportnak(terheles, signal.SIGTERM)
+    # És MEGVÁRJUK, hogy tényleg megszűnt-e. NEM a zombi miatt (azt a kilépő szülő után az
+    # init learatja): enélkül a függvény akkor is visszatér, ha a terhelés MÉG FUT, és a
+    # következő mérés ÜRESJÁRATI alapvonala lenne tőle hamis. Ugyanaz a hiba, amit az árva
+    # stress-ng workereknél már kifizettünk. (PR #96 review.)
+    try:
+        terheles.wait(timeout=5.0)
+    except subprocess.TimeoutExpired:
+        _csoportnak(terheles, signal.SIGKILL)
+        terheles.wait()
+
+
 def _cpu_ido() -> tuple[float, float]:
     """(dolgozott, összes) jiffy a /proc/stat első sorából."""
     with open("/proc/stat") as f:
@@ -161,7 +196,7 @@ def _cpu_ido() -> tuple[float, float]:
     return ossz - mezok[3], ossz          # mezok[3] = idle
 
 
-def _felfutas_bevar(max_s: float = 240.0, kell: float = 0.5) -> bool:
+def felfutas_bevar(max_s: float = 240.0, kell: float = 0.5) -> bool:
     """Megvárja, amíg a terhelés TÉNYLEG fut — fix sleep helyett mért feltétel.
 
     Fix `sleep(3)`-mal a mérés elindulhat úgy, hogy a modell még TÖLT (lemez-I/O,
@@ -212,8 +247,8 @@ def main() -> int:
         _kiir("ÜRESJÁRAT (alapvonal)", _stat(alap, args.threshold_cm))
 
         if args.load != "none":
-            terheles = _terheles_indit(args.load, args.model)
-            _felfutas_bevar()
+            terheles = terheles_indit(args.load, args.model)
+            felfutas_bevar()
             terhelt = _gap_minta(lgpio, h, echo, args.seconds)
             _kiir(f"TERHELÉS ALATT ({args.load})", _stat(terhelt, args.threshold_cm))
 
@@ -258,12 +293,7 @@ def main() -> int:
     except KeyboardInterrupt:
         return 130
     finally:
-        if terheles is not None:
-            # A TELJES csoportnak, nem csak a főfolyamatnak — lásd `_terheles_indit`.
-            try:
-                os.killpg(os.getpgid(terheles.pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                terheles.terminate()
+        terheles_leall(terheles)
         lgpio.gpiochip_close(h)
 
 
