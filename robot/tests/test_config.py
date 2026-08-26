@@ -73,6 +73,14 @@ def test_motion_rejects_nonpositive_pwm_freq():
         MotionSettings(pwm_frequency_hz=0)
 
 
+def test_motion_rejects_negative_coast():
+    """A NULLA megengedett (elvben egy azonnal fékező hajtás), a negatív nem: az a
+    fékút-büdzsében NEGATÍV utat jelentene, azaz a robot a döntés előtt állna meg."""
+    MotionSettings(coast_s=0.0)
+    with pytest.raises(ValueError):
+        MotionSettings(coast_s=-0.1)
+
+
 def test_per_sensor_overrides_are_read_only():
     s = SafetySettings()
     with pytest.raises(TypeError):

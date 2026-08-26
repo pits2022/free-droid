@@ -32,14 +32,6 @@ def test_speed_duty_is_monotonic():
 # irány szenzorát méri, a korlát 223-233 ms. Felkerekítve.
 WATCHDOG_FELSO_KORLAT_S = 0.25
 
-# A LÁNCTALP KIFUTÁSA a `stop()` UTÁN. Ez a tag sokáig HIÁNYZOTT a modellből, és a
-# 2026-08-26-i éles menet mutatta meg: a watchdog 17,2 cm-nél döntött, a `stop()`
-# 0,2 ms alatt lefutott, a robot mégis 10,1 cm-nél állt meg — 7,1 cm-t ment még.
-# Három menet adata: 2,9 cm @ 23 cm/s, 4,0 cm @ 38 cm/s, 7,1 cm @ 38 cm/s MÁS PADLÓN
-# (= 126 / 104 / 185 ms). Tehát a felület számít, és a legrosszabbat vesszük.
-# A kifutás nélkül a büdzsé a valóság ~60%-át számolta volna — épp a veszélyes irányban.
-KIFUTAS_S = 0.20
-
 # Felület- és mérési tartalék. NEM akku-tartalék többé, és ez fontos: a kalibráció a
 # LEGGYORSABB állapotban készült (teli akku), a merülő akku pedig LASSÍT — az a hiba
 # tehát a biztonságos irányba mutat. A korábbi 1.25 azért volt ekkora, mert a
@@ -57,8 +49,12 @@ def test_a_leggyorsabb_fokozat_belefer_a_fekutba():
     küszöb csökkentése: vagy a duty megy vissza, vagy újra kell mérni
     (`scripts/watchdog_e2e.py --live-motion`).
     """
-    v_cm_s = MotionSettings().cm_per_s_at_full * SPEED_DUTY[Speed.FAST] * TARTALEK
-    fekut_cm = v_cm_s * (WATCHDOG_FELSO_KORLAT_S + KIFUTAS_S)
+    cfg = MotionSettings()
+    v_cm_s = cfg.cm_per_s_at_full * SPEED_DUTY[Speed.FAST] * TARTALEK
+    # A kifutás a `MotionSettings`-ből jön, nem innen: MÉRT fizikai tulajdonság, és két
+    # másolat előbb-utóbb szétcsúszik — ugyanaz a szabály, ami a `ranging.py` szenzoros
+    # számait egyetlen helyen tartja. (PR #98 review.)
+    fekut_cm = v_cm_s * (WATCHDOG_FELSO_KORLAT_S + cfg.coast_s)
     assert fekut_cm < SafetySettings().stop_threshold_cm, (
         f"{SPEED_DUTY[Speed.FAST]} kitöltésen a teljes fékút {fekut_cm:.1f} cm, a küszöb "
         f"{SafetySettings().stop_threshold_cm:.0f} cm")

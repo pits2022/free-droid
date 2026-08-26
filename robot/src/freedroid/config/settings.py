@@ -121,6 +121,17 @@ class MotionSettings:
     # is elmozdítja. A 0,991 -> 0,997 lépés 0,6%, ami ezen a számon nem látszik.
     deg_per_s_at_full: float = 326.7
 
+    # A LÁNCTALP KIFUTÁSA a `stop()` UTÁN — mért fizikai tulajdonság, mint a fenti
+    # kettő, és ugyanúgy ide tartozik: a fékút-büdzsé enélkül a valóság ~60%-át
+    # számolná, épp a veszélyes irányban.
+    #
+    # MÉRVE 2026-08-26, három éles menetből (`scripts/watchdog_e2e.py --live-motion`):
+    # 2,9 cm @ 23 cm/s, 4,0 cm @ 38 cm/s, 7,1 cm @ 38 cm/s MÁS PADLÓN = 126/104/185 ms.
+    # A legrosszabbat vesszük. A döntő megfigyelés: a `stop()` maga 0,2 ms, tehát ez NEM
+    # szoftveres késleltetés — mechanika, és a FELÜLET érdemben számít (a csúszósabbon
+    # hosszabb). A helyszínen érdemes újramérni: FREEDROID_MOTION_COAST_S.
+    coast_s: float = 0.20
+
     # Deadman: távolság nélküli `move` (pl. `move forward until obstacle`) sem futhat
     # örökké. Ha a watchdog szála elhal, ez az utolsó határ, ami leállítja a robotot.
     max_run_s: float = 30.0
@@ -166,6 +177,8 @@ class MotionSettings:
             raise ValueError("deg_per_s_at_full must be > 0")
         if self.max_run_s <= 0:
             raise ValueError("max_run_s must be > 0")
+        if self.coast_s < 0:
+            raise ValueError("coast_s must be >= 0")
         self._validate_trim("left_duty_trim", self.left_duty_trim)
         self._validate_trim("right_duty_trim", self.right_duty_trim)
         if self.track_width_cm <= 0:

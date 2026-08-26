@@ -45,12 +45,6 @@ from freedroid.motion import CytronMotionController
 from freedroid.motion.types import SPEED_DUTY, Direction, Speed
 from freedroid.safety import FRONT, UltrasonicWatchdog
 
-# A LÁNCTALP KIFUTÁSA a `stop()` után, MÉRVE (2026-08-26, három éles menet):
-# 2,9 cm @ 23 cm/s, 4,0 cm @ 38 cm/s, 7,1 cm @ 38 cm/s MÁS PADLÓN = 126/104/185 ms.
-# A legrosszabbat vesszük, felkerekítve. A `stop()` maga 0,2 ms — a fékút tehát NEM a
-# szoftveren múlik, hanem a mechanikán, és a felület érdemben számít.
-KIFUTAS_S = 0.20
-
 
 class MertWatchdog(UltrasonicWatchdog):
     """A VALÓDI watchdog, csak időbélyegzővel — nem egy másolat belőle.
@@ -338,11 +332,12 @@ def main() -> int:
         print("\n=== A FELSŐ KORLÁT ===")
         print(f"  T = max(ciklus) {max(ciklus)*1e3:.0f} ms + max(kör) {max(hossz)*1e3:.0f} ms"
               f" + max(stop) {max(stop_idok)*1e3:.1f} ms = {t_felso*1e3:.0f} ms")
-        print(f"  a lánctalp KIFUTÁSA a stop() után: {KIFUTAS_S*1e3:.0f} ms (mért, "
+        kifutas = cfg.motion.coast_s
+        print(f"  a lánctalp KIFUTÁSA a stop() után: {kifutas*1e3:.0f} ms (mért, "
               f"felületfüggő) -> a teljes fékút T + kifutás")
         for speed in Speed:
             v = cfg.motion.cm_per_s_at_full * SPEED_DUTY[speed]
-            ut, ki = v * t_felso, v * KIFUTAS_S
+            ut, ki = v * t_felso, v * kifutas
             jel = "OK " if ut + ki < kuszob else "🔴 "
             print(f"  {jel}{speed.value:<7} {v:5.1f} cm/s -> döntés {ut:5.1f} + kifutás "
                   f"{ki:5.1f} = {ut + ki:5.1f} cm   (küszöb {kuszob:.0f}, marad "
