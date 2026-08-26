@@ -170,12 +170,17 @@
     update_cache: yes
   tags: [stt]
 
+# `depth` NINCS, és ez SZÁNDÉKOS: egy RÖGZÍTETT COMMIT-ra sekély klón nem kérhető
+# ("Shallow clones are only available for HEAD, branches, tags or in combination with
+# refspec" — a `depth: 1` némán figyelmen kívül maradt, mérve 2026-08-26). A paraméter
+# tehát olyasmit ígért, amit nem teljesített. A refspec-es kerülőút SHA-ra a szerver
+# beállításán múlik (`allowReachableSHA1InWant`), azaz egy demó előtti újrahúzáskor
+# bukhatna — 114 MB és ~20 s a teljes klón, ez olcsóbb, mint a kockázat.
 - name: Check out whisper.cpp at the PINNED commit
   git:
     repo: "{{ whisper_repo }}"
     dest: "{{ whisper_dir }}"
     version: "{{ whisper_version }}"
-    depth: 1
   register: whisper_checkout
   tags: [stt]
 
@@ -204,8 +209,13 @@
     creates: "{{ whisper_dir }}/build/CMakeCache.txt"
   tags: [stt]
 
+# `ansible_facts.processor_vcpus`, NEM `ansible_processor_vcpus`: az utóbbi az
+# INJECT_FACTS_AS_VARS-ból jön, ami deprecated és az ansible-core 2.24-ben megszűnik.
+# A hiba akkor NÉMA lenne: a változó eltűnik, a `default(2)` beugrik, és a fordítás
+# négy mag helyett kettőn menne — kétszer lassabban, hibaüzenet nélkül, egy akkun
+# futó roboton. (Mérve 2026-08-26: mindkét alak 4-et ad ma.)
 - name: Compile whisper.cpp
-  command: "cmake --build build -j {{ ansible_processor_vcpus | default(2) }}"
+  command: "cmake --build build -j {{ ansible_facts.processor_vcpus | default(2) }}"
   args:
     chdir: "{{ whisper_dir }}"
     creates: "{{ whisper_dir }}/build/bin/whisper-cli"
