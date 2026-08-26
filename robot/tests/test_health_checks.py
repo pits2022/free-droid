@@ -100,10 +100,39 @@ def test_package_import_ok(settings):
     assert checks.check_package_import(settings).status is Status.OK
 
 
-def test_registry_covers_all_layers(settings):
+def test_registry_covers_all_layers(monkeypatch, settings):
+    """MINDEN checket lefuttat — ezért kell a hálózatot kiütni alóla.
+
+    A hálózatos checkek (`cloud_ollama`, `cloud_stt`) különben VALÓDI kérést tesznek a
+    10.0.0.1-re. Ha az alagút él, de a felhő nem (a szokásos állapot két demó között),
+    az nem hibát ad, hanem IDŐTÚLLÉPÉST: a Pi-n ettől 11 s-ról 37 s-ra hízott a suite,
+    és egy lassú teszt előbb-utóbb kimarad a futásból. Egy egységteszt ne menjen ki a
+    gépből.
+    """
     from freedroid.health.model import Layer
+
+    monkeypatch.setattr(checks, "http_get", lambda url, **k: (0, ""))
     layers = {c(settings).layer for c in checks.ALL_CHECKS}
     assert layers == {Layer.NETWORK, Layer.HARDWARE, Layer.SOFTWARE}
+
+
+def test_cloud_stt_unreachable_is_warning_not_critical(monkeypatch, settings):
+    """Ugyanaz a szigor, mint a felhős Ollamánál: a felhő IGÉNY SZERINTI, a hiánya
+    normális üzemállapot — a `FallbackSTT` a helyi whisperre esik."""
+    monkeypatch.setattr(checks, "http_get", lambda url, **k: (0, ""))
+    r = checks.check_cloud_stt(settings)
+    assert r.status is Status.WARN and not r.is_critical_failure
+
+
+def test_a_kikapcsolt_felhos_stt_NEM_figyelmeztetes(monkeypatch, settings):
+    """`stt_prefer_cloud=false` esetén a felhő hiánya nem hiányosság, hanem a DÖNTÉS —
+    egy örökös sárga sor pedig pont azt tanítja meg, hogy a sárgát nem kell nézni."""
+    import dataclasses
+
+    monkeypatch.setattr(checks, "http_get", lambda url, **k: (0, ""))
+    kikapcsolva = dataclasses.replace(
+        settings, voice=dataclasses.replace(settings.voice, stt_prefer_cloud=False))
+    assert checks.check_cloud_stt(kikapcsolva).status is Status.OK
 
 
 # --- network: wireguard interface (cloud link → WARNING) -------------------- #

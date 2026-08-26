@@ -158,6 +158,9 @@
   set_fact:
     whisper_models: "{{ cloud_whisper_models if 'cloud' in group_names else edge_whisper_models }}"
     whisper_cmake_flags: "{{ cloud_whisper_cmake_flags if 'cloud' in group_names else edge_whisper_cmake_flags }}"
+    whisper_models_dir: "{{ cloud_whisper_models_dir if 'cloud' in group_names else edge_whisper_models_dir }}"
+    # A felhőn `root` a gazda (nincs `creator` felhasználó), az edge-en a robot_user.
+    whisper_owner: "{{ 'root' if 'cloud' in group_names else (robot_user | default('creator')) }}"
   tags: [stt]
 
 - name: Install whisper.cpp build prerequisites
@@ -237,8 +240,8 @@
   file:
     path: "{{ whisper_models_dir }}"
     state: directory
-    owner: "{{ robot_user | default('creator') }}"
-    group: "{{ robot_user | default('creator') }}"
+    owner: "{{ whisper_owner }}"
+    group: "{{ whisper_owner }}"
     mode: "0755"
   register: whisper_dir_allapot
   tags: [stt]
@@ -256,10 +259,69 @@
     url: "{{ whisper_model_url }}/{{ item.name }}"
     dest: "{{ whisper_models_dir }}/{{ item.name }}"
     checksum: "sha256:{{ item.sha256 }}"
-    owner: "{{ robot_user | default('creator') }}"
-    group: "{{ robot_user | default('creator') }}"
+    owner: "{{ whisper_owner }}"
+    group: "{{ whisper_owner }}"
     mode: "0644"
   loop: "{{ whisper_models }}"
   loop_control:
     label: "{{ item.name }}"
+  tags: [stt]
+
+# ── whisper-server: a FELHŐS STT végpontja (CSAK a felhőn) ───────────────────────
+#
+# Az edge-en NINCS szerver: ott a `whisper-cli` fut hívásonként. A felhőn azért kell
+# szolgáltatás, mert a modellt EGYSZER kell GPU-ra tölteni — hívásonkénti indítással
+# a betöltés (több tíz másodperc) minden mondatra rájönne, azaz pont a nyereséget enné.
+
+- name: Install whisper-server onto the PATH (cloud only)
+  when: "'cloud' in group_names"
+  copy:
+    src: "{{ whisper_dir }}/build/bin/whisper-server"
+    dest: /usr/local/bin/whisper-server
+    remote_src: yes
+    mode: "0755"
+  tags: [stt]
+
+- name: Install the whisper-server unit (cloud only)
+  when: "'cloud' in group_names"
+  template:
+    src: whisper-server.service.j2
+    dest: /etc/systemd/system/whisper-server.service
+    mode: "0644"
+  notify: Reload systemd
+  register: whisper_unit
+  tags: [stt]
+
+- name: Enable and start whisper-server (cloud only)
+  when: "'cloud' in group_names"
+  systemd:
+    name: whisper-server
+    enabled: yes
+    state: "{{ 'restarted' if whisper_unit.changed else 'started' }}"
+    daemon_reload: yes
+  tags: [stt]
+
+# UGYANAZ AZ INVARIÁNS, mint az Ollamánál, és ugyanazért: egy átirat-szolgáltatás a
+# publikus NIC-en ingyenes STT mindenkinek, és a hibája NÉMA. A minta a `whisper-cli`
+# portjára szól; a szerkezete szándékosan azonos a fenti Ollama-őrrel (a `*` alakot az
+# iproute2 6.15 tényleg írja — PR #32 találata).
+- name: Assert the cloud STT is not exposed on the public interface
+  when: "'cloud' in group_names"
+  block:
+    - name: Read the listening sockets (STT)
+      command: ss -lntH
+      register: whisper_sockets
+      changed_when: false
+      check_mode: false
+
+    - name: Fail if whisper-server listens on a wildcard address
+      assert:
+        that: >-
+          whisper_sockets.stdout_lines
+          | select('search', '(^|\\s)(\\*|0\\.0\\.0\\.0|\\[::\\]):' ~ whisper_server_port ~ '(\\s|$)')
+          | list | length == 0
+        fail_msg: >-
+          A whisper-server wildcard címen hallgat a(z) {{ whisper_server_port }}-on — az
+          átirat-szolgáltatás így a publikus NIC-en is elérhető. VPN-only kötés kell.
+        success_msg: "A whisper-server csak a VPN-címen ({{ whisper_server_host }}) hallgat."
   tags: [stt]
