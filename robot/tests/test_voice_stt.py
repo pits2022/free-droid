@@ -211,3 +211,154 @@ def test_az_EGYETLEN_bajt_sem_hasal_el():
     csonkítása után viszont NULLA minta marad -> ZeroDivisionError. A felvételi folyam
     vége pontosan így zárulhat, és a kivétel a `run()` hurkot vinné el."""
     assert rms(b"\x01") == 0.0
+
+
+# --- FELHŐS STT: a kliens és a visszaesés, hálózat nélkül -------------------------
+
+class AlNyito:
+    """A HTTP-réteg helyettese. Rögzíti a kéréseket, és megjátszott választ ad.
+
+    Nem `urllib`-et foltozunk, hanem a beadott `opener`-t cseréljük: így a teszt
+    pontosan azt méri, amit a kliens ÖSSZEÁLLÍT, nem azt, hogy a szabvány könyvtár
+    működik-e.
+    """
+
+    def __init__(self, valasz: bytes = b'{"text": "szia Teremto"}', hiba: Exception | None = None):
+        self.valasz, self.hiba = valasz, hiba
+        self.keresek: list[tuple[str, str, bytes | None, float]] = []
+
+    def __call__(self, keres, timeout):
+        self.keresek.append((keres.method, keres.full_url, keres.data, timeout))
+        if self.hiba is not None:
+            raise self.hiba
+        return self.valasz
+
+
+def test_a_multipart_torzs_a_hangot_VALTOZATLANUL_viszi():
+    """A hang bináris: egy téves kódolás/escape-elés nem hibát adna, hanem ZAGYVA
+    átiratot — azaz pont úgy nézne ki, mint egy rossz mikrofon."""
+    from freedroid.voice import multipart
+
+    hang = bytes(range(256))
+    torzs, tipus = multipart({"language": "hu"}, "felvetel.wav", hang)
+    hatarolo = tipus.split("boundary=")[1]
+    assert hang in torzs
+    assert torzs.startswith(f"--{hatarolo}\r\n".encode())
+    assert torzs.endswith(f"\r\n--{hatarolo}--\r\n".encode())
+    assert b'name="language"' in torzs and b"\r\n\r\nhu\r\n" in torzs
+    assert b'name="file"; filename="felvetel.wav"' in torzs
+
+
+def test_a_wav_fejlec_a_BEALLITOTT_ratat_viszi():
+    """Mindkét STT-ág ugyanezt a fejlécet kapja. A Whisper KÖTÖTTEN 16 kHz monót vár,
+    és rossz rátára nem hibázik, hanem rosszul ért (mérve 2026-08-26)."""
+    import io
+    import wave
+
+    from freedroid.voice import wav_bajtok
+
+    with wave.open(io.BytesIO(wav_bajtok(pcm(1000, 2), RATE))) as w:
+        assert (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (RATE, 1, 2)
+        assert w.getnframes() == MINTA_DARAB * 2
+
+
+def test_a_felhos_keres_a_SZOTAR_PROMPTOT_is_viszi():
+    """A prompt nélkül a "Yotengrit" -> "TENVRÍT" (mérve). A felhős ág ugyanazt a
+    működési feltételt kívánja, mint a helyi — két külön parancsépítés itt csendben
+    szétcsúszhatna."""
+    from freedroid.voice import CloudWhisperSTT
+
+    nyito = AlNyito()
+    szoveg = CloudWhisperSTT(beallitas(stt_prompt="Szabi, Yotengrit."), opener=nyito).transcribe(pcm(1000))
+    assert szoveg == "szia Teremto"
+    modszer, url, torzs, timeout = nyito.keresek[0]
+    assert (modszer, url) == ("POST", "http://10.0.0.1:8080/inference")
+    assert b"Szabi, Yotengrit." in torzs and b'name="language"' in torzs
+    assert b"\r\n\r\nhu\r\n" in torzs
+    assert timeout == VoiceSettings().stt_cloud_timeout_s
+
+
+def test_ures_hangra_NEM_indul_halozati_keres():
+    from freedroid.voice import CloudWhisperSTT
+
+    nyito = AlNyito()
+    assert CloudWhisperSTT(beallitas(), opener=nyito).transcribe(b"") == ""
+    assert nyito.keresek == []
+
+
+def test_az_ERTELMEZHETETLEN_valasz_HANGOS_hiba_nem_ures_atirat():
+    """A legfontosabb hibaág: egy váratlan válaszformátum ÜRES átiratként úgy nézne ki,
+    mintha a felhasználó nem mondott volna semmit — a robot csak hallgatna, és semmi
+    nem árulná el, miért."""
+    from freedroid.voice import CloudWhisperSTT
+
+    with pytest.raises(RuntimeError, match="értelmezhetetlen"):
+        CloudWhisperSTT(beallitas(), opener=AlNyito(valasz=b"<html>502</html>")).transcribe(pcm(1000))
+
+
+class AlSTT:
+    def __init__(self, valasz="edge szoveg"):
+        self.valasz, self.hivasok = valasz, 0
+
+    def transcribe(self, audio):
+        self.hivasok += 1
+        return self.valasz
+
+
+def _felhos(nyito) -> object:
+    from freedroid.voice import CloudWhisperSTT
+    return CloudWhisperSTT(beallitas(), opener=nyito)
+
+
+def test_elo_alagutnal_a_FELHO_felel():
+    from freedroid.voice import FallbackSTT
+
+    edge = AlSTT()
+    stt = FallbackSTT(beallitas(), felho=_felhos(AlNyito()), edge=edge)
+    assert stt.transcribe(pcm(1000)) == "szia Teremto"
+    assert edge.hivasok == 0
+    assert stt.utolso_agy == "cloud"
+
+
+def test_halott_alagutnal_az_EDGE_felel_es_a_dontes_MEGMONDJA_miert():
+    from freedroid.voice import FallbackSTT
+
+    edge = AlSTT()
+    stt = FallbackSTT(beallitas(), felho=_felhos(AlNyito(hiba=OSError("nincs útvonal"))),
+                      edge=edge)
+    assert stt.transcribe(pcm(1000)) == "edge szoveg"
+    assert edge.hivasok == 1
+    assert stt.utolso_agy == "edge"
+    assert "nem elérhető" in stt.dontes(), stt.dontes()
+
+
+def test_a_kikapcsolt_felho_MEG_NEM_IS_PROBALKOZIK():
+    """`stt_prefer_cloud=false` a szuverén/offline demó kapcsolója: ilyenkor egyetlen
+    csomag sem megy ki a gépből, nem csak a hang nem."""
+    from freedroid.voice import FallbackSTT
+
+    nyito, edge = AlNyito(), AlSTT()
+    stt = FallbackSTT(beallitas(stt_prefer_cloud=False), felho=_felhos(nyito), edge=edge)
+    assert stt.transcribe(pcm(1000)) == "edge szoveg"
+    assert nyito.keresek == []
+    assert "kikapcsolva" in stt.dontes()
+
+
+def test_az_ELO_de_HIBAZO_felho_is_az_edge_re_esik():
+    """Külön ág: a próba ÁTMEGY (a szerver felel), a munka mégis elhasal — pl. a GPU
+    meghalt, vagy a modell nincs betöltve. Ha csak az elérhetőséget néznénk, a mondat
+    itt elveszne, holott az edge ki tudná szolgálni."""
+    from freedroid.voice import FallbackSTT
+
+    class ProbaOkPostBukik(AlNyito):
+        def __call__(self, keres, timeout):
+            self.keresek.append((keres.method, keres.full_url, keres.data, timeout))
+            if keres.method == "POST":
+                raise OSError("a szerver bontotta a kapcsolatot")
+            return b""
+
+    edge = AlSTT()
+    stt = FallbackSTT(beallitas(), felho=_felhos(ProbaOkPostBukik()), edge=edge)
+    assert stt.transcribe(pcm(1000)) == "edge szoveg"
+    assert edge.hivasok == 1
+    assert "hibázott" in stt.dontes(), stt.dontes()

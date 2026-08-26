@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bring-up önteszt — AKTÍV ellenőrzés, operátor jelenlétében, indulás előtt.
 
-MI EZ, ÉS MI NEM. A `freedroid-health` (15 check) FELÜGYELET NÉLKÜL fut, 10 percenként,
+MI EZ, ÉS MI NEM. A `freedroid-health` FELÜGYELET NÉLKÜL fut, 10 percenként,
 tehát csak ESZKÖZ-JELENLÉTET nézhet: `arecord -l`, `/dev/video*`, `gpiochip`. Sosem
 szólal meg, nem vesz fel képet, nem mér távolságot és nem mozdít semmit — helyesen, mert
 egy magától induló ellenőrzés nem mozgathatja a robotot.
@@ -475,7 +475,9 @@ def main() -> int:
                 _kiir(r)
         eredmenyek.extend(uj)
 
-    szakasz("PASSZÍV (freedroid-health, ugyanaz a 15 check)", run_checks(settings))
+    # A darabszám SZÁNDÉKOSAN nincs a szövegben: egy beírt "15 check" minden új
+    # ellenőrzésnél elavul, és senki nem javítja (a `cloud_stt` már a 16. volt).
+    szakasz("PASSZÍV (a freedroid-health teljes készlete)", run_checks(settings))
     szakasz("RENDSZER",
             _biztonsagos("clock", check_ora, settings, layer=Layer.SOFTWARE)
             + _biztonsagos("memory", check_memoria, settings, layer=Layer.SOFTWARE)

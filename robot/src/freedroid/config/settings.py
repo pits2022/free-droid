@@ -239,6 +239,26 @@ class VoiceSettings:
     # ("Szabi, gyere ide") simán szlovákot vagy csehet tippel, és onnantól a
     # transzkripció zagyva — a robot pedig egy zagyva mondatra válaszolna. A magyar
     # egyébként is a szuverenitás-üzenet része, nem futásidejű döntés.
+    # --- FELHŐS STT: ugyanaz a whisper.cpp, GPU-n, a WireGuard-alagút túlvégén ---
+    #
+    # MIÉRT: az STT a lánc leglassabb eleme, és a késleltetése ~ÁLLANDÓ, a hang hosszától
+    # FÜGGETLENÜL (8,9-15 s a `small`-lal, mérve 2026-08-25) — a Whisper minden bemenetet
+    # 30 s-os ablakra tölt, tehát a kódoló mindig ugyanannyit dolgozik. A felhős 8B ehhez
+    # képest 1,3 s. A GPU-s `large-v3-turbo` másodperc alatt végez, ÉS a tulajdonneveket
+    # is jobban viszi — a "Szabi" -> "Szabiget/Szabbi/Szabü" hibák nagy része innen jön.
+    #
+    # A SZUVERENITÁS NEM SÉRÜL: ez a SAJÁT felhőnk a saját alagutunkban, nem vendor API.
+    # Ha mégis offline demót akarunk, `stt_prefer_cloud=false` (vagy egyszerűen nincs
+    # alagút) — a visszaesés a Pi-re automatikus, ugyanaz a létra, ami az LLM-nél működik.
+    stt_cloud_url: str = "http://10.0.0.1:8080"
+    stt_prefer_cloud: bool = True
+    # Külön időkorlát: a felhős út hálózatot is tartalmaz, de GPU-n fut. Ha ennyi alatt
+    # nem végez, az edge gyorsabban ad választ, mint a további várakozás.
+    stt_cloud_timeout_s: float = 20.0
+    # A DÖNTÉS próbája, nem a munkáé. Rövid, mert minden mondatnál lefut, és a lényege,
+    # hogy egy HALOTT alagútnál ne 160 KB hang feltöltése után derüljön ki a baj.
+    stt_cloud_probe_timeout_s: float = 2.0
+
     stt_language: str = "hu"
     stt_threads: int = 4
     stt_timeout_s: float = 60.0
@@ -284,7 +304,9 @@ class VoiceSettings:
             raise ValueError("stt_timeout_s must be > 0")
         if self.stt_sample_rate <= 0:
             raise ValueError("stt_sample_rate must be > 0")
-        for nev, ertek in (("vad_calib_s", self.vad_calib_s), ("vad_snr", self.vad_snr),
+        for nev, ertek in (("stt_cloud_timeout_s", self.stt_cloud_timeout_s),
+                           ("stt_cloud_probe_timeout_s", self.stt_cloud_probe_timeout_s),
+                           ("vad_calib_s", self.vad_calib_s), ("vad_snr", self.vad_snr),
                            ("vad_min_rms", self.vad_min_rms),
                            ("vad_silence_s", self.vad_silence_s),
                            ("vad_max_s", self.vad_max_s),

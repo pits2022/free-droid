@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+#
+# whisper.cpp STT szerver a FELHŐBEN, GPU-n. Ezt a Pi hívja a WireGuard-alagúton át
+# (`VoiceSettings.stt_cloud_url`), és a `FallbackSTT` esik vissza a helyi `small`-ra,
+# ha a szolgáltatás nem felel — tehát ez a unit sosem kritikus, csak gyors.
+[Unit]
+Description=whisper.cpp STT server (GPU) for free-droid
+# A VPN-CÍMRE kötünk, tehát a wg0 interfésznek MÁR LÉTEZNIE kell, különben a bind
+# "cannot assign requested address"-szel elhasal. Az `After` csak a sorrendet adja,
+# a garanciát a `Restart=always` + `RestartSec` adja: boot-versenynél újrapróbál.
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/whisper-server \
+    --host {{ whisper_server_host }} \
+    --port {{ whisper_server_port }} \
+    -m {{ whisper_models_dir }}/{{ whisper_models[0].name }} \
+    -l {{ whisper_server_language | default('hu') }} \
+    -t {{ ansible_facts.processor_vcpus | default(2) }}
+Restart=always
+RestartSec=5
+# A modell betöltése GPU-ra több tíz másodperc is lehet hidegen — a systemd ne
+# nyilvánítsa halottnak közben.
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

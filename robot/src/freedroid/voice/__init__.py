@@ -1,8 +1,11 @@
-"""Offline voice pipeline: wake word → STT → (LLM) → TTS, plus VAD.
+"""Voice pipeline: wake word → STT → (LLM) → TTS, plus VAD.
 
-All components run locally on the Pi (sovereignty requirement):
+A hang-lánc a Pi-n fut (szuverenitás), EGY kivétellel: az STT-nek van felhős ága is —
+ugyanaz a whisper.cpp, GPU-n, a SAJÁT alagutunk túlvégén (nem vendor API). A visszaesés
+automatikus, tehát alagút nélkül a robot ugyanúgy ért magyarul, csak lassabban.
+
   - wake word: openWakeWord ("Szabi")
-  - STT: whisper.cpp (Hungarian)
+  - STT: whisper.cpp (Hungarian) — felhő, majd edge (`FallbackSTT`)
   - TTS: Piper (hu_HU-anonymous-medium, pitch-tuned younger)
   - VAD: detect end-of-speech
 Interfaces + stubs only.
@@ -12,6 +15,7 @@ from __future__ import annotations
 
 import array
 import collections
+import io
 import json
 import logging
 import math
@@ -22,9 +26,12 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
+import uuid
 import wave
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 
 
 def find_voice_binary(nev: str) -> str | None:
@@ -98,6 +105,162 @@ def rms(pcm: bytes) -> float:
     return math.sqrt(sum(x * x for x in minta) / len(minta))
 
 
+def wav_bajtok(pcm: bytes, rate: int) -> bytes:
+    """Nyers 16 bites mono PCM -> WAV, memóriában.
+
+    Egy helyen, mert MINDKÉT STT-ág ugyanazt a fejlécet kívánja: a `whisper-cli` fájlt
+    olvas, a `whisper-server` feltöltést vár. Két külön fejléc-építés némán elcsúszhatna
+    (más ráta, más csatornaszám), és az eredmény nem hiba lenne, hanem ZAGYVA ÁTIRAT.
+    """
+    puffer = io.BytesIO()
+    with wave.open(puffer, "wb") as ki:
+        ki.setnchannels(1)
+        ki.setsampwidth(2)
+        ki.setframerate(rate)
+        ki.writeframes(pcm)
+    return puffer.getvalue()
+
+
+def multipart(mezok: dict[str, str], fajl_nev: str, fajl: bytes) -> tuple[bytes, str]:
+    """(törzs, Content-Type) egy multipart/form-data kéréshez, a szabvány könyvtárból.
+
+    Kézzel, mert a projektnek nincs HTTP-kliens függősége, és EGY feltöltésért nem
+    veszünk fel egyet: a `health.probe` is `urllib`-et használ. A határoló véletlen
+    (`uuid4`), tehát nem fordulhat elő a hangban.
+    """
+    hatarolo = f"----freedroid-{uuid.uuid4().hex}"
+    darabok = []
+    for nev, ertek in mezok.items():
+        darabok.append(
+            f"--{hatarolo}\r\nContent-Disposition: form-data; name=\"{nev}\"\r\n\r\n"
+            f"{ertek}\r\n".encode())
+    darabok.append(
+        f"--{hatarolo}\r\nContent-Disposition: form-data; name=\"file\"; "
+        f"filename=\"{fajl_nev}\"\r\nContent-Type: audio/wav\r\n\r\n".encode())
+    darabok.append(fajl)
+    darabok.append(f"\r\n--{hatarolo}--\r\n".encode())
+    return b"".join(darabok), f"multipart/form-data; boundary={hatarolo}"
+
+
+class CloudWhisperSTT:
+    """whisper.cpp SZERVER a felhőben (GPU), a WireGuard-alagúton át.
+
+    A szerződés a rögzített commit FORRÁSÁBÓL van ellenőrizve (`examples/server`):
+    `POST /inference`, multipart `file` + `language` + `prompt` + `response_format`,
+    a válasz `{"text": ...}`. Ugyanaz a szótár-prompt megy, mint a helyi ágon — az
+    nem finomhangolás, hanem MŰKÖDÉSI FELTÉTEL (a "Yotengrit" egyetlen modell
+    szótárában sincs benne).
+    """
+
+    def __init__(self, settings: Settings | None = None,
+                 opener: Callable[[urllib.request.Request, float], bytes] | None = None) -> None:
+        from freedroid.config.settings import load_settings
+
+        self._cfg = (settings or load_settings()).voice
+        self._opener = opener or _urlopen_bytes
+
+    def elerheto(self) -> tuple[bool, str]:
+        """(él-e a szerver, INDOK). Az indok azért kell, mert a naplóban a "miért az
+        edge felelt?" kérdés csak így válaszolható meg utólag — ugyanaz az elv, mint a
+        `FallbackLLMClient._probe`-nál."""
+        url = self._cfg.stt_cloud_url
+        try:
+            self._opener(urllib.request.Request(url, method="GET"),
+                         self._cfg.stt_cloud_probe_timeout_s)
+        except Exception as e:  # noqa: BLE001 — bármilyen hiba = nem elérhető
+            return False, f"nem elérhető ({url}: {type(e).__name__})"
+        return True, "elérhető"
+
+    def transcribe(self, audio: bytes) -> str:
+        if not audio:
+            return ""
+        mezok = {"language": self._cfg.stt_language, "response_format": "json",
+                 "temperature": "0.0"}
+        if self._cfg.stt_prompt:
+            mezok["prompt"] = self._cfg.stt_prompt
+        torzs, tipus = multipart(mezok, "felvetel.wav",
+                                 wav_bajtok(audio, self._cfg.stt_sample_rate))
+        keres = urllib.request.Request(f"{self._cfg.stt_cloud_url}/inference",
+                                       data=torzs, method="POST",
+                                       headers={"Content-Type": tipus})
+        try:
+            nyers = self._opener(keres, self._cfg.stt_cloud_timeout_s)
+        except Exception as e:  # noqa: BLE001 — hálózat/HTTP/időtúllépés, mind ugyanaz
+            raise RuntimeError(f"a felhős STT nem válaszolt: {type(e).__name__}: {e}") from e
+        try:
+            return str(json.loads(nyers)["text"]).strip()
+        except (ValueError, KeyError, TypeError) as e:
+            # NEM nyeljük el: egy váratlan válaszformátum ÜRES átiratként úgy nézne ki,
+            # mintha a felhasználó nem mondott volna semmit — a robot csak hallgatna.
+            raise RuntimeError(
+                f"a felhős STT válasza értelmezhetetlen: {nyers[:120]!r}") from e
+
+
+def _urlopen_bytes(keres: urllib.request.Request, timeout: float) -> bytes:
+    with urllib.request.urlopen(keres, timeout=timeout) as valasz:  # noqa: S310
+        return valasz.read()
+
+
+class FallbackSTT:
+    """Felhő -> edge visszaesés, ugyanaz a létra, ami az LLM-nél már működik.
+
+    A döntés MONDATONKÉNT újra megtörténik: az alagút a demó közben is felállhat vagy
+    leeshet, és egy "egyszer edge, mindig edge" kliens a felállt alagutat sosem venné
+    észre. A próba olcsó (egy GET), és pont azért van, hogy egy halott alagútnál ne
+    160 KB hang feltöltése UTÁN derüljön ki a baj.
+
+    A felhő hibája NEM buktatja a mondatot: leesünk az edge-re, és a `dontes()` őrzi meg,
+    hogy miért. Némán viszont nem esünk le — a napló mindig megmondja, melyik ág felelt.
+    """
+
+    def __init__(self, settings: Settings | None = None,
+                 felho: STT | None = None, edge: STT | None = None) -> None:
+        from freedroid.config.settings import load_settings
+
+        self._cfg = (settings or load_settings()).voice
+        self._beallitas = settings
+        self._felho = felho
+        self._edge = edge
+        self._indok = ""
+        self.utolso_agy = ""
+
+    @property
+    def felho(self) -> CloudWhisperSTT:
+        if self._felho is None:
+            self._felho = CloudWhisperSTT(self._beallitas)
+        return self._felho
+
+    @property
+    def edge(self) -> WhisperCppSTT:
+        # LUSTÁN: a helyi ág konstruktora binárist és modellt keres, és ha a felhő
+        # felel, arra nincs is szükség. Egy hiányzó `whisper-cli` így nem akadályozza
+        # meg a felhős működést.
+        if self._edge is None:
+            self._edge = WhisperCppSTT(self._beallitas)
+        return self._edge
+
+    def dontes(self) -> str:
+        """MIÉRT az az ág felelt, ami. Teljes döntési nyom, egy sorban."""
+        return self._indok
+
+    def transcribe(self, audio: bytes) -> str:
+        if self._cfg.stt_prefer_cloud:
+            elerheto, indok = self.felho.elerheto()
+            if elerheto:
+                try:
+                    szoveg = self.felho.transcribe(audio)
+                    self._indok, self.utolso_agy = "cloud: felelt", "cloud"
+                    return szoveg
+                except RuntimeError as e:
+                    indok = f"hibázott ({e})"
+            self._indok = f"cloud: {indok} -> edge"
+        else:
+            self._indok = "cloud: kikapcsolva (stt_prefer_cloud=false) -> edge"
+        log.info("STT: %s", self._indok)
+        self.utolso_agy = "edge"
+        return self.edge.transcribe(audio)
+
+
 class WhisperCppSTT:
     """whisper.cpp-alapú átirat (Pi-n, offline).
 
@@ -137,11 +300,7 @@ class WhisperCppSTT:
 
         with tempfile.TemporaryDirectory() as konyvtar:
             wav = Path(konyvtar) / "felvetel.wav"
-            with wave.open(str(wav), "wb") as ki:
-                ki.setnchannels(1)
-                ki.setsampwidth(2)
-                ki.setframerate(self._cfg.stt_sample_rate)
-                ki.writeframes(audio)
+            wav.write_bytes(wav_bajtok(audio, self._cfg.stt_sample_rate))
             # Sorban épül, nem beszúrással: a korábbi `parancs[-2:-2]` a `-f` POZÍCIÓJÁRA
             # támaszkodott, tehát egy későbbi kapcsoló hozzáadása csendben rossz helyre
             # tette volna a promptot. (PR #95 review.)

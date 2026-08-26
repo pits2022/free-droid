@@ -43,7 +43,12 @@ whisper_repo: "https://github.com/ggerganov/whisper.cpp"
 whisper_version: "978113305b2ead22249b881deafa131dc8884911"   # 2026-08-25, mérve
 
 whisper_dir: /opt/whisper.cpp
-whisper_models_dir: "/home/{{ robot_user | default('creator') }}/.local/share/whisper-models"
+# A modellek helye CSOMÓPONTONKÉNT más, és ez nem ízlés: a felhőn NINCS `creator`
+# felhasználó (ott `root` az ansible_user), tehát a `/home/creator` alá írás és az
+# `owner: creator` az ELSŐ cloud-os futásnál elhasalt volna. Az edge útvonala
+# VÁLTOZATLAN, mert a `VoiceSettings.whisper_model` alapértelmezése rá mutat.
+edge_whisper_models_dir: "/home/{{ robot_user | default('creator') }}/.local/share/whisper-models"
+cloud_whisper_models_dir: /opt/whisper-models
 whisper_model_url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
 # A modellek CSOMÓPONTONKÉNT mások, ugyanúgy, mint az Ollamánál — és ugyanazért: az
@@ -69,4 +74,20 @@ cloud_whisper_models:
 # vissza CPU-ra — a kártya megvan, a sebesség nincs. Ezért a flag explicit, és a build
 # HANGOSAN hasal el, ha a CUDA nem elérhető, ahelyett hogy lassan működne.
 cloud_whisper_cmake_flags: ["-DGGML_CUDA=ON"]
+
+# ── whisper-server: a FELHŐS STT végpontja ───────────────────────────────────────
+#
+# MIÉRT: az STT a hang-lánc leglassabb eleme, és a késleltetése ~ÁLLANDÓ, a hang
+# hosszától FÜGGETLENÜL (8,9-15 s a Pi-n a `small`-lal, mérve 2026-08-25) — a Whisper
+# minden bemenetet 30 s-os ablakra tölt. GPU-n a `large-v3-turbo` másodperc alatt
+# végez, ÉS a tulajdonneveket is jobban viszi.
+#
+# ⚠️ A PORT KÉT HELYEN ÉL: itt, és a `VoiceSettings.stt_cloud_url`-ben
+# (`http://10.0.0.1:8080`). Ha ez változik, ott is át kell írni — a `check_cloud_stt`
+# egészség-ellenőrzés az, ami az elcsúszást el fogja kapni.
+whisper_server_port: 8080
+# A VPN-CÍMRE kötünk, nem 0.0.0.0-ra. A tűzfal ma úgyis csak a 22-t és az 51820-at
+# engedi, de a "fail closed" olcsóbb, mint egy jövőbeli tűzfal-lazítás után kiderülő
+# nyitott átirat-szolgáltatás. A `vpn_ip` az inventoryból jön.
+whisper_server_host: "{{ vpn_ip | default('127.0.0.1') }}"
 edge_whisper_cmake_flags: []

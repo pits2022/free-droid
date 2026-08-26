@@ -69,6 +69,26 @@ def check_cloud_ollama(settings: Settings) -> CheckResult:
     return warn(name, Layer.NETWORK, "cloud Ollama unreachable — using edge fallback")
 
 
+def check_cloud_stt(settings: Settings) -> CheckResult:
+    """A felhős whisper-server — ugyanaz a szigor, mint a felhős Ollamánál: WARNING.
+
+    A felhő IGÉNY SZERINTI, tehát a hiánya normális üzemállapot, nem hiba: a
+    `FallbackSTT` a Pi helyi `small` modelljére esik vissza. Amit ez a check ér: a
+    port KÉT helyen él (`VoiceSettings.stt_cloud_url` és az Ansible
+    `whisper_server_port`), és ha a kettő elcsúszik, az CSENDES lassulásként
+    jelentkezne — a robot menne tovább, csak mindig a lassú ágon.
+    """
+    name = "cloud_stt"
+    code, _ = http_get(settings.voice.stt_cloud_url,
+                       timeout=settings.voice.stt_cloud_probe_timeout_s)
+    if code == 200:
+        return ok(name, Layer.NETWORK, detail="cloud STT reachable")
+    if not settings.voice.stt_prefer_cloud:
+        return ok(name, Layer.NETWORK,
+                  detail="cloud STT off by config (stt_prefer_cloud=false)")
+    return warn(name, Layer.NETWORK, "cloud STT unreachable — using the local whisper")
+
+
 # --------------------------------------------------------------------------- #
 # Hardware layer (Pi-only; SKIPPED off-Pi)
 # --------------------------------------------------------------------------- #
@@ -226,6 +246,7 @@ def check_package_import(settings: Settings) -> CheckResult:
 ALL_CHECKS: tuple[Check, ...] = (
     check_wireguard_interface,
     check_cloud_ollama,
+    check_cloud_stt,
     check_gpio_chip,
     check_i2c_bus,
     check_spi_bus,

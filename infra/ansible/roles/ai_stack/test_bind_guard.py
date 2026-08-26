@@ -62,9 +62,33 @@ cases = [
     ("kevert", jo + rossz_v4 + rossz_v6_csillag, 2),
 ]
 
+# A whisper-server ŐRE UGYANEZ a minta, de a portot NEM literálként, hanem
+# összefűzéssel kapja (`~ whisper_server_port ~`), mert a port változó. Ez új
+# szerkezet, tehát meg kell nézni, hogy TÉNYLEG ugyanazt a mintát adja-e: egy
+# elgépelt összefűzés (pl. bekerülő szóköz) NÉMÁN átengedne minden wildcardot.
+EXPR_OSSZEFUZOTT = (
+    "{{ sockets | select('search', "
+    "'(^|\\\\s)(\\\\*|0\\\\.0\\\\.0\\\\.0|\\\\[::\\\\]):' ~ port ~ '(\\\\s|$)') "
+    "| list | length }}"
+)
+
+
+def count_osszefuzott(lines, port):
+    return int(env.from_string(EXPR_OSSZEFUZOTT).render(sockets=lines, port=port))
+
+
 if __name__ == "__main__":
     for nev, bemenet, vart in cases:
         kapott = count(bemenet)
         assert kapott == vart, f"{nev}: várt {vart}, kapott {kapott}"
         print(f"  OK  {nev}")
-    print(f"\nMind a {len(cases)} eset helyes.")
+
+    # Ugyanaz a nyolc eset, 8080-as porttal, az ÖSSZEFŰZÖTT alakkal.
+    for nev, bemenet, vart in cases:
+        atirt = [sor.replace("11434", "8080").replace("114340", "80800")
+                 for sor in bemenet]
+        kapott = count_osszefuzott(atirt, 8080)
+        assert kapott == vart, f"[whisper] {nev}: várt {vart}, kapott {kapott}"
+        print(f"  OK  [whisper] {nev}")
+
+    print(f"\nMind a {2 * len(cases)} eset helyes.")
