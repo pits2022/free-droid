@@ -14,11 +14,14 @@ tesztek mellett is működésképtelen robotot ad.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
+import os
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from freedroid.config.settings import debug_mode
 from freedroid.llm import FallbackLLMClient, LLMUnavailable
 from freedroid.llm.language_guard import enforce_hungarian
 from freedroid.motion import CytronMotionController
@@ -131,6 +134,17 @@ class Orchestrator:
             self._trigger = TriggerBusz(BillentyuTrigger(), azonnal=self._azonnali_allj)
         return self._stt, self._tts, self._vad, self._trigger
 
+    def _minta_rata(self) -> int:
+        from freedroid.config.settings import load_settings
+        return (self._settings or load_settings()).voice.stt_sample_rate
+
+    @staticmethod
+    def _stt_indok(stt) -> str:
+        """MELYIK ág felelt és miért. Ez a sor válaszolja meg utólag a "miért tartott
+        11 másodpercig?" kérdést — a `FallbackSTT` őrzi az indokot."""
+        dontes = getattr(stt, "dontes", None)
+        return dontes() if dontes is not None else "STT"
+
     def _azonnali_allj(self) -> None:
         """Az ALLJ AZONNALI mellékhatása — a trigger szálán fut, nem a hurokban.
 
@@ -142,6 +156,7 @@ class Orchestrator:
         A sorrend szándékos: ELŐBB a motor. A beszéd elhallgattatása kellemetlenség
         kérdése, a mozgásé fizikai.
         """
+        log.info("ÁLLJ")
         try:
             self.motion.stop()
         except Exception:  # noqa: BLE001 — a beszédet ettől még el kell hallgattatni
@@ -364,17 +379,26 @@ class Orchestrator:
             # a beszéd (bosszantó) kell; egy futó felvétel egyik sem — legrosszabb esetben
             # pár másodperc kárba vész, aztán a jelző eldobja a kört. Ha kell:
             # egy threading.Event az EnergyVAD olvasó ciklusában, ~3 sor.
+            log.info("figyelek…")
             hang = vad.record_until_silence()
+            mp = len(hang) / 2 / self._minta_rata()
+            log.info("felvétel: %.1f s (zajszint %.0f, küszöb %.0f)", mp,
+                     getattr(vad, "zajszint", 0.0), getattr(vad, "kuszob", 0.0))
             if trigger.allj.is_set():
                 return
             szoveg = stt.transcribe(hang).strip()
+            # A HOSSZ mehet INFO-ra, a SZÖVEG nem: az a Teremtő elhangzott mondata, és a
+            # journald perzisztens. Az elhangzott tartalom csak debug posztúrában látszik
+            # — ugyanaz a kapu, mint az átirat-naplónál.
+            log.info("átirat kész: %d karakter, %s", len(szoveg), self._stt_indok(stt))
+            log.debug("átirat: %r", szoveg)
             if not szoveg:
                 log.info("üres átirat — nem kérdezünk, nem beszélünk")
                 return
-            log.info("átirat: %r", szoveg)
             if trigger.allj.is_set():
                 return
             valasz = self.ask(szoveg)
+            log.debug("válasz: %r", valasz)
         except Exception:  # noqa: BLE001 — egy hibás kör nem viheti el a hurkot
             log.exception("a kör elhasalt a válasz ELŐTT")
             valasz = SAFE_MODE_VALASZ
@@ -382,6 +406,7 @@ class Orchestrator:
             return
         try:
             self.state = State.SPEAKING
+            log.info("beszélek (%d karakter)", len(valasz))
             tts.speak(valasz)
         except Exception:  # noqa: BLE001 — a beszéd hibáját nem tudjuk kimondani
             log.exception("a beszéd elhasalt")
@@ -389,8 +414,47 @@ class Orchestrator:
             self.state = State.LISTENING
 
 
+def _naplo_beallit() -> None:
+    """A naplózás bekötése — enélkül a hurok NÉMA.
+
+    Mérve 2026-08-28-án, az első élő menetnél: kézi beállítás nélkül a Python
+    `lastResort` kezelője csak WARNING-tól ír, tehát a hurok minden `log.info`-ja
+    elveszett, és a képernyőn CSAK a "cloud nem elérhető" figyelmeztetés látszott.
+
+    A gyökér WARNING marad (a könyvtárak ne fecsegjenek), a `freedroid` logger kap
+    INFO-t — vagy DEBUG-ot, ha a posztúra azt kéri.
+    """
+    reszletes = debug_mode()
+    logging.basicConfig(
+        level=logging.WARNING,
+        format=("%(asctime)s %(levelname)-7s %(name)s: %(message)s" if reszletes
+                else "%(asctime)s  %(message)s"),
+        datefmt="%H:%M:%S",
+    )
+    logging.getLogger("freedroid").setLevel(
+        logging.DEBUG if reszletes else logging.INFO)
+
+
 def main() -> None:
     """Console entry point (`freedroid`)."""
+    ertelmezo = argparse.ArgumentParser(
+        prog="freedroid",
+        description="Free-Droid (Szabi) — a fő hurok. ENTER = figyelj, `s`+ENTER = ÁLLJ.")
+    ertelmezo.add_argument(
+        "--debug", action="store_true",
+        help=("HIBAKERESŐ POSZTÚRA: bőbeszédű napló ÉS az elhangzott mondatok rögzítése "
+              "(/var/log/freedroid/transcript.jsonl). ALAPBÓL KI. A demón NE használd: "
+              "a cél az, hogy egy ellopott robot ne adjon semmit, ami nincs a publikus "
+              "repóban — a rögzített beszélgetés az egyetlen, ami ezen elbukik."))
+    if ertelmezo.parse_args().debug:
+        # Egyetlen forrás: a kapcsoló az env-be ír, és MINDEN modul (a transcript-kapu
+        # is) onnan olvas. Két külön igazságforrás itt azt jelentené, hogy a napló
+        # bőbeszédű, de a rögzítés néma — vagy fordítva, ami sokkal rosszabb.
+        os.environ["FREEDROID_DEBUG"] = "1"
+    _naplo_beallit()
+    if debug_mode():
+        log.warning("DEBUG POSZTÚRA: az elhangzott mondatok RÖGZÜLNEK (%s). "
+                    "A demó előtt töröld.", transcript.DEFAULT_PATH)
     try:
         asyncio.run(Orchestrator().run())
     except (KeyboardInterrupt, asyncio.CancelledError):

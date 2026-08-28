@@ -7,6 +7,17 @@ import pytest
 from freedroid.orchestrator.transcript import Interakcio, log, olvas
 
 
+@pytest.fixture(autouse=True)
+def debug_poszturaban(monkeypatch):
+    """A tesztek BELEEGYEZNEK a rögzítésbe, mert az alapértelmezés a NEM-rögzítés.
+
+    Ez a polaritás a Teremtő 2026-08-10-i döntése: egy kapcsoló, amit ki KELL kapcsolni,
+    előbb-utóbb bekapcsolva marad, és a hibája a Teremtő beszélgetése egy lopható
+    kártyán. Hogy a kapu tényleg zárva van alapból, azt a fájl VÉGÉN külön teszt méri —
+    ez a fixture épp azt fedné el."""
+    monkeypatch.setenv("FREEDROID_DEBUG", "1")
+
+
 def test_log_minden_szakaszt_kulon_ment(tmp_path):
     """A nyers átirat, a betalált chunkok és a modell külön mezőben — enélkül a napló
     nem tudja megválaszolni, hogy a Whisper értette félre vagy a keresés hibázott."""
@@ -82,3 +93,35 @@ def test_surrogate_a_whisper_atiratban_nem_dob(tmp_path):
     sorok = olvas(p)
     assert len(sorok) == 1
     assert sorok[0]["modell"] == "szabi-8b-v11"              # a többi mező sértetlen
+
+
+# ── a kapu maga ──────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("ertek", ["", "0", "false", "nem", "off", "hamis"])
+def test_debug_NELKUL_semmi_nem_rogzul(tmp_path, monkeypatch, ertek):
+    """A demó-posztúra tulajdonsága, tesztként kimondva: *egy ellopott SD-kártya ne
+    adjon semmit, ami nincs a publikus repóban*. A napló az EGYETLEN dolog a Pi-n, ami
+    ezen elbukhat — egy WireGuard-kulcsot lehet forgatni, egy elhangzott mondatot nem.
+
+    A `"hamis"` eset nem vicc: `bool("hamis")` Pythonban IGAZ, tehát egy naiv
+    igazságérték-vizsgálat pont a magyarul kikapcsolt naplót hagyná bekapcsolva."""
+    monkeypatch.setenv("FREEDROID_DEBUG", ertek)
+    p = tmp_path / "transcript.jsonl"
+
+    log(Interakcio(hallott="valami, ami SOHA nem kerülhet lemezre"), p)
+
+    assert not p.exists(), f"FREEDROID_DEBUG={ertek!r} mellett is írt a napló"
+
+
+def test_a_kapu_a_FUGGVENYBEN_van_nem_a_hivoknal(tmp_path, monkeypatch):
+    """Egy hívónál kihagyott kapu csendben visszahozná az egész kockázatot, ezért a
+    kapu a `log()`-ban van — ez a teszt azt rögzíti, hogy ott is maradjon."""
+    monkeypatch.delenv("FREEDROID_DEBUG", raising=False)
+    p = tmp_path / "transcript.jsonl"
+
+    log(Interakcio(hallott="x"), p)
+    assert not p.exists()
+
+    monkeypatch.setenv("FREEDROID_DEBUG", "igen")
+    log(Interakcio(hallott="x"), p)
+    assert len(olvas(p)) == 1, "debug posztúrában viszont írnia KELL"
