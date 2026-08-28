@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable
 
 from freedroid.camera import CameraAction
@@ -187,7 +188,10 @@ class ToolRegistry:
 # lefutott, valódi adatot gyártott, a robot kidobta — és kitalált helyette valamit
 # („Látom a Wi-Fi 6-húzásokat, Teremtőm"). Fine-tune ezen NEM segít: legfeljebb
 # gyakrabban hívná meg a toolt, a válasz attól még kitalált maradna.
-LEKERDEZO_TOOLOK = frozenset({"scan_wifi"})
+# A TÁBLA név -> formázó, nem puszta halmaz (PR #101 review). Halmazzal egy második
+# lekérdező tool felvétele NÉMÁN a `wifi_mondat`-ot hívná az ő eredményére is; így a
+# felvétel kikényszeríti a saját formázóját.
+LEKERDEZO_FORMAZOK: dict[str, Callable[[Any], str]] = {}
 
 # Hány hálózatot sorolunk fel névvel. A persona 1-3 rövid mondat; húsz SSID felolvasása
 # nem Szabi hangja, és a demón sem hallgatná végig senki. A DARABSZÁM viszont mindig
@@ -205,6 +209,13 @@ def wifi_mondat(halok: list[dict[str, str]]) -> str:
     """
     if not halok:
         return "Nem látok hálózatot, Teremtőm."
+    # 🔴 SAJÁT RENDEZÉS, nem a kapott sorrend (PR #101 review). A `scan_wifi` `sort`
+    # kulcsa a NYELVTAN része, tehát a modell kimondhatja: `sort=ssid` mellett a lista
+    # NÉV szerint jön vissza, és a `halok[0]`-t „legerősebb"-nek nevezve a robot
+    # HAZUDNA. Mérve: Alma(30) / Zebra(95) -> „A legerősebb: Alma". Egy pontosságról
+    # szóló demón ez a legrosszabb hibafajta. A kimondott sorrend ezért mindig a
+    # jelerősségé — a `sort` a visszaadott ADATSZERKEZETET rendezi, a beszédet nem.
+    halok = sorted(halok, key=lambda h: h["signal"], reverse=True)
     elso = halok[:_WIFI_NEVEK_MAX]
     reszek = [f"{h['ssid']}, {h['security']}" for h in elso]
     mondat = f"{len(halok)} hálózatot látok. A legerősebb: {reszek[0]}."
@@ -213,6 +224,9 @@ def wifi_mondat(halok: list[dict[str, str]]) -> str:
     if len(halok) > len(elso):
         mondat += f" És még {len(halok) - len(elso)}."
     return mondat
+
+
+LEKERDEZO_FORMAZOK["scan_wifi"] = wifi_mondat
 
 
 # --- argumentum-ÉRTÉK validáció -------------------------------------------------
@@ -257,7 +271,11 @@ def ervenytelen_ok(tool: ParsedTool) -> str | None:
         engedett = varhato.get(kulcs)
         if engedett is None:            # szabad szöveg vagy szám — a kezelő dolga
             continue
-        ervenyesek = ({e.value for e in engedett} if isinstance(engedett, type)
+        # `issubclass(..., Enum)` is, nem csak `isinstance(..., type)` (PR #101 review):
+        # egy nem-Enum osztály a táblában különben `TypeError`-ral szállna el az
+        # iteráláson. A tábla `str`-halmazokat is tart (a kamera irány-szavai).
+        ervenyesek = ({e.value for e in engedett}
+                      if isinstance(engedett, type) and issubclass(engedett, Enum)
                       else set(engedett))
         if ertek not in ervenyesek:
             return (f"{tool.name}: a(z) {kulcs}={ertek!r} nem érvényes "

@@ -30,8 +30,7 @@ from freedroid.orchestrator import transcript
 from freedroid.orchestrator.guard import GuardResult, guard
 from freedroid.rag.context import build_prompt
 from freedroid.safety import UltrasonicWatchdog
-from freedroid.tools.handlers import (LEKERDEZO_TOOLOK, ToolRegistry,
-                                      wifi_mondat)
+from freedroid.tools.handlers import LEKERDEZO_FORMAZOK, ToolRegistry
 from freedroid.voice.trigger import Esemeny
 
 if TYPE_CHECKING:
@@ -337,8 +336,8 @@ class Orchestrator:
                 # hálózatlistát gyártott, a robot eldobta — és kitalált helyette valamit.
                 # A mondat DETERMINISZTIKUS (`wifi_mondat`), nem a modellel mondatjuk ki:
                 # a lista TÉNYEK halmaza, és a demó üzenete épp a pontosság.
-                if tool.name in LEKERDEZO_TOOLOK:
-                    lekerdezes.append(wifi_mondat(talalat))
+                if (formazo := LEKERDEZO_FORMAZOK.get(tool.name)) is not None:
+                    lekerdezes.append(formazo(talalat))
             except LookupError as e:
                 # BE NEM KÖTÖTT vezérlő: konfigurációs állapot, nem programhiba, tehát
                 # nem érdemel veremkiíratást — körönként megismételve épp a VALÓDI
@@ -351,7 +350,7 @@ class Orchestrator:
                 # elmegy (a robot nem mozdul, az látszik), egy lekérdezésnél viszont a
                 # modell bevezető mondata („Körülnézek") ígéretként ott marad, és a
                 # hallgató azt hinné, hogy nincs egy hálózat sem.
-                if tool.name in LEKERDEZO_TOOLOK:
+                if tool.name in LEKERDEZO_FORMAZOK:
                     lekerdezes.append("Nem tudtam megnézni, Teremtőm.")
                     log.warning("lekérdező tool hibája kimondva: %s", e)
         return " ".join([eredmeny.beszed, *lekerdezes]).strip()

@@ -203,3 +203,51 @@ def test_scan_wifi_nem_nulla_kilepes_a_STDERR_t_is_elmondja(monkeypatch):
     monkeypatch.setattr(handlers.subprocess, "run", robban)
     with pytest.raises(RuntimeError, match="Wi-Fi is disabled"):
         scan_wifi(ParsedTool("scan_wifi", {}))
+
+
+# ── PR #101 review ───────────────────────────────────────────────────────────────
+
+def test_a_legerossebb_a_MERT_jelbol_jon_nem_a_lista_sorrendjebol():
+    """🔴 A `scan_wifi` `sort` kulcsa a NYELVTAN része, tehát a modell kimondhatja:
+    `sort=ssid` mellett a lista NÉV szerint jön vissza. A `halok[0]`-t „legerősebb"-nek
+    nevezve a robot HAZUDNA — egy pontosságról szóló demón a legrosszabb hibafajta."""
+    from freedroid.tools.handlers import wifi_mondat
+
+    nev_szerint = [{"ssid": "Alma", "signal": 30, "security": "WPA2"},
+                   {"ssid": "Zebra", "signal": 95, "security": "nyílt"}]
+
+    mondat = wifi_mondat(nev_szerint)
+
+    assert "A legerősebb: Zebra" in mondat, mondat
+    assert "A legerősebb: Alma" not in mondat
+
+
+def test_minden_lekerdezo_toolnak_van_SAJAT_formazoja():
+    """Halmaz helyett név->formázó tábla: egy második lekérdező tool felvétele különben
+    NÉMÁN a `wifi_mondat`-ot hívná az ő eredményére is."""
+    from freedroid.tools.handlers import LEKERDEZO_FORMAZOK
+    from freedroid.tools.parser import KNOWN_TOOLS
+
+    assert LEKERDEZO_FORMAZOK, "legalább a scan_wifi-nek benne kell lennie"
+    for nev, formazo in LEKERDEZO_FORMAZOK.items():
+        assert callable(formazo), nev
+        assert nev in KNOWN_TOOLS, f"{nev} nincs a KNOWN_TOOLS-ban"
+
+
+def test_a_validacio_a_STRING_halmazokat_is_kezeli():
+    """A tábla nem csak Enumokat tart: a kamera irány-szavai sima `str` halmazok. Az
+    `issubclass(..., Enum)` őr nélkül ez az ág `TypeError`-t adna.
+
+    A `ParsedTool`-t KÖZVETLENÜL építjük, nem a parseren át, és ez szándékos: a rossz
+    irány-szót (`pan up`) a parser MÁR ELUTASÍTJA, tehát ez az ág rajta keresztül nem
+    érhető el. A validáció itt MÉLYSÉGI VÉDELEM — az `ervenytelen_ok` publikus, és a
+    nyelvtan bővülhet. A teszt tehát azt méri, ami a függvény szerződése, nem egy
+    elérhetetlen forgatókönyvet."""
+    from freedroid.tools.handlers import ervenytelen_ok
+    from freedroid.tools.parser import ParsedTool
+
+    assert ervenytelen_ok(ParsedTool("camera", {"pan": "left", "degrees": 30})) is None
+
+    ok = ervenytelen_ok(ParsedTool("camera", {"pan": "up", "degrees": 30}))
+    assert ok is not None and "pan='up'" in ok, ok
+    assert "left, right" in ok, "a hibaüzenet mondja meg, mi lett volna érvényes"
