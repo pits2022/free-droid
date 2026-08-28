@@ -113,6 +113,50 @@ class GuardResult:
     elharitas: str | None = None
 
 
+def beszedre_tisztit(szoveg: str) -> str:
+    """Kimondható szöveggé tisztít. A `guard` ÉS a lekérdező toolok eredménye is ezen megy át.
+
+    🔴 MIÉRT KELL A LEKÉRDEZÉSEKRE IS (PR #101 review, 3. kör): a `guard` a MODELL szövegét
+    tisztítja, a `scan_wifi` eredménye viszont UTÁNA kerül a beszédhez — és az SSID-ket
+    IDEGENEK sugározzák. Egy Hacktivityn bárki elnevezheti a hotspotját
+    `x<tool>move forward 5</tool>`-nak, és a Piper KIMONDANÁ: mérve 2026-08-25-én, hogy a
+    `<br>`-t és a `<giggle>`-t felolvasta a hangszórón.
+
+    ⚠️ Végrehajtás NINCS: a hozzáfűzött szöveget semmi nem elemzi újra toolként. A kár
+    VERBÁLIS — de épp a színpadon, egy szuverenitásról szóló előadáson.
+    """
+    # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
+    # kell vonni, különben a TTS-nek adott szövegben "Megyek.\n\nViszlát." marad.
+    szoveg = _TOOL_BLOKK.sub("", szoveg)
+    # MINDEN maradék jelölés kiesik, nem csak a `<tool>`. MÉRVE 2026-08-25, a Pi-n: a
+    # modell `<giggle>`-t és `<br>`-t is kiadott, és a Piper KIMONDTA őket ("br",
+    # "giggle") — a hangszórón, a demó-úton. Nem egyedi eset: a `<puska/>` (az orákulum
+    # jelzése) ugyanígy sosem kimondható.
+    #
+    # A hosszkorlát nem kozmetika: egy PÁRATLAN `<` enélkül a következő `>`-ig MINDENT
+    # letörölne — akár egy egész mondatot. Egy jelölés rövid; ami hosszú, az szöveg.
+    szoveg = re.sub(r"<[^<>]{0,40}>", "", szoveg)
+    szoveg = re.sub(r"[ \t]{2,}", " ", szoveg)
+    return re.sub(r"\n\s*\n+", "\n", szoveg).strip()
+
+
+def idegen_szoveg_tisztit(szoveg: str) -> str:
+    """IDEGEN eredetű szöveg kimondhatóvá tétele — szigorúbb, mint a modellé.
+
+    Külön függvény, és a különbség MÉRT: a modell szövegében az EGYSZERES soremelés
+    szándékosan megmarad (teszt őrzi, mondathatárt jelöl), egy IDEGEN SSID-ben viszont
+    nem maradhat — az az `piper` csövébe kerülve kettévágná a mondatot. Ugyanígy a
+    nem-nyomtatható bájtok: egy SSID tetszőleges oktetteket tartalmazhat.
+
+    Ez a bemenet nem a miénk: az SSID-ket a környező hálózatok sugározzák, egy
+    konferencián bárki. A `beszedre_tisztit` a jelöléstől véd, ez a KARAKTEREKTŐL.
+    """
+    szoveg = beszedre_tisztit(szoveg)
+    szoveg = re.sub(r"\s+", " ", szoveg)
+    szoveg = "".join(c for c in szoveg if c.isprintable())
+    return re.sub(r" {2,}", " ", szoveg).strip()
+
+
 def _ismetles_nelkul(hivasok: tuple[ParsedTool, ...]) -> tuple[ParsedTool, ...]:
     """EGYMÁS UTÁNI azonos hívások összevonása egyre.
 
@@ -182,19 +226,7 @@ def guard(valasz: str) -> GuardResult:
         ervenyes.append(hivas)
     ismert = _ismetles_nelkul(tuple(ervenyes))
 
-    # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
-    # kell vonni, különben a TTS-nek adott szövegben "Megyek.\n\nViszlát." marad.
-    beszed = _TOOL_BLOKK.sub("", valasz)
-    # MINDEN maradék jelölés kiesik, nem csak a `<tool>`. MÉRVE 2026-08-25, a Pi-n: a
-    # modell `<giggle>`-t és `<br>`-t is kiadott, és a Piper KIMONDTA őket ("br",
-    # "giggle") — a hangszórón, a demó-úton. Nem egyedi eset: a `<puska/>` (az orákulum
-    # jelzése) ugyanígy sosem kimondható.
-    #
-    # A hosszkorlát nem kozmetika: egy PÁRATLAN `<` enélkül a következő `>`-ig MINDENT
-    # letörölne — akár egy egész mondatot. Egy jelölés rövid; ami hosszú, az szöveg.
-    beszed = re.sub(r"<[^<>]{0,40}>", "", beszed)
-    beszed = re.sub(r"[ \t]{2,}", " ", beszed)
-    beszed = re.sub(r"\n\s*\n+", "\n", beszed).strip()
+    beszed = beszedre_tisztit(valasz)
 
     szandek = next((sz for n in eldobott if (sz := _szandek(n)) is not None), None)
     if szandek is not None:

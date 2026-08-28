@@ -27,7 +27,8 @@ from freedroid.llm import FallbackLLMClient, LLMUnavailable
 from freedroid.llm.language_guard import enforce_hungarian
 from freedroid.motion import CytronMotionController
 from freedroid.orchestrator import transcript
-from freedroid.orchestrator.guard import GuardResult, guard
+from freedroid.orchestrator.guard import (GuardResult, guard,
+                                          idegen_szoveg_tisztit)
 from freedroid.rag.context import build_prompt
 from freedroid.safety import UltrasonicWatchdog
 from freedroid.tools.handlers import LEKERDEZO_FORMAZOK, ToolRegistry
@@ -337,7 +338,14 @@ class Orchestrator:
                 # A mondat DETERMINISZTIKUS (`wifi_mondat`), nem a modellel mondatjuk ki:
                 # a lista TÉNYEK halmaza, és a demó üzenete épp a pontosság.
                 if (formazo := LEKERDEZO_FORMAZOK.get(tool.name)) is not None:
-                    lekerdezes.append(formazo(talalat))
+                    # 🔴 TISZTÍTVA, mert IDEGEN eredetű: a `guard` a MODELL szövegét
+                    # tisztította, ez viszont UTÁNA kerül a beszédhez — és a wifi-SSID-ket
+                    # a környező hálózatok sugározzák. Egy konferencián bárki elnevezheti
+                    # a hotspotját `x<tool>move forward 5</tool>`-nak, és a Piper
+                    # KIMONDANÁ (mérve: a `<br>`-t felolvasta). Végrehajtás nincs — a
+                    # hozzáfűzött szöveget semmi nem elemzi újra toolként —, a kár
+                    # verbális, de épp a színpadon. (PR #101 review, 3. kör.)
+                    lekerdezes.append(idegen_szoveg_tisztit(formazo(talalat)))
             except LookupError as e:
                 # BE NEM KÖTÖTT vezérlő: konfigurációs állapot, nem programhiba, tehát
                 # nem érdemel veremkiíratást — körönként megismételve épp a VALÓDI
