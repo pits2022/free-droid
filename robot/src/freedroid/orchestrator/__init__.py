@@ -361,7 +361,11 @@ class Orchestrator:
                 if tool.name in LEKERDEZO_FORMAZOK:
                     lekerdezes.append("Nem tudtam megnézni, Teremtőm.")
                     log.warning("lekérdező tool hibája kimondva: %s", e)
-        return " ".join([eredmeny.beszed, *lekerdezes]).strip()
+        # `filter(None, ...)`: KOZMETIKA, nem hibajavítás. Ma nem áll elő üres elem (a
+        # `wifi_mondat` mindig ad szöveget, a hiba-ág fix mondatot), tehát dupla szóköz
+        # sem — de a „fűzd össze a NEM ÜRES részeket" szándék olvashatóbb, mint a
+        # „fűzd össze, aztán vágd le". (PR #101 review, 5. kör.)
+        return " ".join(filter(None, [eredmeny.beszed, *lekerdezes])).strip()
 
     def guard_result(self, valasz: str) -> GuardResult:
         """A szétválasztás végrehajtás NÉLKÜL — naplózáshoz és szárazpróbához."""

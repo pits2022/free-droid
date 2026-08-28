@@ -215,13 +215,17 @@ def wifi_mondat(halok: list[dict[str, Any]]) -> str:
     # HAZUDNA. Mérve: Alma(30) / Zebra(95) -> „A legerősebb: Alma". Egy pontosságról
     # szóló demón ez a legrosszabb hibafajta. A kimondott sorrend ezért mindig a
     # jelerősségé — a `sort` a visszaadott ADATSZERKEZETET rendezi, a beszédet nem.
-    # A `signal` INT és mindig jelen van (`parse_nmcli` állítja elő, mérve). A review
-    # `int(h.get("signal", 0))`-t javasolt; azt NEM tesszük: egy hiányzó mezőt 0-nak
-    # venni CSENDES visszaesés, azaz a hibás bemenetből „leggyengébb hálózat" lenne,
-    # nem hiba. Ez a modul máshol is a hangos bukást választja (lásd `parse_nmcli`
-    # csonka-sor kezelését). A JELÖLÉS volt hazug (`dict[str, str]`), az javítva —
-    # a szerződést kimondjuk, nem megsértését fedezzük. (PR #101 review, 2. kör.)
-    halok = sorted(halok, key=lambda h: h["signal"], reverse=True)
+    # `int(...)`, és ez a 2. körben MÁS javaslat volt, mint az 5.-ben — a különbség
+    # lényegi. Akkor `int(h.get("signal", 0))` hangzott el, amit elutasítottam: egy
+    # hiányzó mezőt 0-nak venni CSENDES visszaesés, hibás bemenetből „leggyengébb
+    # hálózat". Az `int(h["signal"])` viszont HANGOS: hiányzó kulcsra `KeyError`, nem
+    # számra `ValueError`.
+    #
+    # És a kockázat VALÓS, amióta a 2. körben `dict[str, Any]`-re lazítottam a jelölést:
+    # sztring jelerősség mellett a Python LEXIKÁLISAN hasonlít, tehát "90" > "100" —
+    # a robot a gyengébb hálózatot nevezné a legerősebbnek. Pont az a hibafajta, ami
+    # ellen ez a rendezés készült. (PR #101 review, 5. kör.)
+    halok = sorted(halok, key=lambda h: int(h["signal"]), reverse=True)
     elso = halok[:_WIFI_NEVEK_MAX]
     reszek = [f"{h['ssid']}, {h['security']}" for h in elso]
     mondat = f"{len(halok)} hálózatot látok. A legerősebb: {reszek[0]}."

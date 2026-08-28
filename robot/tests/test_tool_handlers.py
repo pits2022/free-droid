@@ -271,3 +271,30 @@ def test_a_hibauzenet_maga_nem_szall_el_nem_str_enumon(monkeypatch):
     ok = ervenytelen_ok(ParsedTool("move", {"_teszt_szint": 9}))
 
     assert ok is not None and "1, 2" in ok, ok
+
+
+def test_a_SZTRING_jelerosseg_sem_borit_fel_a_sorrendet():
+    """Sztring jelerősség mellett a Python LEXIKÁLISAN hasonlít: `"90" > "100"`. A robot
+    így a GYENGÉBB hálózatot nevezné a legerősebbnek — pont az a hibafajta, ami ellen ez
+    a rendezés készült.
+
+    A kockázat azóta valós, hogy a típusjelölés `dict[str, Any]` lett: az `Any` a
+    sztringet is megengedi. (PR #101 review, 5. kör.)"""
+    from freedroid.tools.handlers import wifi_mondat
+
+    mondat = wifi_mondat([{"ssid": "Gyenge", "signal": "90", "security": "WPA2"},
+                          {"ssid": "Eros", "signal": "100", "security": "nyílt"}])
+
+    assert "A legerősebb: Eros" in mondat, mondat
+
+
+def test_a_HIBAS_jelerosseg_HANGOSAN_bukik_nem_csendben_nullazodik():
+    """A 2. körben javasolt `int(h.get("signal", 0))` egy hiányzó mezőt 0-nak vett volna:
+    csendes visszaesés, amiből „leggyengébb hálózat" lesz „hibás bemenet" helyett. Az
+    elfogadott alak hangos."""
+    from freedroid.tools.handlers import wifi_mondat
+
+    with pytest.raises(KeyError):
+        wifi_mondat([{"ssid": "X", "security": "WPA2"}])
+    with pytest.raises(ValueError):
+        wifi_mondat([{"ssid": "X", "signal": "erős", "security": "WPA2"}])
