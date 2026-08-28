@@ -251,3 +251,25 @@ def test_a_validacio_a_STRING_halmazokat_is_kezeli():
     ok = ervenytelen_ok(ParsedTool("camera", {"pan": "up", "degrees": 30}))
     assert ok is not None and "pan='up'" in ok, ok
     assert "left, right" in ok, "a hibaüzenet mondja meg, mi lett volna érvényes"
+
+
+def test_a_hibauzenet_maga_nem_szall_el_nem_str_enumon():
+    """Ez a HIBAÚT: a tábla ma csak str-értékű enumokat tart, de egy jövőbeli int-értékű
+    enum mellett a `', '.join(...)` maga dobna `TypeError`-t — vagyis a hibajelentés ölné
+    meg a diagnózist, épp amikor a legnagyobb szükség van rá. (PR #101 review, 2. kör.)"""
+    from enum import Enum
+
+    from freedroid.tools.handlers import ARG_ERTEKEK, ervenytelen_ok
+    from freedroid.tools.parser import ParsedTool
+
+    class Szint(int, Enum):
+        ALACSONY = 1
+        MAGAS = 2
+
+    ARG_ERTEKEK["move"]["_teszt_szint"] = Szint
+    try:
+        ok = ervenytelen_ok(ParsedTool("move", {"_teszt_szint": 9}))
+    finally:
+        del ARG_ERTEKEK["move"]["_teszt_szint"]
+
+    assert ok is not None and "1, 2" in ok, ok

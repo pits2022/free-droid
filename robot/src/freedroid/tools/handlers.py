@@ -199,7 +199,7 @@ LEKERDEZO_FORMAZOK: dict[str, Callable[[Any], str]] = {}
 _WIFI_NEVEK_MAX = 3
 
 
-def wifi_mondat(halok: list[dict[str, str]]) -> str:
+def wifi_mondat(halok: list[dict[str, Any]]) -> str:
     """A `scan_wifi` eredménye -> kimondható magyar mondat. DETERMINISZTIKUSAN.
 
     Nem a modellel mondatjuk ki: a lista TÉNYEK halmaza, amit egy 3B parafrazeálva csak
@@ -215,6 +215,12 @@ def wifi_mondat(halok: list[dict[str, str]]) -> str:
     # HAZUDNA. Mérve: Alma(30) / Zebra(95) -> „A legerősebb: Alma". Egy pontosságról
     # szóló demón ez a legrosszabb hibafajta. A kimondott sorrend ezért mindig a
     # jelerősségé — a `sort` a visszaadott ADATSZERKEZETET rendezi, a beszédet nem.
+    # A `signal` INT és mindig jelen van (`parse_nmcli` állítja elő, mérve). A review
+    # `int(h.get("signal", 0))`-t javasolt; azt NEM tesszük: egy hiányzó mezőt 0-nak
+    # venni CSENDES visszaesés, azaz a hibás bemenetből „leggyengébb hálózat" lenne,
+    # nem hiba. Ez a modul máshol is a hangos bukást választja (lásd `parse_nmcli`
+    # csonka-sor kezelését). A JELÖLÉS volt hazug (`dict[str, str]`), az javítva —
+    # a szerződést kimondjuk, nem megsértését fedezzük. (PR #101 review, 2. kör.)
     halok = sorted(halok, key=lambda h: h["signal"], reverse=True)
     elso = halok[:_WIFI_NEVEK_MAX]
     reszek = [f"{h['ssid']}, {h['security']}" for h in elso]
@@ -278,12 +284,17 @@ def ervenytelen_ok(tool: ParsedTool) -> str | None:
                       if isinstance(engedett, type) and issubclass(engedett, Enum)
                       else set(engedett))
         if ertek not in ervenyesek:
+            # `str(x)`, mert ez a HIBAÚT: a tábla ma csak str-értékű enumokat tart
+            # (mérve), de egy jövőbeli int/float-értékű enum mellett a `join` maga
+            # dobna `TypeError`-t — vagyis a hibajelentés ölné meg a diagnózist, épp
+            # amikor a legnagyobb szükség van rá. (PR #101 review, 2. kör.)
+            ervenyes_szoveg = ", ".join(sorted(str(x) for x in ervenyesek))
             return (f"{tool.name}: a(z) {kulcs}={ertek!r} nem érvényes "
-                    f"(csak {', '.join(sorted(ervenyesek))})")
+                    f"(csak {ervenyes_szoveg})")
     return None
 
 
-def parse_nmcli(stdout: str) -> list[dict[str, str]]:
+def parse_nmcli(stdout: str) -> list[dict[str, Any]]:
     """Az `nmcli -t` kimenete -> hálózatok, SSID-nként a LEGERŐSEBB példány.
 
     A deduplikálás nem kozmetika: az nmcli BSSID-nként ad sort, tehát egy több
