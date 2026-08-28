@@ -129,13 +129,11 @@ def test_start_inditja_a_watchdogot_close_lezar_mindent():
     assert o.watchdog.stopped is True and m.closed is True
 
 
-def test_a_hurok_meg_NEM_letezik_es_ezt_hangosan_mondja():
-    """A `run()` a voice/llm stubokra vár. Ha valaki megírja, ez a teszt szól, hogy
-    frissítse — egy csendben no-oppá vált hurok sokkal rosszabb lenne."""
-    o, _ = orch()
-    with pytest.raises(NotImplementedError):
-        import asyncio
-        asyncio.run(o.run())
+# A `run()` hurok 2026-08-28-án MEGSZÜLETETT, és az őrszem-teszt (ami a
+# `NotImplementedError`-t várta) pontosan úgy szólt, ahogy tervezve volt: nem bukott,
+# hanem BERAGADT — a `run()` a stdin-en várt egy gombnyomásra a teszt-futásban. Ez
+# hasznosabb jelzés volt egy piros pipánál, mert megmutatta, hogy a hurok tényleg fut.
+# A hurok saját tesztjei: `tests/test_run_hurok.py`.
 
 
 # --- PR #85 review ---

@@ -27,6 +27,7 @@ from freedroid.orchestrator.guard import GuardResult, guard
 from freedroid.rag.context import build_prompt
 from freedroid.safety import UltrasonicWatchdog
 from freedroid.tools.handlers import ToolRegistry
+from freedroid.voice.trigger import Esemeny
 
 if TYPE_CHECKING:
     from freedroid.camera import CameraController
@@ -35,6 +36,8 @@ if TYPE_CHECKING:
     from freedroid.motion import MotionController
     from freedroid.rag.retriever import Hit
     from freedroid.safety import Watchdog
+    from freedroid.voice import STT, TTS, VAD
+    from freedroid.voice.trigger import TriggerBusz
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +56,11 @@ SAFE_MODE_VALASZ = ("Most nem tudok gondolkodni, Teremtőm. "
 # Nyelvi újrapróbálkozás. A `language_guard` ezt a thunkot hívja, ha a modell kilépett
 # a magyarból; ha a második kör sem magyar, konzerv mondat megy ki (CANNED_HU).
 MAGYARUL = "Magyarul válaszolj!\n\n"
+
+# Milyen sűrűn ébred a hurok, ha nincs esemény. Csak a LEÁLLÁS válaszidejét szabja meg
+# (a gombnyomás ettől függetlenül azonnal érkezik) — a leállásé viszont a felső korlát:
+# ennyi ideig tart legrosszabb esetben, mire a `systemctl stop` átmegy.
+HUROK_EBREDES_S = 0.5
 
 
 class State(str, Enum):
@@ -74,7 +82,11 @@ class Orchestrator:
                  motion: MotionController | None = None,
                  camera: CameraController | None = None,
                  watchdog: Watchdog | None = None,
-                 llm: LLMClient | None = None) -> None:
+                 llm: LLMClient | None = None,
+                 stt: STT | None = None,
+                 tts: TTS | None = None,
+                 vad: VAD | None = None,
+                 trigger: TriggerBusz | None = None) -> None:
         self._settings = settings
         # A kliens konstruktora NEM nyúl a hálózathoz (a háttér-választás kérésenként
         # történik), tehát alapból megépíthető — Pi nélkül is.
@@ -96,6 +108,47 @@ class Orchestrator:
             heading_source=lambda: (self.motion.heading, self.motion.is_turning),
         )
         self.tools = ToolRegistry(motion=self.motion, camera=camera)
+        # A hang-elemek LUSTÁN épülnek (`_hang()`): a konstruktoruk binárist és modellt
+        # keres, az `ask_smoke.py` és a tesztek viszont hang nélkül futnak. Egy hiányzó
+        # `piper` nem akadályozhatja meg a lánc többi részének a próbáját.
+        self._stt, self._tts, self._vad = stt, tts, vad
+        self._trigger = trigger
+        # Diagnosztika: a távoli konzol (telefon) ezt fogja kiolvasni — "épp mit csinál?"
+        self.state = State.LISTENING
+
+    def _hang(self) -> tuple[STT, TTS, VAD, TriggerBusz]:
+        """A hang-lánc + a trigger, első használatkor megépítve."""
+        from freedroid.voice import EnergyVAD, FallbackSTT, PiperTTS
+        from freedroid.voice.trigger import BillentyuTrigger, TriggerBusz
+
+        if self._stt is None:
+            self._stt = FallbackSTT(self._settings)
+        if self._tts is None:
+            self._tts = PiperTTS(self._settings)
+        if self._vad is None:
+            self._vad = EnergyVAD(self._settings)
+        if self._trigger is None:
+            self._trigger = TriggerBusz(BillentyuTrigger(), azonnal=self._azonnali_allj)
+        return self._stt, self._tts, self._vad, self._trigger
+
+    def _azonnali_allj(self) -> None:
+        """Az ALLJ AZONNALI mellékhatása — a trigger szálán fut, nem a hurokban.
+
+        Ez a lényege az egésznek: a főszál épp BESZÉL (a `speak()` blokkol) vagy egy
+        LLM-hívásban ül, tehát ha a megállítás a hurok következő fordulójára várna, a
+        gomb csak mondathatáron hatna. Egy csak mondathatáron ható vészstop pedig a
+        gyakorlatban nincs.
+
+        A sorrend szándékos: ELŐBB a motor. A beszéd elhallgattatása kellemetlenség
+        kérdése, a mozgásé fizikai.
+        """
+        try:
+            self.motion.stop()
+        except Exception:  # noqa: BLE001 — a beszédet ettől még el kell hallgattatni
+            log.exception("az ALLJ motor-leállítása elhasalt")
+        megszakit = getattr(self._tts, "abort", None)
+        if megszakit is not None:
+            megszakit()
 
     def start(self) -> None:
         """A watchdog elindítása és a modell bemelegítése.
@@ -246,18 +299,104 @@ class Orchestrator:
         return getattr(self.watchdog, "fault", None) is not None
 
     async def run(self) -> None:
-        # Már CSAK a `voice/` hiányzik (ébresztőszó, STT, TTS):
-        #   self.start()
-        #   while True:
-        #       await wake -> record -> transcribe
-        #       speak(self.ask(atirat))
-        raise NotImplementedError("Phase 4.2: a voice/ (wake/STT/TTS) kell a hurokhoz — "
-                                  "a kérdéstől a motorokig tartó lánc az `ask()`-ban kész")
+        """A fő hurok: trigger -> felvétel -> STT -> `ask()` -> beszéd. Push-to-talk.
+
+        **"Ne hallja a saját hangját" — ez itt INGYEN megvan, nem külön mechanizmus.**
+        A felvétel CSAK a FIGYELJ után indul, tehát beszéd közben soha nem hallgat. Egy
+        ébresztőszavas hurokban ez valódi probléma lenne (a saját mikrofonunk mérve
+        HALLJA a saját hangszórónkat: 8447-es csúcs/medián a hurok-teszten), és VAD-
+        szüneteltetést kívánna. A fizikai trigger ezt a problémát megszünteti, nem
+        megoldja — ez a döntés egyik nem szándékolt haszna.
+
+        **A hurok SOHA nem hal meg egy hibás körtől.** Egy elszállt STT, egy néma felhő
+        vagy egy beragadt hangeszköz egyetlen kört visz el; a robot mond valamit és
+        várja a következő gombnyomást. A néma, kilépett folyamat a színpadon
+        visszahozhatatlan — egy elrontott válasz nem az.
+        """
+        stt, tts, vad, trigger = self._hang()
+        self.state = State.LISTENING
+        self.start()
+        trigger.start()
+        try:
+            while True:
+                # `to_thread`, mert a lánc minden eleme BLOKKOLÓ (felvétel, subprocess,
+                # HTTP). Enélkül egy `async` hurok látszana, ami valójában végig fogja
+                # az eseményhurkot — és a jövőbeli második forrás (telefon-POST) sosem
+                # jutna szóhoz.
+                #
+                # 🔴 IDŐKORLÁTTAL, és ez NEM finomhangolás. Egy `to_thread`-be zárt,
+                # határidő nélküli `queue.get()`-et a megszakítás NEM tudja felébreszteni:
+                # a korutin megkapja a CancelledError-t, a SZÁL viszont örökre ott marad,
+                # és az `asyncio.run()` a kilépéskor a szálra vár — vagyis a robot a
+                # `systemctl stop`-ra beragadna, és SIGKILL zárná le, lezáratlan
+                # motorvezérlővel. (Egy teszt fogta meg: beragadt, nem bukott.)
+                esemeny = await asyncio.to_thread(trigger.var, HUROK_EBREDES_S)
+                if esemeny is None:
+                    continue
+                trigger.allj.clear()
+                if esemeny is not Esemeny.FIGYELJ:
+                    continue
+                await asyncio.to_thread(self._egy_kor, stt, tts, vad, trigger)
+        except KeyboardInterrupt:
+            log.info("leállítás (Ctrl-C)")
+        finally:
+            # A lezárás MINDEN kilépési úton lefut, a megszakításon is: járó lánctalpak
+            # egy kilépő folyamat után a legrosszabb kimenet.
+            trigger.close()
+            self.close()
+        # A `CancelledError` SZÁNDÉKOSAN nincs elkapva: elnyelve a hívó nem tudná meg,
+        # hogy a megszakítás megtörtént-e (`await feladat` némán `None`-t adna), és ez a
+        # megszakítás-szemantika csendes elrontása. A takarítást a `finally` végzi, a
+        # jelzést a kivétel — a kettő nem ugyanaz a feladat.
+
+    def _egy_kor(self, stt: STT, tts: TTS, vad: VAD, trigger: TriggerBusz) -> None:
+        """EGY kör, hibáival együtt. Külön metódus, mert így tesztelhető a hurok nélkül.
+
+        Az `allj` jelzőt SZAKASZHATÁRONKÉNT nézzük. Nem finomabban: a megszakítás valódi
+        munkáját (motor, beszéd) a trigger szála már elvégezte abban a pillanatban — ez a
+        jelző csak azt mondja meg, hogy a MEGKEZDETT kört ne fejezzük be. Egy már
+        elhangzott gombnyomás után nincs értelme sem az LLM-et megkérdezni, sem kimondani
+        a választ.
+        """
+        try:
+            self.state = State.THINKING
+            # ponytail: a FELVÉTEL nem megszakítható. Az ALLJ-nak a mozgás (veszélyes) és
+            # a beszéd (bosszantó) kell; egy futó felvétel egyik sem — legrosszabb esetben
+            # pár másodperc kárba vész, aztán a jelző eldobja a kört. Ha kell:
+            # egy threading.Event az EnergyVAD olvasó ciklusában, ~3 sor.
+            hang = vad.record_until_silence()
+            if trigger.allj.is_set():
+                return
+            szoveg = stt.transcribe(hang).strip()
+            if not szoveg:
+                log.info("üres átirat — nem kérdezünk, nem beszélünk")
+                return
+            log.info("átirat: %r", szoveg)
+            if trigger.allj.is_set():
+                return
+            valasz = self.ask(szoveg)
+        except Exception:  # noqa: BLE001 — egy hibás kör nem viheti el a hurkot
+            log.exception("a kör elhasalt a válasz ELŐTT")
+            valasz = SAFE_MODE_VALASZ
+        if trigger.allj.is_set():
+            return
+        try:
+            self.state = State.SPEAKING
+            tts.speak(valasz)
+        except Exception:  # noqa: BLE001 — a beszéd hibáját nem tudjuk kimondani
+            log.exception("a beszéd elhasalt")
+        finally:
+            self.state = State.LISTENING
 
 
 def main() -> None:
     """Console entry point (`freedroid`)."""
-    asyncio.run(Orchestrator().run())
+    try:
+        asyncio.run(Orchestrator().run())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        # Rendes leállás, nem hiba: a `run()` `finally`-ja már lezárta a hardvert. A
+        # systemd `stop`-ja és a Ctrl-C is ide fut be, és egyik sem érdemel tracebacket.
+        log.info("free-droid leállt")
 
 
 __all__ = ["Orchestrator", "State", "MOZGATO_TOOLOK", "BIZTONSAGI_ELHARITAS"]

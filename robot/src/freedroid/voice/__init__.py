@@ -451,6 +451,11 @@ class PiperTTS:
         # `expanduser`: a config `~`-t ír (a modell a robot-user home-jában van), és a
         # subprocess NEM oldja fel a tildét — shell nélkül futunk, nincs, ami kibontsa.
         self._model = str(Path(self._cfg.piper_model).expanduser())
+        # A FUTÓ folyamatok, hogy az `abort()` MÁS SZÁLRÓL is elérje őket. A zár nem
+        # díszítés: az `abort()` a trigger szálán fut, a `speak()` a főszálon.
+        self._folyamatok: tuple | None = None
+        self._zar = threading.Lock()
+        self._megszakitva = threading.Event()
 
     def sample_rate(self) -> int:
         """A modell mintavételi frekvenciája, a MELLETTE lévő configból.
@@ -476,6 +481,26 @@ class PiperTTS:
         except Exception:  # noqa: BLE001 — a diagnosztika sosem fontosabb a működésnél
             ide[nev] = b""
 
+    def abort(self) -> None:
+        """A FOLYAMATBAN LÉVŐ beszéd azonnali megszakítása, más szálról.
+
+        A megszakítás NEM HIBA: a `speak()` csendben tér vissza utána, nem dob. Enélkül
+        minden "állj" gombnyomás egy `RuntimeError`-t adna a hurokban ("lejátszás hiba
+        (-9)"), és a napló tele lenne álhibákkal — pont azt rejtve el, ha egyszer VALÓDI
+        lejátszási hiba jön.
+
+        Beszéd nélkül is hívható (nincs mit megszakítani): a jelzőt akkor is beállítja,
+        így egy épp INDULÓ mondat sem csúszik át a résen.
+        """
+        self._megszakitva.set()
+        with self._zar:
+            folyamatok = self._folyamatok
+        for folyamat in folyamatok or ():
+            try:
+                folyamat.kill()
+            except Exception:  # noqa: BLE001 — a másikat is ki kell lőni
+                log.exception("a beszéd megszakítása elhasalt: %r", folyamat)
+
     def speak(self, text: str) -> None:
         """Kimondja a szöveget. Üres szövegre nem csinál semmit (nem hiba).
 
@@ -485,6 +510,10 @@ class PiperTTS:
         """
         if not (text := text.strip()):
             return
+
+        # ELŐBB töröljük a jelzőt: egy KORÁBBI mondat megszakítása nem némíthatja el a
+        # következőt. (A gomb megnyomása és az új mondat indulása között a jelző áll.)
+        self._megszakitva.clear()
 
         gen_parancs = [find_voice_binary("piper") or "piper",
                        "--model", self._model + ".onnx", "--output-raw",
@@ -510,6 +539,19 @@ class PiperTTS:
             gen.kill()
             gen.wait()
             raise RuntimeError(f"a lejátszó nem indult el ({jatszo_parancs[0]}): {e}") from e
+
+        # Innentől megszakítható: az `abort()` más szálról ezt a két folyamatot lövi ki.
+        # A nyilvántartásba vétel a MÁSODIK Popen után van, hogy félig felépült állapotot
+        # ne adjunk ki — de MÉG az írás/várakozás előtt, tehát nincs olyan pillanat,
+        # amikor a robot beszél, de nem lehet elhallgattatni.
+        with self._zar:
+            self._folyamatok = (gen, jatszo)
+        # És ha az `abort()` PONT a két lépés között futott le, azt itt kapjuk el: a
+        # jelző már áll, tehát a most induló mondatot azonnal el is vágjuk. Enélkül a
+        # gombnyomás átcsúszna a résen, és a robot mégis megszólalna.
+        if self._megszakitva.is_set():
+            for folyamat in (gen, jatszo):
+                folyamat.kill()
 
         # A SZÜLŐNEK el kell engednie a cső olvasó végét, különben az `aplay` sosem lát
         # EOF-ot, és a beszéd végén örökre várna. Ez a klasszikus cső-holtpont.
@@ -555,10 +597,24 @@ class PiperTTS:
                 folyamat.wait()
             for szal in szalak:
                 szal.join(timeout=1.0)
+            # A nyilvántartást a HIBAÁGON is ürítjük: különben egy beragadt mondat után
+            # az `abort()` halott folyamatokra hivatkozna, és a jelző a KÖVETKEZŐ
+            # mondatot vágná el.
+            with self._zar:
+                self._folyamatok = None
             raise RuntimeError(f"a beszéd beragadt ({hatarido:g} s) és leállítottuk: {e} "
                                f"— foglalt vagy hibás hangeszköz?") from e
         for szal in szalak:
             szal.join(timeout=1.0)
+
+        with self._zar:
+            self._folyamatok = None
+
+        # MEGSZAKÍTÁS != HIBA. A kilőtt folyamat -9-cel tér vissza; azt hibaként jelenteni
+        # azt jelentené, hogy minden "állj" gombnyomás egy kivételt szül a hurokban.
+        if self._megszakitva.is_set():
+            log.info("a beszéd megszakítva (állj)")
+            return
 
         gen_hiba = hibak.get("piper", b"").decode("utf-8", "replace")
         jatszo_hiba = hibak.get("lejátszó", b"").decode("utf-8", "replace")
