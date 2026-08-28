@@ -22,6 +22,21 @@ User={{ robot_user }}
 Group={{ robot_user }}
 WorkingDirectory={{ robot_src_dir }}
 
+# ⚠️ `RuntimeDirectory=freedroid` SZÁNDÉKOSAN NINCS, pedig kézenfekvőnek látszik (a PR #100
+# review a 2. körben javasolta is, azzal az indokkal, hogy a `creator` nem tud írni a
+# root tulajdonú /run-ba).
+#
+# MÉRVE a roboton 2026-08-28-án, a premissza nem áll: a /run/freedroid MÁR létezik és MÁR
+# a `creator` tulajdona, mert a `tmpfiles.d` hozza létre bootkor
+# (`d /run/freedroid 0755 creator creator -`). A FIFO-írás ténylegesen sikerül.
+#
+# ÉS A JAVASLAT KÁRT OKOZNA: a `RuntimeDirectory=` alapértelmezése
+# `RuntimeDirectoryPreserve=no`, tehát a systemd TÖRLI a könyvtárat a szolgáltatás
+# leállásakor. Abban a könyvtárban viszont nem csak a FIFO van, hanem a `health.json`
+# ÉS a `safe_mode` jelző is (mindkettőt a root-ként futó health-check írja) — egy
+# `systemctl stop freedroid` tehát elvinné a BIZTONSÁGI JELZŐT. A tulajdonlás egy
+# helyen dől el: a tmpfiles.d-ben.
+
 {# Ugyanaz az idézés/escape-elés, mint a health-unitban, és ugyanazért: idézés nélkül a
    systemd a SZÓKÖZNÉL vág, a `%` pedig NÉMÁN specifikátorrá válna (`%h` -> home). #}
 {% for kulcs, ertek in robot_env.items() %}

@@ -372,3 +372,33 @@ def test_a_ket_forras_UGYANAZT_a_nyelvtant_hasznalja():
         assert _esemeny(szoveg) is Esemeny.ALLJ, szoveg
     for szoveg in ("", "\n", "  \n", "figyelj"):
         assert _esemeny(szoveg) is Esemeny.FIGYELJ, szoveg
+
+
+def test_a_fifo_lezarasa_NEM_dob_a_szalban(tmp_path):
+    """`close()` MÁS SZÁLON fut, mint az olvasó ciklus. Ha a leírót közvetlenül a
+    `self._fd`-ből olvasnánk, a `close()` beékelődhet, és az `os.read(None, ...)`
+    `TypeError`-t dob — amit az `except OSError` NEM fog el, tehát a leállás egy
+    elkapatlan veremkiíratással végződne egy daemon szálban. (PR #100 review, 2. kör.)
+
+    A verseny szűk, ezért nem próbáljuk kikényszeríteni: közvetlenül azt mérjük, hogy a
+    ciklus `None` leíró mellett RENDESEN kilép, nem dob."""
+    import threading
+
+    from freedroid.voice.trigger import FifoTrigger
+
+    forras = FifoTrigger(tmp_path / "trigger")
+    forras._fd = None                      # pontosan az az állapot, amit a close() hagy
+    hiba: list[BaseException] = []
+
+    def fut():
+        try:
+            forras._olvas(queue.Queue())
+        except BaseException as e:          # noqa: BLE001 — épp a kivételt mérjük
+            hiba.append(e)
+
+    szal = threading.Thread(target=fut, daemon=True)
+    szal.start()
+    szal.join(timeout=2.0)
+
+    assert not szal.is_alive(), "az olvasó ciklus beragadt lezárt leíró mellett"
+    assert not hiba, f"a lezárás kivételt dobott a szálban: {hiba}"

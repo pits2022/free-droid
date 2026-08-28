@@ -183,8 +183,10 @@ class FifoTrigger:
     `O_RDWR`-rel a folyamat maga marad író: a nyitás azonnal visszatér, EOF sosem jön, a
     `read()` egyszerűen a következő üzenetig blokkol. Linuxon ez definiált viselkedés.
 
-    A jogosultság `0660`: aki a robot csoportjában van, triggerelhet. Ez nem a robot
-    biztonsági határa — aki a Pi-n `echo`-zni tud, az úgyis mindent tud.
+    A jogosultság a folyamat umask-ja szerint alakul (mérve a Pi-n: `prw-r-----`, azaz a
+    tulajdonos ír, a csoport olvas). Ez elég: a Teremtő `creator`-ként, azaz TULAJDONOSKÉNT
+    ír bele. Nem is a robot biztonsági határa — aki a Pi-n `echo`-zni tud, az úgyis
+    mindent tud.
     """
 
     def __init__(self, utvonal: str | Path = "/run/freedroid/trigger") -> None:
@@ -217,8 +219,16 @@ class FifoTrigger:
     def _olvas(self, sor: queue.Queue[Esemeny]) -> None:
         maradek = b""
         while not self._all.is_set():
+            # A leírót HELYI változóba, mert a `close()` MÁS SZÁLON fut: a ciklus tetején
+            # még nem áll az `_all` jelző, mire ideérünk, a `close()` lefuthat egészben,
+            # és a `self._fd` `None` lesz. Az `os.read(None, ...)` `TypeError`-t dob, amit
+            # az alábbi `except OSError` NEM fog el — vagyis a leállás egy elkapatlan
+            # veremkiíratással végződne egy daemon szálban. (PR #100 review, 2. kör.)
+            fd = self._fd
+            if fd is None:
+                return
             try:
-                darab = os.read(self._fd, 4096)
+                darab = os.read(fd, 4096)
             except OSError:
                 return                      # lezárt leíró: rendes leállás
             if not darab:
