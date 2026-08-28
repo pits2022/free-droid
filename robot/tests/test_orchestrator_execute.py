@@ -318,3 +318,23 @@ def test_a_MASODIK_generalas_bukasa_is_safe_mode(monkeypatch):
     assert e.forras == "safe"
     # A nyers első választ a napló megőrzi — e nélkül pont a legérdekesebb kör veszne el.
     assert e.valasz.startswith("I am a robot")
+
+
+def test_a_be_nem_kotott_vezerlo_NEM_veremkiiratast_ad(caplog):
+    """A be nem kötött vezérlő VÁRT állapot (ma a kamera: a pan/tilt szervók
+    2026-08-31-ig folyamatos forgásúak), nem programhiba. Egy tíz soros traceback
+    körönként elrejti a naplóban a valódi hibákat — mérve 2026-08-28, élő menetben.
+
+    A robot ettől MEGSZÓLAL, ez a rész változatlan."""
+    import logging
+
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog())   # camera=None
+    with caplog.at_level(logging.WARNING, logger="freedroid.orchestrator"):
+        beszed = o.execute("Külön nézem, Teremtőm. <tool>camera scan</tool>")
+
+    assert beszed == "Külön nézem, Teremtőm."
+    rekordok = [r for r in caplog.records if "camera" in r.getMessage()]
+    assert rekordok, "a be nem kötött vezérlőnek nyomot KELL hagynia"
+    assert all(r.exc_info is None for r in rekordok), \
+        "…de veremkiíratás nélkül — az elrejti a valódi hibákat"
+    assert rekordok[0].levelno == logging.WARNING

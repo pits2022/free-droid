@@ -298,6 +298,15 @@ class Orchestrator:
         for tool in eredmeny.toolok:
             try:
                 self.tools.dispatch(tool)
+            except LookupError as e:
+                # BE NEM KÖTÖTT vezérlő: ez VÁRT állapot, nem programhiba, tehát nem
+                # érdemel veremkiíratást. Ma a `camera` ilyen — a pan/tilt szervók a
+                # "360 Degrees" (folyamatos forgású) típusból valók, ahol az impulzus
+                # SEBESSÉGET jelent, nem szöget, és a `PanTiltCamera` konstruktora
+                # rögtön középre hajtaná mindkét tengelyt: a szervók elindulnának és
+                # sosem állnának meg. A pozicionáló pár 2026-08-31-én érkezik.
+                # Egy tíz soros traceback erre elrejti a naplóban a VALÓDI hibákat.
+                log.warning("%s: %s", tool.name, e)
             except Exception:  # noqa: BLE001 — a beszéd fontosabb, mint a tool
                 log.exception("tool-hívás sikertelen: %r %r", tool.name, tool.args)
         return eredmeny.beszed
