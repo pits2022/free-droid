@@ -162,3 +162,42 @@ def test_a_PARATLAN_kisebb_jel_nem_eszi_meg_a_mondatot():
               "hogy a korlátot túllépje > vége.")
     assert "egyenlőtlenség igaz" in guard(szoveg).beszed
     assert "vége" in guard(szoveg).beszed
+
+
+# ── egymás utáni ismétlés (az első élő menet, 2026-08-28) ────────────────────────
+
+def test_a_MERT_duplikalt_move_egyre_vonodik_ossze():
+    """A bemenet SZÓ SZERINT az, amit a 3B kiadott a Pi-n, valódi beszédre:
+
+        "Menj előre két métert." -> 'Kétszer 2, Teremtőm: <tool>move forward 2</tool>…'
+
+    A robot négy métert ment egy kétméteres parancsra. A kimondott mondat ("Kétszer 2")
+    elárulja, hogy a modell magától duplázott — ilyet szándékosan senki nem kér."""
+    e = guard("Kétszer 2, Teremtőm: <tool>move forward 2</tool><tool>move forward 2</tool>")
+
+    assert len(e.toolok) == 1
+    assert e.toolok[0].name == "move" and e.toolok[0].args["distance"] == 2.0
+
+
+def test_a_KOZREFOGOTT_ismetles_MEGMARAD():
+    """Csak az EGYMÁS UTÁNI ismétlés esik ki. A `move / turn / move` sorozat legitim
+    (kerülgetés) — ha ezt is összevonnánk, a robot a fordulás után megállna."""
+    e = guard("<tool>move forward 2</tool><tool>turn left 90</tool><tool>move forward 2</tool>")
+
+    assert [t.name for t in e.toolok] == ["move", "turn", "move"]
+
+
+def test_a_KULONBOZO_ertekek_NEM_vonodnak_ossze():
+    """Ugyanaz a név, más argumentum: két külön szándék, mindkettő fut."""
+    e = guard("<tool>move forward 1</tool><tool>move forward 2</tool>")
+
+    assert [t.args["distance"] for t in e.toolok] == [1.0, 2.0]
+
+
+def test_a_MERT_jo_eset_valtozatlan():
+    """Ugyanabban a menetben ez hibátlanul futott — a javítás nem ronthatja el."""
+    e = guard("Előre megyek 1 méterre, majd balra fordulok, Teremtőm. "
+              "<tool>move forward 1</tool><tool>turn left 90</tool>")
+
+    assert [t.name for t in e.toolok] == ["move", "turn"]
+    assert e.beszed == "Előre megyek 1 méterre, majd balra fordulok, Teremtőm."

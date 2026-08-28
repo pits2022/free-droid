@@ -25,10 +25,13 @@ MODELLVERZIÓ-FÜGGETLEN: a v12-t és minden későbbit is védi.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
 from freedroid.tools.parser import KNOWN_TOOLS, ParsedTool, parse_tools
+
+log = logging.getLogger(__name__)
 
 # A `<tool>` blokkok NEM mondhatók ki. A TTS-nek tisztított szöveg kell, különben a
 # Piper felolvassa a "tool move forward 2 tool" markupot is.
@@ -109,11 +112,44 @@ class GuardResult:
     elharitas: str | None = None
 
 
+def _ismetles_nelkul(hivasok: tuple[ParsedTool, ...]) -> tuple[ParsedTool, ...]:
+    """EGYMÁS UTÁNI azonos hívások összevonása egyre.
+
+    🔴 MÉRVE 2026-08-28, az első élő menetben, valódi beszéddel:
+
+        "Menj előre két métert."
+        -> 'Kétszer 2, Teremtőm: <tool>move forward 2</tool><tool>move forward 2</tool>'
+
+    A robot tehát NÉGY métert ment egy kétméteres parancsra. Ez nem félreértés, hanem egy
+    kis modell ismétlési műterméke — a kimondott mondat ("Kétszer 2") is elárulja, hogy a
+    modell magától duplázott. Ilyet szándékosan senki nem kér: aki négy métert akar, négyet
+    mond.
+
+    CSAK EGYMÁS UTÁNI ismétlés esik ki, és ez a megszorítás lényegi. A
+    `move forward 2` / `turn left 90` / `move forward 2` sorozat LEGITIM (kerülgetés), és
+    ugyanabban a menetben a `move forward 1` + `turn left 90` páros hibátlanul futott —
+    a több-tool eset tehát önmagában jó, nem ez a hiba.
+
+    Ez az EGYETLEN korlát a mozgáson (a Teremtő döntése, 2026-08-28): távolság-plafon
+    NINCS, mert "ha ki akar menni a világból, arra ott a STOP gomb" — az pedig mostantól
+    beszéd és mozgás közben is azonnal hat.
+    """
+    eredmeny: list[ParsedTool] = []
+    for hivas in hivasok:
+        if eredmeny and hivas.name == eredmeny[-1].name and hivas.args == eredmeny[-1].args:
+            log.info("ismételt tool-hívás összevonva: %s %s", hivas.name, hivas.args)
+            continue
+        eredmeny.append(hivas)
+    return tuple(eredmeny)
+
+
 def guard(valasz: str) -> GuardResult:
     """A modell nyers válaszából (kimondható szöveg, végrehajtható tool-ok).
 
-    Három dolgot tesz, és a harmadik a lényegi:
+    Négy dolgot tesz:
 
+    0. Az EGYMÁS UTÁNI azonos tool-hívásokat egyre vonja össze — lásd
+       `_ismetles_nelkul`, ez az egyetlen korlát a mozgáson.
     1. Kiszedi a `<tool>` markupot a kimondandó szövegből.
     2. Az ISMERETLEN tool-neveket eldobja — azok soha nem kerülnek dispatchre. (A
        `parse_tools` alapból TOLERÁNS: visszaadja őket, a szűrés a hívó dolga. Ez a hívó.)
@@ -126,7 +162,7 @@ def guard(valasz: str) -> GuardResult:
     "vegyes kérés" dataset-kategória tanítja.
     """
     hivasok = parse_tools(valasz)
-    ismert = tuple(h for h in hivasok if h.name in KNOWN_TOOLS)
+    ismert = _ismetles_nelkul(tuple(h for h in hivasok if h.name in KNOWN_TOOLS))
     eldobott = tuple(h.name for h in hivasok if h.name not in KNOWN_TOOLS)
 
     # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
