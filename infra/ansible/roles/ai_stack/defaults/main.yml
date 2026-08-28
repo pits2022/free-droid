@@ -75,6 +75,27 @@ cloud_whisper_models:
 # HANGOSAN hasal el, ha a CUDA nem elérhető, ahelyett hogy lassan működne.
 cloud_whisper_cmake_flags: ["-DGGML_CUDA=ON"]
 
+# A GPU compute capability-je (pl. 9.0 -> "90"). ÜRESEN a role MEGMÉRI a gépen
+# (`nvidia-smi --query-gpu=compute_cap`), és abból ad `-DCMAKE_CUDA_ARCHITECTURES`-t.
+#
+# 🔴 MIÉRT KELL, MÉRVE 2026-08-28-án, egy H100-on: a ggml alapértelmezett arch-listája
+# (750,800,860,890,900,1200,1210) NEM ad valódi SASS-t minden taghoz. A binárisban
+# `sm_86`, `sm_89`, `sm_120a`, `sm_121a` cubin volt, az `sm_75`/`sm_80`/`sm_90` viszont
+# CSAK PTX — a H100 (sm_90) tehát JIT-re szorult, a DO image-én pedig a toolkit ÚJABB a
+# drivernél (nvcc 13.1 vs. driver 580.173.02 = CUDA 13.0). Eredmény:
+#     ggml_cuda_compute_forward: IM2COL failed
+#     CUDA error: the provided PTX was compiled with an unsupported toolchain.
+# és a whisper-server `abort()`-tal kilépett az ELSŐ átirat-kérésre.
+#
+# A hibamód alattomos: a szerver ELINDUL, a modell a VRAM-ba töltődik, a health-check
+# (GET-próba) ZÖLD — csak a valódi POST öli meg. Vagyis pontosan a színpadon derülne ki.
+#
+# ⚠️ ÉS EZ EDDIG REJTVE VOLT: az eredeti terv Ada-kártyája sm_89, amihez VAN cubin, tehát
+# véletlenül működött volna. Az akna a GPU-VÁLTÁSSAL robbant (az Ada 2026-08-28-ra
+# eltűnt a DO kínálatából, H100/`ams3` lépett a helyére) — a DO GPU-kínálata tehát nem
+# állandó, ezért MÉRÜNK, nem égetünk be egy architektúrát.
+whisper_cuda_arch: ""
+
 # ── whisper-server: a FELHŐS STT végpontja ───────────────────────────────────────
 #
 # MIÉRT: az STT a hang-lánc leglassabb eleme, és a késleltetése ~ÁLLANDÓ, a hang

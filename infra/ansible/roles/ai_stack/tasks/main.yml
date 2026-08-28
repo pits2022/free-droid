@@ -154,10 +154,35 @@
 # utána közös taszkok. A `stt` címkével kihagyható (a fordítás a Pi-n ~2 perc, négy
 # magon — akkun futó roboton ez nem mindegy).
 
+# A GPU compute capability-jét MEGMÉRJÜK, nem beégetjük: a DO GPU-kínálata bizonyítottan
+# változik (2026-08-28-ra az Ada eltűnt, H100 lépett a helyére), és a ggml alap arch-listája
+# nem ad valódi SASS-t minden architektúrához — a hiányzó cubin PTX-JIT-re kényszerít, ami
+# ezen az image-en (nvcc 13.1 > driver CUDA 13.0) `abort()`-ot ad az ELSŐ kérésre.
+# Részletek és a mért bizonyíték: `defaults/main.yml`, `whisper_cuda_arch`.
+- name: Measure the cloud GPU's CUDA compute capability
+  when: "'cloud' in group_names and whisper_cuda_arch == ''"
+  command: nvidia-smi --query-gpu=compute_cap --format=csv,noheader
+  register: gpu_compute_cap
+  changed_when: false
+  check_mode: false
+  tags: [stt]
+
+# `stdout_lines[0]`: több GPU-nál is EGY architektúrára fordítunk (a szerver úgyis a
+# 0-s eszközt használja). A pont kiesik: "9.0" -> "90", ez a cmake alakja.
+- name: Resolve the CUDA architecture to build for
+  when: "'cloud' in group_names"
+  set_fact:
+    whisper_arch: >-
+      {{ whisper_cuda_arch if whisper_cuda_arch != ''
+         else (gpu_compute_cap.stdout_lines[0] | trim | replace('.', '')) }}
+  tags: [stt]
+
 - name: Resolve node-specific whisper settings
   set_fact:
     whisper_models: "{{ cloud_whisper_models if 'cloud' in group_names else edge_whisper_models }}"
-    whisper_cmake_flags: "{{ cloud_whisper_cmake_flags if 'cloud' in group_names else edge_whisper_cmake_flags }}"
+    whisper_cmake_flags: >-
+      {{ (cloud_whisper_cmake_flags + ['-DCMAKE_CUDA_ARCHITECTURES=' ~ whisper_arch])
+         if 'cloud' in group_names else edge_whisper_cmake_flags }}
     whisper_models_dir: "{{ cloud_whisper_models_dir if 'cloud' in group_names else edge_whisper_models_dir }}"
     # A felhőn `root` a gazda (nincs `creator` felhasználó), az edge-en a robot_user.
     whisper_owner: "{{ 'root' if 'cloud' in group_names else (robot_user | default('creator')) }}"
@@ -195,11 +220,28 @@
 # Verzió-váltáskor a build-fa MEGY: a `creates:` őrök különben egy régi binárist
 # tartanának életben az új forrás mellett — és a "melyik kód fut valójában" kérdés
 # ebben a projektben már egyszer napokat vitt el (a Pi hetekig régi branchen állt).
-- name: Drop the whisper build tree when the pinned version changed
+# A build-fa NEM csak a verzió, hanem a CMAKE-FLAGEK változására is megy. Enélkül a
+# lenti `creates: build/CMakeCache.txt` átugorja a configure-t, és a fordítás némán a
+# RÉGI cache-sel (régi architektúrával) menne tovább — vagyis pont az a javítás nem
+# érvényesülne, amiért a flag bekerült. A lenyomat a fordítás UTÁN íródik, hogy egy
+# félbeszakadt build ne látszódjon késznek.
+- name: Read the cmake flags the existing build tree was configured with
+  slurp:
+    src: "{{ whisper_dir }}/.freedroid-cmake-flags"
+  register: whisper_regi_flagek
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  tags: [stt]
+
+- name: Drop the whisper build tree when the pinned version OR the cmake flags changed
   file:
     path: "{{ whisper_dir }}/build"
     state: absent
-  when: whisper_checkout.changed
+  when: >-
+    whisper_checkout.changed
+    or (whisper_regi_flagek.content | default('') | b64decode | trim)
+       != (whisper_cmake_flags | join(' '))
   tags: [stt]
 
 - name: Configure whisper.cpp (static, single self-contained binary)
@@ -228,6 +270,13 @@
 # és a TÉNYLEGES hívás UGYANAZT a keresést használja (`find_voice_binary`: venv, majd
 # PATH). Ha a bináris a build-könyvtárban maradna, a health-check "hiányzik"-ot mondana
 # egy működő roboton — vagy fordítva, és a kettő csendben elcsúszna.
+- name: Record the cmake flags this build tree was configured with
+  copy:
+    dest: "{{ whisper_dir }}/.freedroid-cmake-flags"
+    content: "{{ whisper_cmake_flags | join(' ') }}\n"
+    mode: "0644"
+  tags: [stt]
+
 - name: Install whisper-cli onto the PATH
   copy:
     src: "{{ whisper_dir }}/build/bin/whisper-cli"
@@ -299,6 +348,48 @@
     enabled: yes
     state: "{{ 'restarted' if whisper_unit.changed else 'started' }}"
     daemon_reload: yes
+  tags: [stt]
+
+# 🔴 FÜSTPRÓBA — VALÓDI ÁTIRAT, nem életjel. Ez a taszk a 2026-08-28-i hibából született:
+# a whisper-server ELINDULT, a modell a VRAM-ba töltődött, a `ss` őr és a `check_cloud_stt`
+# health-check (GET-próba) egyaránt ZÖLD volt — és az első valódi POST `abort()`-tal ölte
+# meg a szolgáltatást (PTX/toolchain, lásd `whisper_cuda_arch`). Vagyis a teljes zöld
+# telepítés egy olyan felhőt adott, ami a színpadon némult volna el.
+#
+# A próba a repó SAJÁT mintáján megy (`samples/jfk.wav`, a klónnal érkezik), tehát nem
+# kell se hangfelvétel, se hálózat. Angol, és ez itt mindegy: a kérdés nem a magyar
+# pontosság, hanem hogy a CUDA-út VÉGIGFUT-e egyáltalán.
+#
+# A `retries` a szerver INDULÁSÁRA vár (a modell GPU-ra töltése pár másodperc), nem a hibát
+# maszkolja: egy törött CUDA minden próbán ugyanúgy elhasal, tehát a taszk hangosan bukik.
+- name: Smoke-test the cloud STT with a REAL transcription (cloud only)
+  when: "'cloud' in group_names and not ansible_check_mode"
+  command: >-
+    curl -sf --max-time 120
+    -F file=@{{ whisper_dir }}/samples/jfk.wav
+    -F response_format=json
+    http://{{ whisper_server_host }}:{{ whisper_server_port }}/inference
+  register: whisper_smoke
+  changed_when: false
+  retries: 6
+  delay: 5
+  # Szándékosan SZÖVEGES illesztés, nem `from_json`: halott szervernél a stdout ÜRES, és a
+  # `from_json` ott a FELTÉTEL kiértékelése közben dobna kivételt — az `until` ilyenkor nem
+  # újrapróbál, hanem érthetetlen sablonhibával áll meg, épp elrejtve a valódi okot.
+  # A tartalmi ellenőrzés a következő taszké, amikor már tudjuk, hogy JSON jött.
+  until: whisper_smoke.rc == 0 and '"text"' in whisper_smoke.stdout
+  tags: [stt]
+
+- name: Assert the cloud STT returned a non-empty transcript
+  when: "'cloud' in group_names and not ansible_check_mode"
+  assert:
+    that: (whisper_smoke.stdout | from_json).text | trim != ''
+    fail_msg: >-
+      A whisper-server válaszolt, de ÜRES átiratot adott a samples/jfk.wav-ra — a CUDA-út
+      vagy a modell hibás. A szolgáltatás életjele tehát NEM elég bizonyíték.
+    success_msg: >-
+      A felhős STT ÉL és valódi átiratot ad:
+      {{ (whisper_smoke.stdout | from_json).text | trim | truncate(80) }}
   tags: [stt]
 
 # UGYANAZ AZ INVARIÁNS, mint az Ollamánál, és ugyanazért: egy átirat-szolgáltatás a
