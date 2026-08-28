@@ -29,10 +29,12 @@ külön kockázat, és csak az egyik védhető:
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import sys
 import threading
 from enum import Enum
+from pathlib import Path
 from typing import Protocol
 
 log = logging.getLogger(__name__)
@@ -54,6 +56,13 @@ class TriggerSource(Protocol):
 
     def start(self, sor: queue.Queue[Esemeny]) -> None: ...
     def close(self) -> None: ...
+
+
+def _esemeny(sor: str) -> Esemeny:
+    """Egy beírt sor -> esemény. KÖZÖS, mert a két forrás nyelvtana nem csúszhat szét:
+    ha a FIFO-ban az `s` mást jelentene, mint a billentyűzeten, az a legrosszabb fajta
+    meglepetés — a STOP-é."""
+    return Esemeny.ALLJ if sor.strip().lower().startswith("s") else Esemeny.FIGYELJ
 
 
 class BillentyuTrigger:
@@ -91,8 +100,7 @@ class BillentyuTrigger:
                 return
             if self._all.is_set():
                 return
-            sor.put(Esemeny.ALLJ if sor_szoveg.strip().lower().startswith("s")
-                    else Esemeny.FIGYELJ)
+            sor.put(_esemeny(sor_szoveg))
 
 
 class TriggerBusz:
@@ -149,3 +157,75 @@ class TriggerBusz:
                     except Exception:  # noqa: BLE001
                         log.exception("az ALLJ azonnali mellékhatása elhasalt")
             self._sor.put(esemeny)
+
+
+class FifoTrigger:
+    """Nevesített cső: `echo > /run/freedroid/trigger`. A SZOLGÁLTATÁS triggere.
+
+    **Miért kellett (2026-08-28):** a hurok systemd alatt fut, ahol NINCS stdin — a
+    billentyű-forrás azonnal elhallgat, tehát a robot felállt, bemelegített, és
+    megszólíthatatlan volt. A kattintó csak aug. 31-én érkezik; addig ez az egyetlen út,
+    és utána is megmarad TÁVOLI KONZOLNAK (a Teremtő telefonjáról SSH-n keresztül —
+    a 2026-08-26-i „telefon másodlagos, de távoli konzolnak verhetetlen" döntés).
+
+        echo    > /run/freedroid/trigger     # FIGYELJ
+        echo s  > /run/freedroid/trigger     # ÁLLJ
+
+    **`O_RDWR`, és ez nem trükközés — KÉT hibát kerül el, a súlyosabbik a nyitásnál van.**
+
+    1. `O_RDONLY` mellett maga az `os.open()` BLOKKOL, amíg nem érkezik egy író. A
+       `start()` tehát soha nem térne vissza, és vele az egész orchestrátor beragadna
+       indulás közben. (Mutációval mérve 2026-08-28: a teszt nem bukott, hanem TIMEOUT-ra
+       futott — pontosan ez a viselkedés.)
+    2. És ha mégis megnyílna, a `read()` EOF-ot adna, amint az utolsó író elengedi — vagyis
+       minden `echo` után újra kellene nyitni, és a két nyitás között érkező jelzés elveszne.
+
+    `O_RDWR`-rel a folyamat maga marad író: a nyitás azonnal visszatér, EOF sosem jön, a
+    `read()` egyszerűen a következő üzenetig blokkol. Linuxon ez definiált viselkedés.
+
+    A jogosultság `0660`: aki a robot csoportjában van, triggerelhet. Ez nem a robot
+    biztonsági határa — aki a Pi-n `echo`-zni tud, az úgyis mindent tud.
+    """
+
+    def __init__(self, utvonal: str | Path = "/run/freedroid/trigger") -> None:
+        self._ut = Path(utvonal)
+        self._fd: int | None = None
+        self._szal: threading.Thread | None = None
+        self._all = threading.Event()
+
+    def start(self, sor: queue.Queue[Esemeny]) -> None:
+        try:
+            if not self._ut.exists():
+                os.mkfifo(self._ut, 0o660)
+            self._fd = os.open(self._ut, os.O_RDWR)
+        except OSError as e:
+            # NEM végzetes: a robot a többi forrással működik tovább. De hangosan, mert
+            # e nélkül a szolgáltatás megszólíthatatlan, és az némán "nem hallja" lenne.
+            log.warning("a FIFO-trigger nem nyílt meg (%s): %s — a robot ezen az úton "
+                        "NEM szólítható meg", self._ut, e)
+            return
+        self._szal = threading.Thread(target=self._olvas, args=(sor,), daemon=True)
+        self._szal.start()
+        log.info("FIFO-trigger él: echo > %s  (ÁLLJ: echo s > %s)", self._ut, self._ut)
+
+    def close(self) -> None:
+        self._all.set()
+        if self._fd is not None:
+            os.close(self._fd)
+            self._fd = None
+
+    def _olvas(self, sor: queue.Queue[Esemeny]) -> None:
+        maradek = b""
+        while not self._all.is_set():
+            try:
+                darab = os.read(self._fd, 4096)
+            except OSError:
+                return                      # lezárt leíró: rendes leállás
+            if not darab:
+                continue
+            maradek += darab
+            # SORONKÉNT, mert egy `echo` több sort is írhat, és két gyors jelzés
+            # ugyanabban az olvasásban érkezhet — összevonva a második elveszne.
+            while b"\n" in maradek:
+                elso, maradek = maradek.split(b"\n", 1)
+                sor.put(_esemeny(elso.decode("utf-8", "replace")))

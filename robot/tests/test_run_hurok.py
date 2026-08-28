@@ -318,3 +318,57 @@ def test_a_SIGTERM_lezarja_a_hardvert_nem_oli_meg_nyersen():
     assert "LEZART_RENDESEN" in r.stdout, (
         f"a SIGTERM nem KeyboardInterruptként érkezett — a lezárás elmaradna.\n"
         f"stdout={r.stdout!r}\nstderr={r.stderr[-500:]!r}")
+
+
+# ── 7. FIFO-trigger (a SZOLGÁLTATÁS útja) ────────────────────────────────────────
+
+def test_a_fifo_trigger_esemenyt_ad_es_TOBB_jelzest_sem_von_ossze(tmp_path):
+    """Ez az egyetlen út, amin a systemd alatt futó robot megszólítható (nincs stdin).
+
+    A második állítás a lényegi: két gyors `echo` UGYANABBAN az olvasásban érkezhet, és
+    ha a forrás a darabot egyben dolgozná fel, a második jelzés — akár egy ÁLLJ —
+    elveszne."""
+    from freedroid.voice.trigger import FifoTrigger
+
+    ut = tmp_path / "trigger"
+    sor: queue.Queue = queue.Queue()
+    forras = FifoTrigger(ut)
+    forras.start(sor)
+    try:
+        with open(ut, "w") as f:
+            f.write("\n")          # FIGYELJ
+            f.write("s\n")         # ÁLLJ, ugyanabban az írásban
+            f.flush()
+        assert sor.get(timeout=2.0) is Esemeny.FIGYELJ
+        assert sor.get(timeout=2.0) is Esemeny.ALLJ
+    finally:
+        forras.close()
+
+
+def test_a_fifo_TOBB_egymas_utani_jelzest_is_atenged(tmp_path):
+    """`O_RDWR` nélkül a `read()` EOF-ot adna az első `echo` után, és a forrás elhallgatna
+    — a robot pontosan EGYSZER lenne megszólítható, aztán süket maradna."""
+    from freedroid.voice.trigger import FifoTrigger
+
+    ut = tmp_path / "trigger"
+    sor: queue.Queue = queue.Queue()
+    forras = FifoTrigger(ut)
+    forras.start(sor)
+    try:
+        for _ in range(3):
+            with open(ut, "w") as f:      # KÜLÖN nyitás/zárás, mint egy `echo`
+                f.write("\n")
+            assert sor.get(timeout=2.0) is Esemeny.FIGYELJ
+    finally:
+        forras.close()
+
+
+def test_a_ket_forras_UGYANAZT_a_nyelvtant_hasznalja():
+    """Ha az `s` a FIFO-ban mást jelentene, mint a billentyűzeten, az a legrosszabb fajta
+    meglepetés lenne — a STOP-é."""
+    from freedroid.voice.trigger import _esemeny
+
+    for szoveg in ("s", "S\n", " stop \n", "seg"):
+        assert _esemeny(szoveg) is Esemeny.ALLJ, szoveg
+    for szoveg in ("", "\n", "  \n", "figyelj"):
+        assert _esemeny(szoveg) is Esemeny.FIGYELJ, szoveg
