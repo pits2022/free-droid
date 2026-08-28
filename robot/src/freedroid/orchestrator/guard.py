@@ -34,6 +34,17 @@ from freedroid.tools.parser import KNOWN_TOOLS, ParsedTool, parse_tools_reszlete
 
 log = logging.getLogger(__name__)
 
+# A tisztító mintái MODUL-SZINTEN, a `_TOOL_BLOKK` mellett. NEM sebességből: a `re`
+# gyorsítótárazza a lefordított mintákat, tehát újrafordítás nincs, és a mért különbség
+# 0,22 us/hívás — körönként ~1 us, egy 38-103 MÁSODPERCES körben. A haszon az
+# OLVASHATÓSÁG és a következetesség: a fájl eddig egyetlen mintát fordított előre, a
+# többit a törzsbe ágyazva tartotta, és egy megnevezett minta megmondja, MIT szűr.
+# (PR #101 review, 4. kör — az indoklása téves volt, a változtatás mégis jó.)
+_JELOLES = re.compile(r"<[^<>]{0,40}>")     # bármilyen maradék jelölés (<br>, <giggle>)
+_TOBB_SZOKOZ = re.compile(r"[ \t]{2,}")
+_URES_SOROK = re.compile(r"\n\s*\n+")
+_BARMI_URES = re.compile(r"\s+")            # IDEGEN szövegben a soremelés is szóköz lesz
+
 # A `<tool>` blokkok NEM mondhatók ki. A TTS-nek tisztított szöveg kell, különben a
 # Piper felolvassa a "tool move forward 2 tool" markupot is.
 _TOOL_BLOKK = re.compile(r"<tool>.*?</tool>", re.S)
@@ -135,9 +146,9 @@ def beszedre_tisztit(szoveg: str) -> str:
     #
     # A hosszkorlát nem kozmetika: egy PÁRATLAN `<` enélkül a következő `>`-ig MINDENT
     # letörölne — akár egy egész mondatot. Egy jelölés rövid; ami hosszú, az szöveg.
-    szoveg = re.sub(r"<[^<>]{0,40}>", "", szoveg)
-    szoveg = re.sub(r"[ \t]{2,}", " ", szoveg)
-    return re.sub(r"\n\s*\n+", "\n", szoveg).strip()
+    szoveg = _JELOLES.sub("", szoveg)
+    szoveg = _TOBB_SZOKOZ.sub(" ", szoveg)
+    return _URES_SOROK.sub("\n", szoveg).strip()
 
 
 def idegen_szoveg_tisztit(szoveg: str) -> str:
@@ -152,9 +163,9 @@ def idegen_szoveg_tisztit(szoveg: str) -> str:
     konferencián bárki. A `beszedre_tisztit` a jelöléstől véd, ez a KARAKTEREKTŐL.
     """
     szoveg = beszedre_tisztit(szoveg)
-    szoveg = re.sub(r"\s+", " ", szoveg)
+    szoveg = _BARMI_URES.sub(" ", szoveg)
     szoveg = "".join(c for c in szoveg if c.isprintable())
-    return re.sub(r" {2,}", " ", szoveg).strip()
+    return _TOBB_SZOKOZ.sub(" ", szoveg).strip()
 
 
 def _ismetles_nelkul(hivasok: tuple[ParsedTool, ...]) -> tuple[ParsedTool, ...]:
