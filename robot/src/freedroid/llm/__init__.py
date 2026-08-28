@@ -132,7 +132,12 @@ class FallbackLLMClient:
                 # NAPLÓZVA, nem csak eldobva. Enélkül egy némán edge-re esett kör
                 # semmilyen nyomot nem hagyna — és pont az a kör érdekes.
                 nyom.append(f"{backend.value}: {indok}")
-                log.warning("LLM háttér kihagyva — %s: %s", backend.value, indok)
+                # DEBUG, nem WARNING: a létra MŰKÖDÉSE nem rendellenesség, és az élő
+                # menetben (2026-08-28) ez körönként egyszer sárgult be egy teljesen
+                # normális állapotra — az a fajta figyelmeztetés, amit három perc után
+                # már senki nem olvas el, és épp ezért a VALÓDIT is elrejti. Nem vész el
+                # semmi: az összegző `LLM válasz:` sor ugyanezt az indokot INFO-n adja.
+                log.debug("LLM háttér kihagyva — %s: %s", backend.value, indok)
                 continue
             try:
                 valasz = self._generate_on(backend, prompt)

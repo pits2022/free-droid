@@ -163,15 +163,28 @@ def test_a_nyom_megkulonbozteti_a_HALOTT_es_a_HIBAZO_felhot(monkeypatch):
     assert "cloud: RuntimeError: out of memory" in c.decision()
 
 
-def test_a_kihagyott_hatter_NAPLOZVA_van(monkeypatch, caplog):
-    """Egy némán edge-re esett kör semmilyen nyomot nem hagyna — pedig pont az érdekes."""
+def test_a_kihagyott_hatter_NAPLOZVA_van_de_nem_FIGYELMEZTETESKENT(monkeypatch, caplog):
+    """Egy némán edge-re esett kör semmilyen nyomot nem hagyna — pedig pont az érdekes.
+    A nyom tehát KÖTELEZŐ; a SZINTJE viszont döntés, és ez a teszt azt rögzíti.
+
+    A kihagyott háttér 2026-08-28-ig WARNING volt, és az első élő menetben KÖRÖNKÉNT
+    besárgult egy tökéletesen normális állapotra (nincs felhő). Az ilyen figyelmeztetést
+    három perc után senki nem olvassa — vagyis épp a VALÓDIT rejti el. A létra MŰKÖDÉSE
+    nem rendellenesség; az összegző sor ugyanazt az indokot INFO-n adja, tehát a
+    diagnosztikából semmi nem vész el."""
     import logging
     halo = Halo({EDGE})
     c = kliens(monkeypatch, halo)
-    with caplog.at_level(logging.INFO, logger="freedroid.llm"):
+    with caplog.at_level(logging.DEBUG, logger="freedroid.llm"):
         c.generate("Ki vagy?")
-    uzenetek = " ".join(r.getMessage() for r in caplog.records)
-    assert "LLM háttér kihagyva" in uzenetek and "LLM válasz" in uzenetek
+
+    szintek = {r.getMessage().split(":")[0]: r.levelno for r in caplog.records}
+    assert szintek.get("LLM háttér kihagyva — cloud") == logging.DEBUG, \
+        "a kihagyott háttér nyoma kell, de nem figyelmeztetésként"
+    assert szintek.get("LLM válasz") == logging.INFO, \
+        "az ÖSSZEGZŐ sor viszont alapból is látszódjon — ez hordozza az indokot"
+    assert "nem elérhető" in " ".join(r.getMessage() for r in caplog.records), \
+        "az INDOK nem veszhet el a szint-váltással"
 
 
 def test_safe_mode_eseten_is_van_nyom(monkeypatch):

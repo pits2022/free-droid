@@ -95,6 +95,15 @@ class ToolRegistry:
             # robot beszélni tudjon; a kitalált nevek listája viszont dataset-visszajelzés.
             log.warning("kitalált tool-név, eldobva: %r %r", tool.name, tool.args)
             raise KeyError(f"ismeretlen tool: {tool.name!r}") from None
+        # A VÉGREHAJTÁST is naplózzuk, INFO-n. Ez nem bőbeszédűség: az első élő menetig
+        # (2026-08-28) CSAK a kitalált nevek látszottak, a sikeres hívások nem — vagyis a
+        # robot AKTUÁTOR-oldala néma volt. Amikor Szabi a "menj előre egy métert"-re
+        # két méternél többet ment, a naplóból nem lehetett megmondani, hogy rossz
+        # ÉRTÉKET kapott-e, vagy jót kapott és a mozgás hibázott. Egy mozgó robotnál ez
+        # a különbség a lényeg, és a tool-név a hangos válaszból nem derül ki (a `guard`
+        # épp azért szedi ki a beszédből).
+        log.info("TOOL %s %s", tool.name,
+                 " ".join(f"{k}={v}" for k, v in tool.args.items()) or "(nincs argumentum)")
         return handler(tool)
 
     # --- vezérlő-kezelők ---
