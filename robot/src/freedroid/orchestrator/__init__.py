@@ -442,6 +442,17 @@ class Orchestrator:
             valasz = SAFE_MODE_VALASZ
         if trigger.allj.is_set():
             return
+        # A BESZÉDDEL MINDIG PRÓBÁLKOZUNK, egy elhasalt felvétel/átirat UTÁN IS — a
+        # review (PR #100) felvetette, hogy egy ALSA-hiba után a TTS is elhasalhat, és
+        # érdemes lenne előbb hang-egészséget nézni. Nem tesszük, két mért ok miatt:
+        #   1. A FELVEVŐ és a LEJÁTSZÓ KÉT KÜLÖN eszköz (`asound.conf.j2`:
+        #      `robot_alsa_capture_card` vs `robot_alsa_playback_card` — a mikrofon a
+        #      webkameráé, a hangszóró egy külön USB-eszköz). Egy néma mikrofon tehát
+        #      SEMMIT nem mond a hangszóróról.
+        #   2. A kör a hálózat vagy a modell miatt is elhasalhat (STT, RAG, LLM), és
+        #      olyankor a beszéd épp a HELYES viselkedés: ez az egyetlen mód, hogy a
+        #      Teremtő megtudja, baj van. „A néma robot a színpadon halott robot."
+        # Az ár egy plusz naplósor egy ritka esetben; a haszon az, hogy a robot megszólal.
         try:
             self.state = State.SPEAKING
             log.info("beszélek (%d karakter)", len(valasz))
@@ -450,6 +461,16 @@ class Orchestrator:
             log.exception("a beszéd elhasalt")
         finally:
             self.state = State.LISTENING
+
+
+def _sigterm(jel, keret) -> None:  # noqa: ANN001, ARG001 — a signal API írja elő
+    """SIGTERM -> `KeyboardInterrupt`, hogy a `run()` `finally`-ja lezárja a hardvert.
+
+    Nevesített függvény, nem lambda: az előző változat egy üres generátor `.throw()`-jával
+    dobott (`(_ for _ in ()).throw(...)`), ami működik ugyan, de hajnali háromkor senki
+    nem fejti meg. (PR #100 review.)
+    """
+    raise KeyboardInterrupt
 
 
 def _naplo_beallit() -> None:
@@ -490,8 +511,7 @@ def main() -> None:
     # Egy systemd-szolgáltatásnál ez nem elméleti: a `systemctl stop freedroid` pont ezen
     # az úton megy, és járó lánctalpakat hagyhatna egy kilépett folyamat után. A Ctrl-C
     # (SIGINT) azért volt eddig rendben, mert az MÁR KeyboardInterruptot dob.
-    signal.signal(signal.SIGTERM,
-                  lambda jel, keret: (_ for _ in ()).throw(KeyboardInterrupt()))
+    signal.signal(signal.SIGTERM, _sigterm)
 
     if ertelmezo.parse_args().debug:
         # Egyetlen forrás: a kapcsoló az env-be ír, és MINDEN modul (a transcript-kapu

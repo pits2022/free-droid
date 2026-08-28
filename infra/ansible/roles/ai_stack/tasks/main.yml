@@ -165,6 +165,33 @@
   register: gpu_compute_cap
   changed_when: false
   check_mode: false
+  # `failed_when: false`, hogy a HIBAÜZENET a miénk legyen, ne egy "nvidia-smi: command
+  # not found". Lásd a következő taszkot.
+  failed_when: false
+  tags: [stt]
+
+# GPU NÉLKÜLI FELHŐN HANGOSAN ÁLLUNK MEG (PR #100 review nyomán, de tágabban):
+#
+# A `mother-001` a `[cloud]` csoportban van SZOLGÁLTATÓTÓL FÜGGETLENÜL, tehát a
+# `cloud_provider=hetzner` ágon (CAX31/41, ARM, CPU-only) ez a taszk-sor is lefutna —
+# és ott `nvidia-smi` NINCS. A recenzens a "driver még nem települt" esetet írta; a
+# valódi eset a dokumentált TARTALÉK FELHŐ, ami elvileg soha nem lát GPU-t.
+#
+# MIÉRT NEM esünk vissza CPU-s buildre: a `large-v3-turbo` egy ARM CPU-n lassabb volna,
+# mint a Pi `small` modellje — vagyis a felhős STT ott NEGATÍV nyereség. Egy néma
+# visszaesés pontosan az a hibaosztály, amit ez a role máshol is kerül (az Ollamánál a
+# 2026-07-29-i mérés fő tanulsága volt). Inkább megmondjuk, mi a két kiút.
+- name: Fail with a useful message when the cloud has no GPU
+  when: "'cloud' in group_names and whisper_cuda_arch == '' and not ansible_check_mode"
+  assert:
+    that: gpu_compute_cap.rc | int == 0 and (gpu_compute_cap.stdout | trim) != ''
+    fail_msg: >-
+      Ezen a felhőn nincs használható GPU (`nvidia-smi` rc={{ gpu_compute_cap.rc | int }}),
+      a felhős STT viszont CUDA-s buildet kíván. Két kiút: (1) GPU-s felhő —
+      `terraform apply -var cloud_provider=digitalocean`; vagy (2) hagyd ki a felhős
+      STT-t — `--skip-tags stt`, és a robot a Pi helyi whisperét használja. Ha mégis van
+      GPU, de a driver még nem állt fel, futtasd újra a playbookot.
+    success_msg: "GPU megvan, compute capability {{ gpu_compute_cap.stdout | trim }}."
   tags: [stt]
 
 # `stdout_lines[0]`: több GPU-nál is EGY architektúrára fordítunk (a szerver úgyis a
