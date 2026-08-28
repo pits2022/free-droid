@@ -170,6 +170,17 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 ### 4. Kameramozgatás – Szervómotorok
 
 *   **Szervók (2 db):** MG996R, 13kg/cm torque, Metal Gear Digital, 3.0–7.2V, JR/Futaba csatlakozó.
+    *   ✅ **MEGOLDVA 2026-08-24: a pozicionáló (180°) pár beépítve és letesztelve.** A
+        tengelyenkénti szögkalibráció 2026-08-25-én elkészült (`scripts/calibrate_camera.py`,
+        a felszerelt kamerán), és a mért skála **0,0133 vs 0,0112 ms/fok** — a két szervó
+        19%-kal eltér, ezért `CameraSettings` tengelyenként külön értéket tart. Ez a mérés
+        egyben a bizonyíték is, hogy pozicionáló szervókról van szó: **folyamatos forgású
+        szervón nem létezik ms/fok**, ott az impulzus sebességet ad, nincs mit szögre
+        kalibrálni.
+
+        Az alábbi vásárlási csapda TANULSÁGKÉNT marad itt — ez vitte a hardver-határidőt
+        aug. 20-ról 31-re, és egy szervócserénél ugyanígy visszaüthet:
+
     *   🔴 **POZICIONÁLÓ (180°) változat kell — a „360 Degrees" NEM jó.** Ugyanazon az
         `MG996R` néven a boltok kétféle motort árulnak, és a különbség nem méretbeli:
         a folyamatos forgású (continuous rotation, „360°") változatban **az impulzus
@@ -184,7 +195,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
         Egy hobbi pozicionáló szervó fizikailag ~180°-ig megy: a **270° magában elárulja**.
         Vásárláskor a terméknév „**- 360 Degrees**" toldaléka az egyetlen jelzés — a kép,
-        a nyomaték és a fotó azonos. Ez a tétel vitte a hardver-határidőt aug. 20-ról 31-re.
+        a nyomaték és a fotó azonos.
 *   **Vezérlő:** PCA9685 16-csatornás PWM driver, I2C interfész.
     *   Időalap: 50Hz (20ms periódus), 0.5ms–2.5ms pulse – illeszkedik az MG996R specifikációhoz.
     *   Felbontás: 12-bit (~4µs lépés).
@@ -836,7 +847,7 @@ free-droid/
 | Aluminum lánctalpas váz + 2× DC motor 12V | ✅ Megvan |
 | Raspberry Pi 5 (8GB) + Active Cooler | ✅ Megvan |
 | PCA9685 16-ch PWM driver | ✅ Megvan |
-| MG996R szervómotor (2 db) | ❌ **ROSSZ TÍPUS — „360 Degrees" (folyamatos forgású).** Megvan, de pan/tilthez használhatatlan (sebesség-, nem szögvezérlés). Lásd a 4. szakaszt. |
+| MG996R szervómotor (2 db) | ⚠️ **ROSSZ TÍPUS — „360 Degrees" (folyamatos forgású),** pan/tilthez használhatatlan. Félretéve; a beépített pár a pozicionáló 180°-os (lásd lent). |
 | HC-SR04 ultrahang szenzor (10 db, 5V) | ✅ Megvan – tartalék, feszültségosztóval használható |
 | HC-SR04P ultrahang szenzor (5 db, 3–5.5V) | ✅ Megérkezett |
 | LM2596 DC-DC Step-down (voltmérős) | ✅ Megvan |
@@ -860,7 +871,7 @@ free-droid/
 | WS2812 5050 RGB LED ring | ✅ Megvan |
 | MX1508 motorvezérlő (6 db) | ✅ Megvan – ⚠️ NEM használható 11.1V LiPo-val (max 10V), kis motorokra félretéve |
 | **Cytron HAT-MDD10 motorvezérlő** | ✅ Megérkezett – 25mm goldpin strip mellékelve |
-| **MG996R szervó, POZICIONÁLÓ 180° (2 db)** | ❌ **MEGRENDELVE 2026-08-15** – a meglévő pár „360 Degrees" (folyamatos forgású), pan/tilthez használhatatlan. Keresésnél a terméknévben NE legyen „360 Degrees"; a „180°" vagy a puszta „MG996R" a jó. Ez tolta a hardver-határidőt aug. 31-re. |
+| **MG996R szervó, POZICIONÁLÓ 180° (2 db)** | ✅ **BEÉPÍTVE ÉS LETESZTELVE 2026-08-24**, kalibrálva 08-25 (`calibrate_camera.py`; 0,0133 vs 0,0112 ms/fok, tengelyenként külön). Keresésnél a terméknévben NE legyen „360 Degrees"; a „180°" vagy a puszta „MG996R" a jó. |
 | **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` |
 | ~~USB LTE modem (Huawei E3372 HiLink)~~ | ✅ **KIVÁLTVA (2026-08-10, a Teremtő): a saját 4G wifi router (`Wifi196`) adja a helyszíni netet.** Nem kell megrendelni – lekerül a kritikus útról. Ráadásul jobb: a router a robotot és a Teremtő laptopját UGYANARRA a hálózatra teszi, tehát a helyszíni SSH LAN-on megy, VPN és CGNAT nélkül – ez a tartalék belépési út (lásd `edge_robot`/`robot_hotspot_ssid`). |
 
@@ -949,9 +960,10 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 **1.5 Hardver smoke-test (szoftver nélkül)**
 - [x] Motor teszt: egyszerű GPIO szkript, mindkét motor előre/hátra — **kész** (a bal motor
       fordított polaritása javítva)
-- [~] Szervó teszt: PCA9685 sweep CH0/CH1 — **a vezérlés kész, a szervó rossz típus.** A chip
-      hibátlan (`CH0/CH1 OFF = 307` = 1,50 ms, MODE1=0x00, PRESCALE=121), de a meglévő pár
-      **folyamatos forgású (360°)**, lásd a 4. szakaszt. Pozicionáló párra vár.
+- [x] Szervó teszt: PCA9685 sweep CH0/CH1 — **kész (2026-08-24), a pozicionáló 180°-os
+      párral.** Az eredeti pár folyamatos forgású („360 Degrees") volt és félre lett téve; a
+      vásárlási csapda tanulságként a 4. szakaszban maradt. Kalibrálva 08-25:
+      `calibrate_camera.py`, tengelyenként külön skála (0,0133 vs 0,0112 ms/fok).
 - [x] HC-SR04(P) teszt: távolságmérés kiírása — **kész**. Két, egymást követő fizikai hiba
       után: 5 V + osztó kell a sima panelhez, és a breadboard **tápsínje hasított** (830-as
       lapon 4 sín-szakasz), ezért a szenzor földje nem ért a Pi földjéhez.

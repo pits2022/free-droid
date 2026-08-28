@@ -102,7 +102,7 @@ class Orchestrator:
         # `ask()` valaha máshogy keresne: pontosan azt őrzi, amit a prompt kapott.
         self.utolso_talalatok: list[Hit] = []
         self.motion = motion or CytronMotionController(settings)
-        self.camera = camera
+        self.camera = camera if camera is not None else self._kamera(settings)
         # A watchdog a `motion`-től olvassa a haladási irányt — EGYETLEN forrás, nem
         # vezet saját nyilvántartást (spec 5. szakasz).
         self.watchdog = watchdog or UltrasonicWatchdog(
@@ -110,7 +110,7 @@ class Orchestrator:
             settings=settings,
             heading_source=lambda: (self.motion.heading, self.motion.is_turning),
         )
-        self.tools = ToolRegistry(motion=self.motion, camera=camera)
+        self.tools = ToolRegistry(motion=self.motion, camera=self.camera)
         # A hang-elemek LUSTÁN épülnek (`_hang()`): a konstruktoruk binárist és modellt
         # keres, az `ask_smoke.py` és a tesztek viszont hang nélkül futnak. Egy hiányzó
         # `piper` nem akadályozhatja meg a lánc többi részének a próbáját.
@@ -133,6 +133,32 @@ class Orchestrator:
         if self._trigger is None:
             self._trigger = TriggerBusz(BillentyuTrigger(), azonnal=self._azonnali_allj)
         return self._stt, self._tts, self._vad, self._trigger
+
+    @staticmethod
+    def _kamera(settings: Settings | None):
+        """A pan/tilt kamera — HIBATŰRŐEN, a `motion`-nel ellentétben.
+
+        Bekötve 2026-08-28. Addig `None` volt, és emiatt MINDEN `camera` tool-hívás
+        elhasalt egy élő menetben, miközben a robot azt mondta, hogy „körülnézek" — a
+        színpadon ez nem hiba, hanem hazugság.
+
+        Miért TŰRŐ, és miért nem úgy, mint a `motion`: a lánctalp nélkül nincs robot, a
+        pan/tilt nélkül van. Egy meglazult I2C-kábel ne akadályozza meg, hogy Szabi
+        beszéljen és mozogjon; a kamera-tool ilyenkor egy soros figyelmeztetéssel marad
+        el. A konstruktor mindkét tengelyt középre hajtja — ez a pozicionáló (180°)
+        szervókkal a helyes indulóállapot, a 2026-08-24-ig beépített folyamatos forgású
+        párral viszont ÖRÖKÖS forgás lett volna; ez volt az eredeti oka, hogy nem
+        kötöttük be.
+        """
+        try:
+            from freedroid.camera import PanTiltCamera
+
+            return PanTiltCamera(settings)
+        except Exception as e:  # noqa: BLE001 — a robot kamera nélkül is működik
+            log.warning("a pan/tilt kamera nem épült meg (%s: %s) — a `camera` "
+                        "tool-hívások elmaradnak, a robot egyébként működik",
+                        type(e).__name__, e)
+            return None
 
     def _minta_rata(self) -> int:
         from freedroid.config.settings import load_settings
@@ -299,13 +325,10 @@ class Orchestrator:
             try:
                 self.tools.dispatch(tool)
             except LookupError as e:
-                # BE NEM KÖTÖTT vezérlő: ez VÁRT állapot, nem programhiba, tehát nem
-                # érdemel veremkiíratást. Ma a `camera` ilyen — a pan/tilt szervók a
-                # "360 Degrees" (folyamatos forgású) típusból valók, ahol az impulzus
-                # SEBESSÉGET jelent, nem szöget, és a `PanTiltCamera` konstruktora
-                # rögtön középre hajtaná mindkét tengelyt: a szervók elindulnának és
-                # sosem állnának meg. A pozicionáló pár 2026-08-31-én érkezik.
-                # Egy tíz soros traceback erre elrejti a naplóban a VALÓDI hibákat.
+                # BE NEM KÖTÖTT vezérlő: konfigurációs állapot, nem programhiba, tehát
+                # nem érdemel veremkiíratást — körönként megismételve épp a VALÓDI
+                # hibákat rejtené el a naplóban. A robot ettől megszólal, csak az adott
+                # tool marad el, és a napló megmondja, melyik.
                 log.warning("%s: %s", tool.name, e)
             except Exception:  # noqa: BLE001 — a beszéd fontosabb, mint a tool
                 log.exception("tool-hívás sikertelen: %r %r", tool.name, tool.args)

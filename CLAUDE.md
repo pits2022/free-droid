@@ -414,17 +414,21 @@ new one. Host-specific values do not belong in a version-controlled file.
 
 ## Project timeline / deadlines
 
-- Hardware deployed: **2026. aug. 31.** (was aug. 20. — slipped 2026-08-15: the two MG996R
-  servos on hand turned out to be the **"360 Degrees" continuous-rotation** variant, where the
-  pulse sets *speed*, not angle. Unusable for pan/tilt; positional 180° units re-ordered. The
-  measurement and the buying trap are in `docs/free-droid.md` §4.)
+- Hardware deployed: **2026. aug. 31.** (was aug. 20. — slipped 2026-08-15 on the servos.
+  ✅ **The servo blocker is CLOSED: the positional 180° pair was fitted and tested
+  2026-08-24, calibrated 08-25.** What still lands on aug. 31 is the presenter clicker, the
+  clip-on mic and the ADS1115. The original pair was the **"360 Degrees" continuous-rotation**
+  variant, where the pulse sets *speed*, not angle — the buying trap is kept in
+  `docs/free-droid.md` §4 as a lesson, because a servo swap can hit it again. Corroborating
+  measurement: `CameraSettings` carries a per-axis **ms/degree** scale, which cannot exist on
+  a continuous-rotation servo at all.)
 - LLM fine-tune: 2026. aug. 31.
 - Cloud server: 2026. aug. 31.
-  > ⚠️ **Aug. 31. is now a three-way deadline** (hardware + fine-tune + cloud). The slip did
-  > not create new work, but it removed the buffer: nothing hardware-dependent can be
-  > *scheduled* before the servos arrive. The parts of Phase 4 that need no servo (motion,
-  > ultrasonic, voice, orchestrator) are the ones to pull forward — the pan/tilt handler is
-  > the only piece actually blocked.
+  > ⚠️ **Aug. 31. is now a three-way deadline** (hardware + fine-tune + cloud). The servo
+  > part of it is DONE (fitted + calibrated, see above), so nothing in Phase 4 is
+  > hardware-blocked any more; what aug. 31 still gates is the **trigger source** (the
+  > presenter clicker — the `run()` loop already reads from a swappable trigger interface,
+  > so this is a new source file, not integration), the clip-on mic and the ADS1115.
 - Software/code: 2026. sept. 30.
 - Integration tests: 2026. sept. 30.
 - **Talk preparation: 2026. sept. 1. → sept. 30. — owner: the Creator.** Slides + **3 timed
