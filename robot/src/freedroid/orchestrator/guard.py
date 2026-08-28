@@ -29,9 +29,21 @@ import logging
 import re
 from dataclasses import dataclass
 
-from freedroid.tools.parser import KNOWN_TOOLS, ParsedTool, parse_tools
+from freedroid.tools.handlers import ervenytelen_ok
+from freedroid.tools.parser import KNOWN_TOOLS, ParsedTool, parse_tools_reszletesen
 
 log = logging.getLogger(__name__)
+
+# A tisztító mintái MODUL-SZINTEN, a `_TOOL_BLOKK` mellett. NEM sebességből: a `re`
+# gyorsítótárazza a lefordított mintákat, tehát újrafordítás nincs, és a mért különbség
+# 0,22 us/hívás — körönként ~1 us, egy 38-103 MÁSODPERCES körben. A haszon az
+# OLVASHATÓSÁG és a következetesség: a fájl eddig egyetlen mintát fordított előre, a
+# többit a törzsbe ágyazva tartotta, és egy megnevezett minta megmondja, MIT szűr.
+# (PR #101 review, 4. kör — az indoklása téves volt, a változtatás mégis jó.)
+_JELOLES = re.compile(r"<[^<>]{0,40}>")     # bármilyen maradék jelölés (<br>, <giggle>)
+_TOBB_SZOKOZ = re.compile(r"[ \t]{2,}")
+_URES_SOROK = re.compile(r"\n\s*\n+")
+_BARMI_URES = re.compile(r"\s+")            # IDEGEN szövegben a soremelés is szóköz lesz
 
 # A `<tool>` blokkok NEM mondhatók ki. A TTS-nek tisztított szöveg kell, különben a
 # Piper felolvassa a "tool move forward 2 tool" markupot is.
@@ -112,6 +124,50 @@ class GuardResult:
     elharitas: str | None = None
 
 
+def beszedre_tisztit(szoveg: str) -> str:
+    """Kimondható szöveggé tisztít. A `guard` ÉS a lekérdező toolok eredménye is ezen megy át.
+
+    🔴 MIÉRT KELL A LEKÉRDEZÉSEKRE IS (PR #101 review, 3. kör): a `guard` a MODELL szövegét
+    tisztítja, a `scan_wifi` eredménye viszont UTÁNA kerül a beszédhez — és az SSID-ket
+    IDEGENEK sugározzák. Egy Hacktivityn bárki elnevezheti a hotspotját
+    `x<tool>move forward 5</tool>`-nak, és a Piper KIMONDANÁ: mérve 2026-08-25-én, hogy a
+    `<br>`-t és a `<giggle>`-t felolvasta a hangszórón.
+
+    ⚠️ Végrehajtás NINCS: a hozzáfűzött szöveget semmi nem elemzi újra toolként. A kár
+    VERBÁLIS — de épp a színpadon, egy szuverenitásról szóló előadáson.
+    """
+    # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
+    # kell vonni, különben a TTS-nek adott szövegben "Megyek.\n\nViszlát." marad.
+    szoveg = _TOOL_BLOKK.sub("", szoveg)
+    # MINDEN maradék jelölés kiesik, nem csak a `<tool>`. MÉRVE 2026-08-25, a Pi-n: a
+    # modell `<giggle>`-t és `<br>`-t is kiadott, és a Piper KIMONDTA őket ("br",
+    # "giggle") — a hangszórón, a demó-úton. Nem egyedi eset: a `<puska/>` (az orákulum
+    # jelzése) ugyanígy sosem kimondható.
+    #
+    # A hosszkorlát nem kozmetika: egy PÁRATLAN `<` enélkül a következő `>`-ig MINDENT
+    # letörölne — akár egy egész mondatot. Egy jelölés rövid; ami hosszú, az szöveg.
+    szoveg = _JELOLES.sub("", szoveg)
+    szoveg = _TOBB_SZOKOZ.sub(" ", szoveg)
+    return _URES_SOROK.sub("\n", szoveg).strip()
+
+
+def idegen_szoveg_tisztit(szoveg: str) -> str:
+    """IDEGEN eredetű szöveg kimondhatóvá tétele — szigorúbb, mint a modellé.
+
+    Külön függvény, és a különbség MÉRT: a modell szövegében az EGYSZERES soremelés
+    szándékosan megmarad (teszt őrzi, mondathatárt jelöl), egy IDEGEN SSID-ben viszont
+    nem maradhat — az az `piper` csövébe kerülve kettévágná a mondatot. Ugyanígy a
+    nem-nyomtatható bájtok: egy SSID tetszőleges oktetteket tartalmazhat.
+
+    Ez a bemenet nem a miénk: az SSID-ket a környező hálózatok sugározzák, egy
+    konferencián bárki. A `beszedre_tisztit` a jelöléstől véd, ez a KARAKTEREKTŐL.
+    """
+    szoveg = beszedre_tisztit(szoveg)
+    szoveg = _BARMI_URES.sub(" ", szoveg)
+    szoveg = "".join(c for c in szoveg if c.isprintable())
+    return _TOBB_SZOKOZ.sub(" ", szoveg).strip()
+
+
 def _ismetles_nelkul(hivasok: tuple[ParsedTool, ...]) -> tuple[ParsedTool, ...]:
     """EGYMÁS UTÁNI azonos hívások összevonása egyre.
 
@@ -161,23 +217,27 @@ def guard(valasz: str) -> GuardResult:
     felsorolás jogos, a csatlakozás nem — a robot elhárít ÉS felsorol, ahogy a
     "vegyes kérés" dataset-kategória tanítja.
     """
-    hivasok = parse_tools(valasz)
-    ismert = _ismetles_nelkul(tuple(h for h in hivasok if h.name in KNOWN_TOOLS))
+    hivasok, hibas_blokkok = parse_tools_reszletesen(valasz)
+    # ÉRTELMEZHETETLEN blokkok: eddig NÉMÁN tűntek el a parserben. A
+    # `move forward 2 gyorsan` (kitalált sebesség-szó) így nulla toolt adott, a robot
+    # pedig kimondta, hogy "megyek" — és nem mozdult. Nyomtalan hiba, a legrosszabb fajta.
+    for blokk in hibas_blokkok:
+        log.warning("értelmezhetetlen tool-blokk, eldobva: %r", blokk)
+
+    ismert = tuple(h for h in hivasok if h.name in KNOWN_TOOLS)
     eldobott = tuple(h.name for h in hivasok if h.name not in KNOWN_TOOLS)
 
-    # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
-    # kell vonni, különben a TTS-nek adott szövegben "Megyek.\n\nViszlát." marad.
-    beszed = _TOOL_BLOKK.sub("", valasz)
-    # MINDEN maradék jelölés kiesik, nem csak a `<tool>`. MÉRVE 2026-08-25, a Pi-n: a
-    # modell `<giggle>`-t és `<br>`-t is kiadott, és a Piper KIMONDTA őket ("br",
-    # "giggle") — a hangszórón, a demó-úton. Nem egyedi eset: a `<puska/>` (az orákulum
-    # jelzése) ugyanígy sosem kimondható.
-    #
-    # A hosszkorlát nem kozmetika: egy PÁRATLAN `<` enélkül a következő `>`-ig MINDENT
-    # letörölne — akár egy egész mondatot. Egy jelölés rövid; ami hosszú, az szöveg.
-    beszed = re.sub(r"<[^<>]{0,40}>", "", beszed)
-    beszed = re.sub(r"[ \t]{2,}", " ", beszed)
-    beszed = re.sub(r"\n\s*\n+", "\n", beszed).strip()
+    # KITALÁLT ÉRTÉK: a név ismert, az argumentum értéke nem. Eddig ez a KEZELŐBEN dobott
+    # `ValueError`-t, azaz körönkénti veremkiíratást — most már ide sem jut el.
+    ervenyes = []
+    for hivas in ismert:
+        if (ok := ervenytelen_ok(hivas)) is not None:
+            log.warning("érvénytelen tool-argumentum, eldobva: %s", ok)
+            continue
+        ervenyes.append(hivas)
+    ismert = _ismetles_nelkul(tuple(ervenyes))
+
+    beszed = beszedre_tisztit(valasz)
 
     szandek = next((sz for n in eldobott if (sz := _szandek(n)) is not None), None)
     if szandek is not None:

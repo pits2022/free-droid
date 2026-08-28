@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable
 
 from freedroid.camera import CameraAction
@@ -176,7 +177,128 @@ class ToolRegistry:
         return target
 
 
-def parse_nmcli(stdout: str) -> list[dict[str, str]]:
+# --- LEKÉRDEZŐ toolok: az eredményt KI KELL MONDANI ------------------------------
+#
+# 🔴 A megkülönböztetés, amin ez áll (mérve 2026-08-28): a `move`/`turn`/`stop`
+# CSELEKVŐ toolok — ott a kimondott mondat ÍGÉRET, tehát helyes előre kimondani, és a
+# `dispatch` visszatérési értéke érdektelen. A `scan_wifi` LEKÉRDEZŐ: ott a válasz MAGA
+# az eredmény, tehát előre nem mondható ki.
+#
+# Eddig az orchestrátor eldobta a `dispatch()` visszatérési értékét, tehát a szkennelés
+# lefutott, valódi adatot gyártott, a robot kidobta — és kitalált helyette valamit
+# („Látom a Wi-Fi 6-húzásokat, Teremtőm"). Fine-tune ezen NEM segít: legfeljebb
+# gyakrabban hívná meg a toolt, a válasz attól még kitalált maradna.
+# A TÁBLA név -> formázó, nem puszta halmaz (PR #101 review). Halmazzal egy második
+# lekérdező tool felvétele NÉMÁN a `wifi_mondat`-ot hívná az ő eredményére is; így a
+# felvétel kikényszeríti a saját formázóját.
+LEKERDEZO_FORMAZOK: dict[str, Callable[[Any], str]] = {}
+
+# Hány hálózatot sorolunk fel névvel. A persona 1-3 rövid mondat; húsz SSID felolvasása
+# nem Szabi hangja, és a demón sem hallgatná végig senki. A DARABSZÁM viszont mindig
+# elhangzik, tehát a hallgató tudja, hogy nem a teljes lista jött.
+_WIFI_NEVEK_MAX = 3
+
+
+def wifi_mondat(halok: list[dict[str, Any]]) -> str:
+    """A `scan_wifi` eredménye -> kimondható magyar mondat. DETERMINISZTIKUSAN.
+
+    Nem a modellel mondatjuk ki: a lista TÉNYEK halmaza, amit egy 3B parafrazeálva csak
+    ronthat — 2026-08-28-án a „Wifi196" belőle „Wi-Fi 6-húzások" lett. A demó üzenete
+    ráadásul épp a PONTOSSÁG (Szabi felsorol, és megmondja, melyik hálózat védtelen),
+    tehát a kimondott SSID-nek IGAZNAK kell lennie.
+    """
+    if not halok:
+        return "Nem látok hálózatot, Teremtőm."
+    # 🔴 SAJÁT RENDEZÉS, nem a kapott sorrend (PR #101 review). A `scan_wifi` `sort`
+    # kulcsa a NYELVTAN része, tehát a modell kimondhatja: `sort=ssid` mellett a lista
+    # NÉV szerint jön vissza, és a `halok[0]`-t „legerősebb"-nek nevezve a robot
+    # HAZUDNA. Mérve: Alma(30) / Zebra(95) -> „A legerősebb: Alma". Egy pontosságról
+    # szóló demón ez a legrosszabb hibafajta. A kimondott sorrend ezért mindig a
+    # jelerősségé — a `sort` a visszaadott ADATSZERKEZETET rendezi, a beszédet nem.
+    # `int(...)`, és ez a 2. körben MÁS javaslat volt, mint az 5.-ben — a különbség
+    # lényegi. Akkor `int(h.get("signal", 0))` hangzott el, amit elutasítottam: egy
+    # hiányzó mezőt 0-nak venni CSENDES visszaesés, hibás bemenetből „leggyengébb
+    # hálózat". Az `int(h["signal"])` viszont HANGOS: hiányzó kulcsra `KeyError`, nem
+    # számra `ValueError`.
+    #
+    # És a kockázat VALÓS, amióta a 2. körben `dict[str, Any]`-re lazítottam a jelölést:
+    # sztring jelerősség mellett a Python LEXIKÁLISAN hasonlít, tehát "90" > "100" —
+    # a robot a gyengébb hálózatot nevezné a legerősebbnek. Pont az a hibafajta, ami
+    # ellen ez a rendezés készült. (PR #101 review, 5. kör.)
+    halok = sorted(halok, key=lambda h: int(h["signal"]), reverse=True)
+    elso = halok[:_WIFI_NEVEK_MAX]
+    reszek = [f"{h['ssid']}, {h['security']}" for h in elso]
+    mondat = f"{len(halok)} hálózatot látok. A legerősebb: {reszek[0]}."
+    if len(reszek) > 1:
+        mondat += " Utána " + ", majd ".join(reszek[1:]) + "."
+    if len(halok) > len(elso):
+        mondat += f" És még {len(halok) - len(elso)}."
+    return mondat
+
+
+LEKERDEZO_FORMAZOK["scan_wifi"] = wifi_mondat
+
+
+# --- argumentum-ÉRTÉK validáció -------------------------------------------------
+#
+# A `guard` eddig CSAK a tool-NEVEKET szűrte. A kitalált ÉRTÉK két úton okozott bajt,
+# mindkettő mérve az élő menetekben (2026-08-28):
+#   * `camera action=look`, `set_mode repules` -> a kezelőben `ValueError`, azaz
+#     VEREMKIÍRATÁS a naplóban, körönként;
+#   * `move forward 2 gyorsan` -> a PARSER dobja el az egész blokkot, NÉMÁN: a robot
+#     azt mondja "megyek", és nem mozdul. Ez a rosszabb, mert nyomtalan.
+#
+# A tábla ITT él, a kezelők MELLETT, hogy ne csússzon szét attól, amit ténylegesen
+# átadunk a vezérlőknek. A `test_dispatch_contract` őrzi, hogy minden ismert tool
+# szerepeljen benne (üres halmazzal, ha nincs kötött értékű argumentuma).
+#
+# A `camera` pan/tilt iránya nem enum, de ugyanúgy `ValueError`-t ad a vezérlőben
+# (`PanTiltCamera._elojel`) — ezért szerepel szó szerinti halmazként.
+ARG_ERTEKEK: dict[str, dict[str, Any]] = {
+    "move": {"direction": Direction, "speed": Speed, "mode": Mode, "until": StopCond},
+    "turn": {"direction": TurnDir, "mode": Mode},
+    "stop": {},
+    "set_speed": {"level": Speed},
+    "set_mode": {"mode": Mode},
+    "camera": {"action": CameraAction, "pan": {"left", "right"}, "tilt": {"up", "down"}},
+    "scan_wifi": {"sort": _WIFI_SORT_KEYS},
+    "set_oracle": {},
+    "request_navigation_help": {},
+}
+
+
+def ervenytelen_ok(tool: ParsedTool) -> str | None:
+    """MIÉRT nem hajtható végre a hívás — vagy `None`, ha rendben van.
+
+    Szöveget ad vissza, nem bool-t: az indok a naplóba és a dataset-visszajelzésbe is
+    kell ("a modell `look`-ot talált ki `scan` helyett" más tétel, mint "kitalált
+    tool-nevet adott").
+    """
+    varhato = ARG_ERTEKEK.get(tool.name)
+    if varhato is None:
+        return f"ismeretlen tool: {tool.name!r}"
+    for kulcs, ertek in tool.args.items():
+        engedett = varhato.get(kulcs)
+        if engedett is None:            # szabad szöveg vagy szám — a kezelő dolga
+            continue
+        # `issubclass(..., Enum)` is, nem csak `isinstance(..., type)` (PR #101 review):
+        # egy nem-Enum osztály a táblában különben `TypeError`-ral szállna el az
+        # iteráláson. A tábla `str`-halmazokat is tart (a kamera irány-szavai).
+        ervenyesek = ({e.value for e in engedett}
+                      if isinstance(engedett, type) and issubclass(engedett, Enum)
+                      else set(engedett))
+        if ertek not in ervenyesek:
+            # `str(x)`, mert ez a HIBAÚT: a tábla ma csak str-értékű enumokat tart
+            # (mérve), de egy jövőbeli int/float-értékű enum mellett a `join` maga
+            # dobna `TypeError`-t — vagyis a hibajelentés ölné meg a diagnózist, épp
+            # amikor a legnagyobb szükség van rá. (PR #101 review, 2. kör.)
+            ervenyes_szoveg = ", ".join(sorted(str(x) for x in ervenyesek))
+            return (f"{tool.name}: a(z) {kulcs}={ertek!r} nem érvényes "
+                    f"(csak {ervenyes_szoveg})")
+    return None
+
+
+def parse_nmcli(stdout: str) -> list[dict[str, Any]]:
     """Az `nmcli -t` kimenete -> hálózatok, SSID-nként a LEGERŐSEBB példány.
 
     A deduplikálás nem kozmetika: az nmcli BSSID-nként ad sort, tehát egy több

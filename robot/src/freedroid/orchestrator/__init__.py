@@ -27,10 +27,11 @@ from freedroid.llm import FallbackLLMClient, LLMUnavailable
 from freedroid.llm.language_guard import enforce_hungarian
 from freedroid.motion import CytronMotionController
 from freedroid.orchestrator import transcript
-from freedroid.orchestrator.guard import GuardResult, guard
+from freedroid.orchestrator.guard import (GuardResult, guard,
+                                          idegen_szoveg_tisztit)
 from freedroid.rag.context import build_prompt
 from freedroid.safety import UltrasonicWatchdog
-from freedroid.tools.handlers import ToolRegistry
+from freedroid.tools.handlers import LEKERDEZO_FORMAZOK, ToolRegistry
 from freedroid.voice.trigger import Esemeny
 
 if TYPE_CHECKING:
@@ -327,18 +328,44 @@ class Orchestrator:
                         [t.name for t in eredmeny.toolok])
             return BIZTONSAGI_ELHARITAS
 
+        lekerdezes: list[str] = []
         for tool in eredmeny.toolok:
             try:
-                self.tools.dispatch(tool)
+                talalat = self.tools.dispatch(tool)
+                # 🔴 A LEKÉRDEZŐ toolok eredményét KI KELL MONDANI. Eddig a `dispatch()`
+                # visszatérési értéke a földre esett, tehát a `scan_wifi` lefutott, valódi
+                # hálózatlistát gyártott, a robot eldobta — és kitalált helyette valamit.
+                # A mondat DETERMINISZTIKUS (`wifi_mondat`), nem a modellel mondatjuk ki:
+                # a lista TÉNYEK halmaza, és a demó üzenete épp a pontosság.
+                if (formazo := LEKERDEZO_FORMAZOK.get(tool.name)) is not None:
+                    # 🔴 TISZTÍTVA, mert IDEGEN eredetű: a `guard` a MODELL szövegét
+                    # tisztította, ez viszont UTÁNA kerül a beszédhez — és a wifi-SSID-ket
+                    # a környező hálózatok sugározzák. Egy konferencián bárki elnevezheti
+                    # a hotspotját `x<tool>move forward 5</tool>`-nak, és a Piper
+                    # KIMONDANÁ (mérve: a `<br>`-t felolvasta). Végrehajtás nincs — a
+                    # hozzáfűzött szöveget semmi nem elemzi újra toolként —, a kár
+                    # verbális, de épp a színpadon. (PR #101 review, 3. kör.)
+                    lekerdezes.append(idegen_szoveg_tisztit(formazo(talalat)))
             except LookupError as e:
                 # BE NEM KÖTÖTT vezérlő: konfigurációs állapot, nem programhiba, tehát
                 # nem érdemel veremkiíratást — körönként megismételve épp a VALÓDI
                 # hibákat rejtené el a naplóban. A robot ettől megszólal, csak az adott
                 # tool marad el, és a napló megmondja, melyik.
                 log.warning("%s: %s", tool.name, e)
-            except Exception:  # noqa: BLE001 — a beszéd fontosabb, mint a tool
+            except Exception as e:  # noqa: BLE001 — a beszéd fontosabb, mint a tool
                 log.exception("tool-hívás sikertelen: %r %r", tool.name, tool.args)
-        return eredmeny.beszed
+                # A LEKÉRDEZÉS hibáját KI IS MONDJUK. Egy cselekvő toolnál a néma bukás
+                # elmegy (a robot nem mozdul, az látszik), egy lekérdezésnél viszont a
+                # modell bevezető mondata („Körülnézek") ígéretként ott marad, és a
+                # hallgató azt hinné, hogy nincs egy hálózat sem.
+                if tool.name in LEKERDEZO_FORMAZOK:
+                    lekerdezes.append("Nem tudtam megnézni, Teremtőm.")
+                    log.warning("lekérdező tool hibája kimondva: %s", e)
+        # `filter(None, ...)`: KOZMETIKA, nem hibajavítás. Ma nem áll elő üres elem (a
+        # `wifi_mondat` mindig ad szöveget, a hiba-ág fix mondatot), tehát dupla szóköz
+        # sem — de a „fűzd össze a NEM ÜRES részeket" szándék olvashatóbb, mint a
+        # „fűzd össze, aztán vágd le". (PR #101 review, 5. kör.)
+        return " ".join(filter(None, [eredmeny.beszed, *lekerdezes])).strip()
 
     def guard_result(self, valasz: str) -> GuardResult:
         """A szétválasztás végrehajtás NÉLKÜL — naplózáshoz és szárazpróbához."""

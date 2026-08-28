@@ -51,7 +51,24 @@ def test_erzekelo_kikapcsolas_is_elharitasra_valt():
     assert r.elharitas == "erzekelo"
     assert r.beszed == "A biztonsági érzékelőt nem kapcsolom ki, Teremtőm. Az a reflexem."
     assert "disable_collision_sensors" in r.eldobott
-    # A `set_mode` ISMERT tool, tehát nem dobjuk el — a szűrő nem tilt le legitim működést.
+    # ⚠️ A `set_mode run` MÉRT modell-kimenet, és a `run` NEM érvényes mód
+    # (approach_speaker / follow_speaker / face_audience / standby). Ez a teszt eredetileg
+    # azt állította, hogy a hívás átmegy — vagyis egy LÁTENS HIBÁT rögzített: a régi
+    # kódban a `dispatch` `Mode("run")`-ra `ValueError`-t dobott volna, veremkiíratással.
+    # 2026-08-28 óta az argumentum-validáció itt dobja el. A példa MARAD (a provenienciája
+    # értékes), az elvárás javítva. Hogy a szűrő legitim működést se tiltson le, arra a
+    # következő teszt való.
+    assert r.toolok == ()
+
+
+def test_a_szuro_a_LEGITIM_tool_hivast_atengedi():
+    """Az előző teszt párja: a tiltott SZÁNDÉK elhárítása nem söpörheti el a jogos
+    hívásokat. Ugyanaz a válasz, de ÉRVÉNYES móddal."""
+    r = guard("Kikapcsolom a biztonsági érzékelőt, Teremtőm. "
+              "<tool>set_mode standby</tool><tool>disable_collision_sensors</tool>")
+
+    assert r.elharitas == "erzekelo"
+    assert "disable_collision_sensors" in r.eldobott
     assert [t.name for t in r.toolok] == ["set_mode"]
 
 
@@ -201,3 +218,45 @@ def test_a_MERT_jo_eset_valtozatlan():
 
     assert [t.name for t in e.toolok] == ["move", "turn"]
     assert e.beszed == "Előre megyek 1 méterre, majd balra fordulok, Teremtőm."
+
+
+# ── kitalált ARGUMENTUM-ÉRTÉK (az élő menetek, 2026-08-28) ───────────────────────
+
+@pytest.mark.parametrize(("valasz", "miert"), [
+    ("Külön nézem, Teremtőm. <tool>camera action=look</tool>",
+     "kitalált CameraAction — a kezelőben ValueError volt, veremkiíratással"),
+    ("A kamera stabil. <tool>camera action=set_steady</tool>",
+     "ugyanaz, másik kitalált érték"),
+    ("<tool>set_mode repules</tool>", "kitalált Mode"),
+    ("<tool>camera pan balra 30</tool>", "magyar irány-szó: a vezérlő ValueError-t adna"),
+])
+def test_a_kitalalt_ertek_NEM_jut_el_a_kezelohoz(valasz, miert):
+    """Mind a négy bemenet MÉRT modell-kimenet vagy annak közeli rokona. A guard eddig
+    csak a tool-NEVEKET szűrte, tehát ezek a `dispatch`-ig jutottak, és ott
+    veremkiíratást adtak — körönként, a naplóba, ami így a VALÓDI hibákat rejtette el."""
+    assert guard(valasz).toolok == (), miert
+
+
+def test_az_ERTELMEZHETETLEN_blokk_nem_tunik_el_nyomtalanul(caplog):
+    """🔴 Ez volt a rosszabb hiba, mert NÉMA: a `move forward 2 gyorsan` (kitalált
+    sebesség-szó) a parserben esett ki, nulla toolt hagyva — a robot kimondta, hogy
+    „megyek", és nem mozdult. A hívás továbbra is elesik (nem találgatunk), de MOST
+    NYOMOT HAGY."""
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="freedroid.orchestrator.guard"):
+        e = guard("Megyek, Teremtőm. <tool>move forward 2 gyorsan</tool>")
+
+    assert e.toolok == ()
+    assert any("move forward 2 gyorsan" in r.getMessage() for r in caplog.records), \
+        "az eldobott blokknak a naplóban kell lennie"
+
+
+def test_az_ERVENYES_hivasok_valtozatlanul_atmennek():
+    """A szűrő nem tilthat le jogos működést — ez az ára annak, hogy szigorú."""
+    e = guard("Előre megyek, majd balra fordulok. "
+              "<tool>move forward 1 slow</tool><tool>turn left 90</tool>"
+              "<tool>camera nod</tool><tool>scan_wifi</tool>")
+
+    assert [t.name for t in e.toolok] == ["move", "turn", "camera", "scan_wifi"]
+    assert e.toolok[0].args["speed"] == "slow"

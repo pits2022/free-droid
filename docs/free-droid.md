@@ -1114,6 +1114,57 @@ Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se 
 
 ---
 
+## 🔧 A tool-hívások javítása — SORREND (a Teremtő, 2026-08-28)
+
+**Nem fine-tune-nal kezdjük, és ez mérésen alapul.** A repó saját története kétszer
+mondta ki, hogy egy dataset-kör többe kerülhet, mint amit hoz: a **v13** (`lora_r 16`)
+mérhetően rontott, a **v14** a persona-lapon **88% -> 44%**-ra esett nyelv-regresszióval
+(lásd `orchestrator/guard.py` fejléce). A demó-modell ezért **v12 + RAG, lefagyasztva**.
+
+A 2026-08-28-i élő menetek hibái nagyrészt NEM modell-hibák. A sorrend:
+
+**1. Enum-validáció a `guard`-ban (determinisztikus, modellverzió-független).**
+   Ma a guard a tool-NEVEKET szűri, az ARGUMENTUM-ÉRTÉKEKET soha. Mérve:
+
+   | a modell kiadja | mi történik ma |
+   | :--- | :--- |
+   | `camera action=look` | `{'action': 'action=look'}` -> **veremkiíratás** |
+   | `set_mode repules` (kitalált mód) | átmegy -> **veremkiíratás** |
+   | `move forward 2 gyorsan` | **NÉMÁN eltűnik** — a robot azt mondja „megyek", és nem mozdul |
+
+   A harmadik a legrosszabb, mert néma. Mindhárom egy helyen javítható, és minden
+   jövőbeli modellt is véd — pontosan az az érv, amit a `guard.py` már megfogalmazott.
+
+**2. Red-team kör az ÉLŐ módszerrel** (kimondott kérdések, `transcript.jsonl` +
+   `analyze_chat_log.py`). Csak ezután lehet megmondani, mi maradt, amit TÉNYLEG csak a
+   modell tud.
+
+**3. Fine-tune CSAK akkor**, ha a 2. után marad olyan hiba, amit se guard, se RAG, se
+   jobb STT nem fed. Kikötés: **a v12 marad a demó-modell**, amíg egy új kör az élő
+   evalon MÉRHETŐEN jobb nem lesz.
+
+> A kamerához külön fine-tune szinte biztosan NEM kell: a `camera` tool már a
+> nyelvtanban van és a modell hívja is — csak az argumentum-értékeket találja ki, azt
+> pedig az 1. pont fogja meg.
+
+### 🔴 `scan_wifi`: a tool eredménye SEHOVÁ nem megy (mérve 2026-08-28)
+
+Külön tétel, mert **szerkezeti, és fine-tune-nal nem javítható.** A `scan_wifi()`
+VISSZAAD egy hálózatlistát (SSID, jelerősség, biztonság), az `execute_guarded` viszont
+`self.tools.dispatch(tool)`-t hív és **eldobja a visszatérési értéket**. A kimondott
+mondat ráadásul a tool lefutása ELŐTT keletkezett.
+
+Vagyis a szkennelés lefut, valódi adatot gyárt, a robot kidobja, és kitalál helyette
+valamit („Látom a Wi-Fi 6-húzásokat, Teremtőm"). Fine-tune legfeljebb azt javítaná, hogy
+GYAKRABBAN hívja meg a toolt (ma 5 kérdésből 1) — a válasz attól még kitalált maradna.
+
+**A megkülönböztetés, amin a javítás áll:** a `move`/`turn`/`stop` **cselekvő** toolok, ott
+a beszéd ÍGÉRET, tehát helyes előre kimondani. A `scan_wifi` **lekérdező** tool: ott a
+válasz MAGA az eredmény, tehát előre nem mondható ki.
+
+Ez a demó egyik beállított száma (digitális szuverenitás + „csak felsorol, sosem
+csatlakozik"), tehát a kimondott SSID-knek IGAZNAK kell lenniük.
+
 ## 🕓 Nyitva hagyott, a terv VÉGÉN (idő-függő)
 
 *   **Kameraképpel mihez kezd Szabi? — NYITOTT, feltételes döntés (a Teremtő, 2026-08-28).**

@@ -203,3 +203,98 @@ def test_scan_wifi_nem_nulla_kilepes_a_STDERR_t_is_elmondja(monkeypatch):
     monkeypatch.setattr(handlers.subprocess, "run", robban)
     with pytest.raises(RuntimeError, match="Wi-Fi is disabled"):
         scan_wifi(ParsedTool("scan_wifi", {}))
+
+
+# ── PR #101 review ───────────────────────────────────────────────────────────────
+
+def test_a_legerossebb_a_MERT_jelbol_jon_nem_a_lista_sorrendjebol():
+    """🔴 A `scan_wifi` `sort` kulcsa a NYELVTAN része, tehát a modell kimondhatja:
+    `sort=ssid` mellett a lista NÉV szerint jön vissza. A `halok[0]`-t „legerősebb"-nek
+    nevezve a robot HAZUDNA — egy pontosságról szóló demón a legrosszabb hibafajta."""
+    from freedroid.tools.handlers import wifi_mondat
+
+    nev_szerint = [{"ssid": "Alma", "signal": 30, "security": "WPA2"},
+                   {"ssid": "Zebra", "signal": 95, "security": "nyílt"}]
+
+    mondat = wifi_mondat(nev_szerint)
+
+    assert "A legerősebb: Zebra" in mondat, mondat
+    assert "A legerősebb: Alma" not in mondat
+
+
+def test_minden_lekerdezo_toolnak_van_SAJAT_formazoja():
+    """Halmaz helyett név->formázó tábla: egy második lekérdező tool felvétele különben
+    NÉMÁN a `wifi_mondat`-ot hívná az ő eredményére is."""
+    from freedroid.tools.handlers import LEKERDEZO_FORMAZOK
+    from freedroid.tools.parser import KNOWN_TOOLS
+
+    assert LEKERDEZO_FORMAZOK, "legalább a scan_wifi-nek benne kell lennie"
+    for nev, formazo in LEKERDEZO_FORMAZOK.items():
+        assert callable(formazo), nev
+        assert nev in KNOWN_TOOLS, f"{nev} nincs a KNOWN_TOOLS-ban"
+
+
+def test_a_validacio_a_STRING_halmazokat_is_kezeli():
+    """A tábla nem csak Enumokat tart: a kamera irány-szavai sima `str` halmazok. Az
+    `issubclass(..., Enum)` őr nélkül ez az ág `TypeError`-t adna.
+
+    A `ParsedTool`-t KÖZVETLENÜL építjük, nem a parseren át, és ez szándékos: a rossz
+    irány-szót (`pan up`) a parser MÁR ELUTASÍTJA, tehát ez az ág rajta keresztül nem
+    érhető el. A validáció itt MÉLYSÉGI VÉDELEM — az `ervenytelen_ok` publikus, és a
+    nyelvtan bővülhet. A teszt tehát azt méri, ami a függvény szerződése, nem egy
+    elérhetetlen forgatókönyvet."""
+    from freedroid.tools.handlers import ervenytelen_ok
+    from freedroid.tools.parser import ParsedTool
+
+    assert ervenytelen_ok(ParsedTool("camera", {"pan": "left", "degrees": 30})) is None
+
+    ok = ervenytelen_ok(ParsedTool("camera", {"pan": "up", "degrees": 30}))
+    assert ok is not None and "pan='up'" in ok, ok
+    assert "left, right" in ok, "a hibaüzenet mondja meg, mi lett volna érvényes"
+
+
+def test_a_hibauzenet_maga_nem_szall_el_nem_str_enumon(monkeypatch):
+    """Ez a HIBAÚT: a tábla ma csak str-értékű enumokat tart, de egy jövőbeli int-értékű
+    enum mellett a `', '.join(...)` maga dobna `TypeError`-t — vagyis a hibajelentés ölné
+    meg a diagnózist, épp amikor a legnagyobb szükség van rá. (PR #101 review, 2. kör.)"""
+    from enum import Enum
+
+    from freedroid.tools.handlers import ARG_ERTEKEK, ervenytelen_ok
+    from freedroid.tools.parser import ParsedTool
+
+    class Szint(int, Enum):
+        ALACSONY = 1
+        MAGAS = 2
+
+    monkeypatch.setitem(ARG_ERTEKEK["move"], "_teszt_szint", Szint)
+
+    ok = ervenytelen_ok(ParsedTool("move", {"_teszt_szint": 9}))
+
+    assert ok is not None and "1, 2" in ok, ok
+
+
+def test_a_SZTRING_jelerosseg_sem_borit_fel_a_sorrendet():
+    """Sztring jelerősség mellett a Python LEXIKÁLISAN hasonlít: `"90" > "100"`. A robot
+    így a GYENGÉBB hálózatot nevezné a legerősebbnek — pont az a hibafajta, ami ellen ez
+    a rendezés készült.
+
+    A kockázat azóta valós, hogy a típusjelölés `dict[str, Any]` lett: az `Any` a
+    sztringet is megengedi. (PR #101 review, 5. kör.)"""
+    from freedroid.tools.handlers import wifi_mondat
+
+    mondat = wifi_mondat([{"ssid": "Gyenge", "signal": "90", "security": "WPA2"},
+                          {"ssid": "Eros", "signal": "100", "security": "nyílt"}])
+
+    assert "A legerősebb: Eros" in mondat, mondat
+
+
+def test_a_HIBAS_jelerosseg_HANGOSAN_bukik_nem_csendben_nullazodik():
+    """A 2. körben javasolt `int(h.get("signal", 0))` egy hiányzó mezőt 0-nak vett volna:
+    csendes visszaesés, amiből „leggyengébb hálózat" lesz „hibás bemenet" helyett. Az
+    elfogadott alak hangos."""
+    from freedroid.tools.handlers import wifi_mondat
+
+    with pytest.raises(KeyError):
+        wifi_mondat([{"ssid": "X", "security": "WPA2"}])
+    with pytest.raises(ValueError):
+        wifi_mondat([{"ssid": "X", "signal": "erős", "security": "WPA2"}])
