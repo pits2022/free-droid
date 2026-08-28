@@ -19,6 +19,7 @@ uv run python scripts/<name>.py
 | USB eszközök: `lsusb`, `arecord -l`, `aplay -l` | `usb_devices.py` |
 | USB LTE modem: HiLink felmegy-e, van-e net | `lte_modem_test.py` |
 | Mikrofon-választás: webcam vs. omni + ALSA | `mic_select.py` |
+| Felhős vs. edge STT: ugyanaz a hang, mért késleltetés | `stt_meres.py` |
 
 > ⚠️ **Safety:** `motor_test.py` and `servo_test.py` move the robot. Prop the chassis
 > up so the tracks spin free, and keep the pan/tilt arc clear, on the first run.

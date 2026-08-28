@@ -44,3 +44,16 @@ szabi-logs/
 # infra/` be is sodorta egy ÉLŐ droplet IP-jével — a fájl azóta követetlen.
 # Kézi Ansible-futáshoz a Terraform kimenete a forrás, vagy másolj egy sablont.
 infra/ansible/inventory.ini
+
+# ÁTIRAT-NAPLÓ — SOHA nem kerülhet a repóba.
+#
+# 2026-08-28: egy `git add -A` a repó gyökeréből besöpörte, és 53 valódi interakció
+# (kérdések, Szabi válaszai, NEVEKKEL) került fel a PUBLIKUS GitHubra. A fájl a Pi
+# egyetlen olyan adata, ami se nem publikus, se nem forgatható — egy WireGuard-kulcsot
+# lehet cserélni, egy elhangzott mondatot nem.
+#
+# A mintázat SZÉLES: a napló bárhová lemásolható elemzésre (`analyze_chat_log.py`),
+# tehát nem elég a `/var/log`-beli útvonalat kizárni.
+transcript.jsonl
+transcript*.jsonl
+*/transcript.jsonl

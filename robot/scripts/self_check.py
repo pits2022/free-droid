@@ -154,20 +154,36 @@ def check_ultrahang(settings: Settings, korok: int) -> list[CheckResult]:
 # --- kamera ------------------------------------------------------------------
 
 def check_kamera_szervo(settings: Settings) -> CheckResult:
-    """Közép -> kis kitérés mindkét tengelyen -> vissza középre.
+    """Közép -> kitérés mindkét tengelyen -> vissza középre, LÁTHATÓAN.
 
-    A konstruktor középre áll, tehát a kiindulás ismert. A kis kitérés (15/10 fok) a
-    kimért hatótávon (-79..+56 / ±54 fok) belül van, tehát nem vágásba fut. Fizikai
-    igazolás csak szemmel van — lásd a modul fejlécét.
+    🔴 A VÁRAKOZÁS A LÉNYEG, és ez mérve derült ki (2026-08-28, a Teremtő: „a kamerát nem
+    mozgatta"). Az első változat egymás után adta ki a két parancsot:
+
+        kamera.pan("left", 15); kamera.pan("right", 15)
+
+    A PCA9685 regiszterét a második írás MIKROSZEKUNDUMOKKAL később állítja vissza, tehát
+    a szervó gyakorlatilag csak a VÉGÁLLAPOTOT (0 fok) látja — el sem indul. A check zöldet
+    is adott, mert az I2C-forgalom tényleg hibátlan volt: a mérőeszköz azt mérte, amit tud
+    (a busz), nem azt, amit a Teremtő látni akart (a mozgást).
+
+    Ezért: nagyobb kitérés (pan ±25, tilt ±15 — a kimért hatótávon, -79..+56 / ±54 fokon
+    belül, tehát nem fut vágásba) ÉS várakozás minden lépés után. Egy MG996R ~0,17 s alatt
+    fordul 60 fokot, tehát 25 fok ~70 ms; a 0,4 s a beállásra is fedezet, és látható.
     """
     from freedroid.camera import PanTiltCamera
 
     kamera = PanTiltCamera(settings)
+    lepes_s = 0.4
     try:
-        kamera.pan("left", 15)
-        kamera.pan("right", 15)
-        kamera.tilt("up", 10)
-        kamera.tilt("down", 10)
+        for tengely, oda, vissza, fok in (("pan", "left", "right", 25),
+                                          ("tilt", "up", "down", 15)):
+            mozgat = kamera.pan if tengely == "pan" else kamera.tilt
+            mozgat(oda, fok)
+            time.sleep(lepes_s)
+            mozgat(vissza, 2 * fok)      # át a másik szélsőségbe: a TELJES ív látszik
+            time.sleep(lepes_s)
+            mozgat(oda, fok)             # és vissza KÖZÉPRE (a nettó elmozdulás 0)
+            time.sleep(lepes_s)
     except Exception as e:  # noqa: BLE001 — I2C/PCA9685 hiba is LELET, nem összeomlás
         return fail("camera_servo", Layer.HARDWARE, Severity.WARNING, repr(e))
     finally:
@@ -176,8 +192,8 @@ def check_kamera_szervo(settings: Settings) -> CheckResult:
     # visszatérése pedig számtan (15 balra + 15 jobbra = 0), nem hardver-lelet. Amit ez
     # a check bizonyít: az I2C-busz és a PCA9685 él, és a parancs végigment.
     return ok("camera_servo", Layer.HARDWARE, Severity.WARNING,
-              "pan +-15 fok, tilt +-10 fok kiadva, I2C hiba nélkül — a TÉNYLEGES "
-              "elfordulást nézd meg szemmel")
+              "pan +-25 fok, tilt +-15 fok TELJES ívben, 0,4 s-onként, I2C hiba nélkül, "
+              "a fej középen áll — a TÉNYLEGES elfordulást nézd meg szemmel")
 
 
 def _elso_kepkocka(eszkoz: str | None):
@@ -351,6 +367,32 @@ def check_hang_hurok(settings: Settings) -> CheckResult:
 
 # --- LLM + alagút ------------------------------------------------------------
 
+def bejelentes(settings: Settings, jelentes, ok_szoveg: str, baj_szoveg: str) -> None:
+    """Szabi HANGJÁN mondja ki, hogy felállt-e. A bootkori „minden rendben?" válasza.
+
+    **Miért NEM ez váltja le a sípszót, hanem kiegészíti** (a Teremtő kérdése,
+    2026-08-28): a hang-hurok a felvételben egy 1 kHz-es CSÚCSOT keres, és onnan ad egy
+    objektív számot (csúcs/medián, mérve 8708 a küszöb 50-hez képest). Beszéddel ez a
+    mérés elveszne: a beszéd szélessávú, nincs mit keresni benne. És a 2026-08-25-i
+    lelet szerint épp ez a fajta mérés fogott meg egy hibát, amit a jelenség eltakart
+    (a hangkártya egyenáram-eltolása egy NÉMA mikrofont is „működőnek" mutatott).
+
+    Két külön feladat tehát: a síp MÉR, a mondat SZÓL a Teremtőnek. A síp a hurok-teszté
+    marad, ez a mondat pedig azt mondja ki, amit a képernyő nélkül nem látni.
+
+    A szöveg a VERDIKTTŐL függ, nem fix: a színpadon az ér valamit, ha oda sem kell nézni
+    ahhoz, hogy tudd, baj van-e. A hiba SOSEM buktatja a self-checket — a néma hangszóró
+    nem érvényteleníti a mérést, amit épp elvégeztünk.
+    """
+    from freedroid.voice import PiperTTS
+
+    szoveg = ok_szoveg if jelentes.healthy else baj_szoveg
+    try:
+        PiperTTS(settings).speak(szoveg)
+    except Exception as e:  # noqa: BLE001 — a bejelentés nem mérés, a hibája nem verdikt
+        print(f"  (a bejelentés nem szólalt meg: {e})")
+
+
 def check_llm(settings: Settings) -> list[CheckResult]:
     """Nem csak az interfész: PING a felhőre, majd egy VALÓDI generálás.
 
@@ -389,6 +431,14 @@ def check_llm(settings: Settings) -> list[CheckResult]:
 def check_lanctalp(settings: Settings, meter: float) -> CheckResult:
     """LEGUTOLJÁRA, és csak kapcsolóval: ez az egyetlen check, amitől a robot elmozdul.
 
+    KÉT fázis, és az elsőé a diagnosztikai érték:
+
+    1. **fordulás** balra 15 fok, majd vissza jobbra 15 fok. Ez hajtja a két láncot
+       EGYMÁSSAL SZEMBEN, tehát ez az egyetlen próba, ami egy döglött vagy fordítva
+       bekötött motort megfog — az egyenes menetben mindkét lánc ugyanarra megy, és a
+       robot csak ferdén indul el. Helyet sem kér: a robot a helyén marad.
+    2. **egyenes** oda-vissza: a sebesség és a watchdog együttműködése.
+
     A watchdog KÖZBEN fut, mert a menetet neki kell felügyelnie — a mérés így a valódi
     felállást próbálja ki, nem egy védtelen menetet.
     """
@@ -396,11 +446,26 @@ def check_lanctalp(settings: Settings, meter: float) -> CheckResult:
     from freedroid.motion.types import Direction, Speed
     from freedroid.safety import UltrasonicWatchdog
 
+    from freedroid.motion.types import TurnDir
+
     motion = CytronMotionController(settings)
     wd = UltrasonicWatchdog(on_obstacle=motion.stop, settings=settings,
                             heading_source=lambda: (motion.heading, motion.is_turning))
     try:
         wd.start()
+        # ELŐSZÖR A FORDULÁS, és ez a sorrend szándékos. Az egyenes menet MINDKÉT láncot
+        # UGYANABBA az irányba hajtja, tehát egy döglött vagy fordítva bekötött motort
+        # elrejt: a robot elindul, csak ferdén. A fordulás a két láncot EGYMÁSSAL SZEMBEN
+        # hajtja — ha az egyik nem megy, a robot nem fordul, hanem ívet ír le vagy áll.
+        # Ráadásul helyet sem kér: egy 15 fokos kitérés a helyén marad, tehát ez az a
+        # próba, ami egy asztalon vagy egy szűk standon is lefuttatható.
+        t_f = time.perf_counter()
+        motion.turn(direction=TurnDir.LEFT, degrees=15)
+        time.sleep(0.3)
+        motion.turn(direction=TurnDir.RIGHT, degrees=15)   # vissza a kiindulási irányba
+        fordulas = time.perf_counter() - t_f
+
+        time.sleep(0.5)
         t0 = time.perf_counter()
         motion.move(direction=Direction.FORWARD, distance=meter, speed=Speed.SLOW)
         oda = time.perf_counter() - t0
@@ -417,9 +482,18 @@ def check_lanctalp(settings: Settings, meter: float) -> CheckResult:
     # A rövidebb menet nem hiba: azt a watchdog is okozhatta (akadály). A LELET az, ha
     # a robot meg sem mozdult, vagy ha a két irány ideje nem egyezik.
     varhato = meter * 100 / (settings.motion.cm_per_s_at_full * 0.3)
-    return _cr("tracks", Layer.HARDWARE, oda > 0.2 * varhato and vissza > 0.2 * varhato,
+    # A fordulás várható ideje a SZÖGKALIBRÁCIÓBÓL jön, ugyanúgy, ahogy az egyenesé a
+    # sebességből — nem beégetett szám, tehát egy újrakalibrálás automatikusan követi.
+    forgas_varhato = 2 * 15.0 / (settings.motion.deg_per_s_at_full
+                                 * settings.motion.default_speed)
+    rendben = (oda > 0.2 * varhato and vissza > 0.2 * varhato
+               and fordulas > 0.2 * forgas_varhato)
+    return _cr("tracks", Layer.HARDWARE, rendben,
+               f"fordulás bal+jobb 15 fok {fordulas:.1f} s (várható {forgas_varhato:.1f} s), "
                f"előre {oda:.1f} s, hátra {vissza:.1f} s (várható {varhato:.1f} s/irány, "
-               f"a watchdog rövidíthette)", Severity.CRITICAL)
+               f"a watchdog rövidíthette) — a TÉNYLEGES elfordulást nézd meg szemmel: "
+               f"a robotnak a kiindulási irányába kell visszaállnia",
+               Severity.CRITICAL)
 
 
 # --- futtatás ----------------------------------------------------------------
@@ -461,6 +535,14 @@ def main() -> int:
     ap.add_argument("--skip", default="", help="kihagyandó checkek, vesszővel "
                                                "(pl. camera_servo,audio_loopback)")
     ap.add_argument("--json", action="store_true", help="gépi kimenet")
+    ap.add_argument("--speak", action="store_true",
+                    help="a VÉGÉN Szabi hangján mondja ki a verdiktet (bootkor ez a "
+                         "jelzés, amihez nem kell képernyő)")
+    ap.add_argument("--speak-ok", default="Felálltam, Teremtőm. Minden rendben.",
+                    help="amit hiba nélküli önteszt után mond")
+    ap.add_argument("--speak-fail",
+                    default="Felálltam, Teremtőm, de valami nem stimmel. Nézd meg a naplót.",
+                    help="amit bukott önteszt után mond")
     args = ap.parse_args()
 
     settings = load_settings()
@@ -504,6 +586,10 @@ def main() -> int:
         print(f"\n=== VERDIKT: {jelentes.summary()} ===")
         for r in jelentes.critical_failures():
             print(f"  🔴 {r.name}: {r.detail}")
+    # A bejelentés a VERDIKT UTÁN megy, hogy azt mondhassa ki, ami tényleg kijött — és a
+    # kilépési kódot nem befolyásolja.
+    if args.speak:
+        bejelentes(settings, jelentes, args.speak_ok, args.speak_fail)
     return jelentes.exit_code()
 
 

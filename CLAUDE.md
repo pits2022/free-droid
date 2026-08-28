@@ -269,7 +269,50 @@ Unsloth QLoRA notebook on a free T4. Base model is a one-line swap via `config.p
 (Q4_K_M for edge, Q8/f16 for cloud) → Ollama `Modelfile`. A **"red team" pass** (provocative/off-topic questions) is
 mandatory before the demo.
 
-### Evaluation loop — the HF chat Space is primary (2026-07-24)
+### Evaluation loop — LIVE SPEECH on the robot is primary (2026-08-28)
+
+**The Creator's decision: the eval is no longer the written benchmark, but a live spoken
+run on the robot, on both the 3B and the 8B** — walk the test questions, then a bit of
+family conversation. More lifelike and faster. Budget for a new model + its persona /
+red-team round: **1 day** (so a cloud VLM fits in principle — see the deferred item below).
+
+**Why this is a real upgrade, measured the same day:** the spoken question travels the
+WHOLE chain (STT → RAG → LLM → TTS), so it catches failures a typed probe structurally
+cannot. On 2026-08-28 the STT heard `arhitektúrádról` (missing `c`); BM25 is lexical, so a
+mangled proper noun returns **nothing**, not something worse — the RAG came back EMPTY and
+the model confabulated. With the correct spelling the same query retrieves fine. No written
+benchmark would ever have shown that.
+
+**The measuring tape already works on it:** `analyze_chat_log.py` now reads the Pi's
+`transcript.jsonl` as well as the HF chat schema (`hallott`/`valasz` → `user`/`assistant`,
+see `_egysegesit()`). The `valasz` field is deliberately the RAW model output with `<tool>`
+markup — that is what the tool/panel analysis needs.
+
+**⚠️ Two things the live loop costs you, both real:**
+
+- **Comparability between rounds.** The written benchmark's value was the *scored,
+  repeatable* regression check — "did fixing X cost me something elsewhere?". Live speech
+  gives different transcripts every time, so a regression can hide. `run_benchmark.py` +
+  `judge_benchmark.py` are therefore **not deleted**: keep them for the before/after
+  question, and use the live run for finding NEW failures.
+- **Blindness.** The shuffled columns / `--anchor` / binary scoring machinery existed to
+  control *scorer* drift. A live run is unblinded by construction — you know which model is
+  talking. Treat live scores as directional, not as a delta between adjacent versions.
+
+**🔴 The eval-leakage trap MOVED WITH THE METHOD, and it already fired.** The documented
+trap (below) was about the HF chat logs; the new sink is `transcript.jsonl`, and it is
+worse in one way: the debug posture records **family conversation** too. Measured on the
+first live run — 53 turns, **2 spoken questions already collided with an eval probe**
+("Mit jelent a neved?" at 1.00). The defences are unchanged and both still apply:
+`analyze_chat_log.py`'s EVAL-ÜTKÖZÉS section, and `dataset/_check_leakage.py`.
+
+**And the private-data gate is open during eval, by necessity.** The live loop needs
+`freedroid --debug`, which is exactly what turns transcript recording on (default-off, see
+the posture section). That is correct for eval and wrong for the demo: **wipe
+`/var/log/freedroid/transcript.jsonl` before the conference**, and remember that family
+conversation is now a category of content in it.
+
+### Evaluation loop — the HF chat Space (2026-07-24, superseded as PRIMARY by the above)
 
 Live chatting on `jabba77/Szabi-Chat` replaced local benchmark runs as the main eval: it
 surfaces failures the benchmarks were never written for (the greeting-vocative collapse,
@@ -329,6 +372,16 @@ fixed by dataset expansion, not a model swap.
 - The fine-tune teaches **persona and values, not facts** (knowledge → RAG, implemented in `robot/src/freedroid/rag/`; style/reasoning → fine-tuning).
 
 ## Known follow-ups (deferred)
+
+- **What does Szabi do with the camera IMAGE? — OPEN, conditional (the Creator, 2026-08-28).**
+  **If time allows: a VLM in the cloud. If not: no code — dataset/prompt, and Szabi has no
+  eyes.** Parked at the END of the plan (`docs/free-droid.md` §"Nyitva hagyott"); nothing
+  else depends on it. Today the camera is **actuator only** — `PanTiltCamera` never reads a
+  frame, the models are text-only, and `move(mode=approach_speaker)`/`follow_speaker` raise
+  `NotImplementedError: Phase 4.4 needs vision`. ⚠️ **The problem to fix is not the missing
+  vision but the LYING:** in the first live run Szabi invented a visual description ("a
+  kamera szürke, feketéje áthatolhatatlan…"), so the dataset/prompt half is needed **either
+  way** — a VLM would not cover a covered lens or "what is behind you?".
 
 Conscious gaps from the PR #4 review — not bugs, but things a future session should know:
 
@@ -414,17 +467,21 @@ new one. Host-specific values do not belong in a version-controlled file.
 
 ## Project timeline / deadlines
 
-- Hardware deployed: **2026. aug. 31.** (was aug. 20. — slipped 2026-08-15: the two MG996R
-  servos on hand turned out to be the **"360 Degrees" continuous-rotation** variant, where the
-  pulse sets *speed*, not angle. Unusable for pan/tilt; positional 180° units re-ordered. The
-  measurement and the buying trap are in `docs/free-droid.md` §4.)
+- Hardware deployed: **2026. aug. 31.** (was aug. 20. — slipped 2026-08-15 on the servos.
+  ✅ **The servo blocker is CLOSED: the positional 180° pair was fitted and tested
+  2026-08-24, calibrated 08-25.** What still lands on aug. 31 is the presenter clicker, the
+  clip-on mic and the ADS1115. The original pair was the **"360 Degrees" continuous-rotation**
+  variant, where the pulse sets *speed*, not angle — the buying trap is kept in
+  `docs/free-droid.md` §4 as a lesson, because a servo swap can hit it again. Corroborating
+  measurement: `CameraSettings` carries a per-axis **ms/degree** scale, which cannot exist on
+  a continuous-rotation servo at all.)
 - LLM fine-tune: 2026. aug. 31.
 - Cloud server: 2026. aug. 31.
-  > ⚠️ **Aug. 31. is now a three-way deadline** (hardware + fine-tune + cloud). The slip did
-  > not create new work, but it removed the buffer: nothing hardware-dependent can be
-  > *scheduled* before the servos arrive. The parts of Phase 4 that need no servo (motion,
-  > ultrasonic, voice, orchestrator) are the ones to pull forward — the pan/tilt handler is
-  > the only piece actually blocked.
+  > ⚠️ **Aug. 31. is now a three-way deadline** (hardware + fine-tune + cloud). The servo
+  > part of it is DONE (fitted + calibrated, see above), so nothing in Phase 4 is
+  > hardware-blocked any more; what aug. 31 still gates is the **trigger source** (the
+  > presenter clicker — the `run()` loop already reads from a swappable trigger interface,
+  > so this is a new source file, not integration), the clip-on mic and the ADS1115.
 - Software/code: 2026. sept. 30.
 - Integration tests: 2026. sept. 30.
 - **Talk preparation: 2026. sept. 1. → sept. 30. — owner: the Creator.** Slides + **3 timed

@@ -170,6 +170,17 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 ### 4. Kameramozgatás – Szervómotorok
 
 *   **Szervók (2 db):** MG996R, 13kg/cm torque, Metal Gear Digital, 3.0–7.2V, JR/Futaba csatlakozó.
+    *   ✅ **MEGOLDVA 2026-08-24: a pozicionáló (180°) pár beépítve és letesztelve.** A
+        tengelyenkénti szögkalibráció 2026-08-25-én elkészült (`scripts/calibrate_camera.py`,
+        a felszerelt kamerán), és a mért skála **0,0133 vs 0,0112 ms/fok** — a két szervó
+        19%-kal eltér, ezért `CameraSettings` tengelyenként külön értéket tart. Ez a mérés
+        egyben a bizonyíték is, hogy pozicionáló szervókról van szó: **folyamatos forgású
+        szervón nem létezik ms/fok**, ott az impulzus sebességet ad, nincs mit szögre
+        kalibrálni.
+
+        Az alábbi vásárlási csapda TANULSÁGKÉNT marad itt — ez vitte a hardver-határidőt
+        aug. 20-ról 31-re, és egy szervócserénél ugyanígy visszaüthet:
+
     *   🔴 **POZICIONÁLÓ (180°) változat kell — a „360 Degrees" NEM jó.** Ugyanazon az
         `MG996R` néven a boltok kétféle motort árulnak, és a különbség nem méretbeli:
         a folyamatos forgású (continuous rotation, „360°") változatban **az impulzus
@@ -184,7 +195,7 @@ XT60 PDB (4-csatornás, 200A, 50.5×25mm)
 
         Egy hobbi pozicionáló szervó fizikailag ~180°-ig megy: a **270° magában elárulja**.
         Vásárláskor a terméknév „**- 360 Degrees**" toldaléka az egyetlen jelzés — a kép,
-        a nyomaték és a fotó azonos. Ez a tétel vitte a hardver-határidőt aug. 20-ról 31-re.
+        a nyomaték és a fotó azonos.
 *   **Vezérlő:** PCA9685 16-csatornás PWM driver, I2C interfész.
     *   Időalap: 50Hz (20ms periódus), 0.5ms–2.5ms pulse – illeszkedik az MG996R specifikációhoz.
     *   Felbontás: 12-bit (~4µs lépés).
@@ -836,7 +847,7 @@ free-droid/
 | Aluminum lánctalpas váz + 2× DC motor 12V | ✅ Megvan |
 | Raspberry Pi 5 (8GB) + Active Cooler | ✅ Megvan |
 | PCA9685 16-ch PWM driver | ✅ Megvan |
-| MG996R szervómotor (2 db) | ❌ **ROSSZ TÍPUS — „360 Degrees" (folyamatos forgású).** Megvan, de pan/tilthez használhatatlan (sebesség-, nem szögvezérlés). Lásd a 4. szakaszt. |
+| MG996R szervómotor (2 db) | ⚠️ **ROSSZ TÍPUS — „360 Degrees" (folyamatos forgású),** pan/tilthez használhatatlan. Félretéve; a beépített pár a pozicionáló 180°-os (lásd lent). |
 | HC-SR04 ultrahang szenzor (10 db, 5V) | ✅ Megvan – tartalék, feszültségosztóval használható |
 | HC-SR04P ultrahang szenzor (5 db, 3–5.5V) | ✅ Megérkezett |
 | LM2596 DC-DC Step-down (voltmérős) | ✅ Megvan |
@@ -860,7 +871,7 @@ free-droid/
 | WS2812 5050 RGB LED ring | ✅ Megvan |
 | MX1508 motorvezérlő (6 db) | ✅ Megvan – ⚠️ NEM használható 11.1V LiPo-val (max 10V), kis motorokra félretéve |
 | **Cytron HAT-MDD10 motorvezérlő** | ✅ Megérkezett – 25mm goldpin strip mellékelve |
-| **MG996R szervó, POZICIONÁLÓ 180° (2 db)** | ❌ **MEGRENDELVE 2026-08-15** – a meglévő pár „360 Degrees" (folyamatos forgású), pan/tilthez használhatatlan. Keresésnél a terméknévben NE legyen „360 Degrees"; a „180°" vagy a puszta „MG996R" a jó. Ez tolta a hardver-határidőt aug. 31-re. |
+| **MG996R szervó, POZICIONÁLÓ 180° (2 db)** | ✅ **BEÉPÍTVE ÉS LETESZTELVE 2026-08-24**, kalibrálva 08-25 (`calibrate_camera.py`; 0,0133 vs 0,0112 ms/fok, tengelyenként külön). Keresésnél a terméknévben NE legyen „360 Degrees"; a „180°" vagy a puszta „MG996R" a jó. |
 | **2DOF Pan-Tilt gimbal keret MG996R-hez** | ❌ **RENDELD MEG ELŐSZÖR** (szűk keresztmetszet, szállítási idő) – AliExpress: `pan tilt bracket MG996R aluminum 2DOF` |
 | ~~USB LTE modem (Huawei E3372 HiLink)~~ | ✅ **KIVÁLTVA (2026-08-10, a Teremtő): a saját 4G wifi router (`Wifi196`) adja a helyszíni netet.** Nem kell megrendelni – lekerül a kritikus útról. Ráadásul jobb: a router a robotot és a Teremtő laptopját UGYANARRA a hálózatra teszi, tehát a helyszíni SSH LAN-on megy, VPN és CGNAT nélkül – ez a tartalék belépési út (lásd `edge_robot`/`robot_hotspot_ssid`). |
 
@@ -949,9 +960,10 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 **1.5 Hardver smoke-test (szoftver nélkül)**
 - [x] Motor teszt: egyszerű GPIO szkript, mindkét motor előre/hátra — **kész** (a bal motor
       fordított polaritása javítva)
-- [~] Szervó teszt: PCA9685 sweep CH0/CH1 — **a vezérlés kész, a szervó rossz típus.** A chip
-      hibátlan (`CH0/CH1 OFF = 307` = 1,50 ms, MODE1=0x00, PRESCALE=121), de a meglévő pár
-      **folyamatos forgású (360°)**, lásd a 4. szakaszt. Pozicionáló párra vár.
+- [x] Szervó teszt: PCA9685 sweep CH0/CH1 — **kész (2026-08-24), a pozicionáló 180°-os
+      párral.** Az eredeti pár folyamatos forgású („360 Degrees") volt és félre lett téve; a
+      vásárlási csapda tanulságként a 4. szakaszban maradt. Kalibrálva 08-25:
+      `calibrate_camera.py`, tengelyenként külön skála (0,0133 vs 0,0112 ms/fok).
 - [x] HC-SR04(P) teszt: távolságmérés kiírása — **kész**. Két, egymást követő fizikai hiba
       után: 5 V + osztó kell a sima panelhez, és a breadboard **tápsínje hasított** (830-as
       lapon 4 sín-szakasz), ezért a szenzor földje nem ért a Pi földjéhez.
@@ -1099,3 +1111,43 @@ Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se 
 *   **TTS-hang:** `hu_HU-anna-medium`, fiatalosabb karakterhez **pitch-hangolás a hangmintán** (tesztelési feladat, Fázis 4.2).
 *   **Nyelv:** Magyar-only. A Hacktivity előadáson a Teremtő tolmácsol angolra — ez az üzenet része, nem korlát.
 *   **„Tudók" (LLM routing):** OPCIONÁLIS, alapból KIKAPCSOLVA. Csak családi/szórakoztató módban (`mode: extended`). Nehéz kérdésnél Szabi „megpuskázza" a választ egy nagyobb modelltől (alapból Opus 4.8), de a saját Yotengrit-értékrendjén szűri — mindig hozzátesz saját nézőpontot, finoman jelzi a puskázást. Hangkapcsoló: „Szabi, puskázz" / „Szabi, ne puskázz". A demón KI (szuverenitás).
+
+---
+
+## 🕓 Nyitva hagyott, a terv VÉGÉN (idő-függő)
+
+*   **Kameraképpel mihez kezd Szabi? — NYITOTT, feltételes döntés (a Teremtő, 2026-08-28).**
+    **Ha belefér az időbe: VLM a felhőben. Ha nem: nincs kód — dataset/prompt, és Szabinak
+    nincs szeme.** Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
+
+    **A mai állapot, mérve:** a kamera **csak aktuátor**. A `PanTiltCamera` `pan`/`tilt`/
+    gesztust (`face_speaker`, `nod`, `scan`) tud, és **soha nem olvas képkockát**; a
+    `health.check_camera` csak azt nézi, létezik-e `/dev/video*`; a `self_check.py` elkap
+    egy képkockát, de csak a **szórását** méri (bring-up eszköz, nem a robot része). A
+    webkamera valódi szerepe a **mikrofonja** (2026-08-15). A modellek szövegesek, sehol
+    nincs multimodális út — a `move(mode=approach_speaker)` és a `follow_speaker` ezért
+    `NotImplementedError: Phase 4.4 needs vision`, hangosan.
+
+    🔴 **A megoldandó probléma NEM a hiányzó látás, hanem a hazugság.** Az első élő
+    menetben (2026-08-28) a „Nézz körül a kameráddal" erre futott: *„Körben nézek,
+    Teremtőm, de nem látom semmit. A kamera szürke, feketéje áthatolhatatlan. Nem tudom
+    megmondani, milyen falak vannak ott."* — az első fele igaz, a második **kitalált
+    vizuális leírás**. Ha a színpadon valaki megkérdezi, hogy „mit látsz?", Szabi találni
+    fog valamit. Ez a kockázat **ma is fennáll**, a látástól függetlenül.
+
+    **A két ág:**
+
+    *   **VLM a felhőben** (Moondream2 / Qwen2-VL a GPU-n). Szerkezetileg UGYANAZ, amit a
+        `whisper-server`-rel már megcsináltunk (2026-08-28): egy modell, a VPN-címre kötött
+        végpont, tűrő kliens visszaeséssel. A minta tehát kész és mért — a kockázat nem a
+        beépítés, hanem az ÚJ MODELL: saját persona-kérdés (mit mond arra, amit lát), saját
+        red-team kör, és a kép feltöltése a tunnelen. Csak akkor, ha a szept. 30-i szoftver-
+        határidő után marad idő.
+    *   **Nincs kód — dataset/prompt.** Szabi mondja ki, hogy **van feje, de nincs szeme**:
+        „Fordítom a fejem feléd, Teremtőm, de nem látok." A `camera` tool közben ugyanúgy
+        FUT, tehát a fej tényleg megmozdul — a gesztus marad, csak a konfabuláció esik ki.
+        Egy szuverenitásról szóló előadáson ez erősebb is, mint egy kamu képleírás.
+
+    ⚠️ **Bármelyik ág nyer, az alsó ág dataset-munkája KELL** — az a demó-kockázat fedezete,
+    és a VLM sem hoz be minden kérdést (rossz fény, letakart lencse, „mi van mögötted?").
+    Ezért ez a tétel akkor is elvégzendő, ha a VLM belefér.

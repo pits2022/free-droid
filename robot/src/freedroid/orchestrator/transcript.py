@@ -27,6 +27,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from freedroid.config.settings import debug_mode
+
 DEFAULT_PATH = Path(
     os.environ.get("FREEDROID_TRANSCRIPT_LOG", "/var/log/freedroid/transcript.jsonl"))
 
@@ -50,7 +52,13 @@ class Interakcio:
 
 
 def log(esemeny: Interakcio, path: Path | None = None) -> None:
-    """Egy sort fűz a naplóhoz. SOSEM dob kivételt — a napló nem állíthatja meg a robotot.
+    """Egy sort fűz a naplóhoz — CSAK debug posztúrában. SOSEM dob kivételt.
+
+    🔴 A KAPUT ITT tesszük, egyetlen helyen, nem a hívóknál: ez az a fájl, ami a Pi
+    egyetlen NEM publikus és NEM forgatható adatát tartalmazza (a Teremtő nyers,
+    elhangzott mondatait). Egy kihagyott kapu egy hívónál csendben visszahozná az egész
+    kockázatot — egy WireGuard-kulcsot lehet forgatni, egy kiszivárgott beszélgetést nem.
+    A polaritás és az indoklás: `freedroid.config.settings.debug_mode()`.
 
     A színpadon egy tele lemez vagy egy hiányzó könyvtár nem némíthatja el Szabit,
     ezért a hibát csak jelezzük a stderr-en (a journald elkapja) és megyünk tovább.
@@ -71,6 +79,8 @@ def log(esemeny: Interakcio, path: Path | None = None) -> None:
     `os.write` egy `O_APPEND` fd-re a javítás. A kár így is lokális marad: az `olvas()`
     a sérült sort átugorja, a fájl egésze nem válik elemezhetetlenné.
     """
+    if not debug_mode():
+        return
     cel = path or DEFAULT_PATH
     sor = {"ts": datetime.now(UTC).isoformat(timespec="seconds"),
            **asdict(esemeny)}

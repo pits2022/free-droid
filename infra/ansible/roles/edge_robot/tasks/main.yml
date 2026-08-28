@@ -129,6 +129,23 @@
 # pyproject.toml-ban még nem létezett.
 #
 # Ezért NEM némán megyünk tovább: kiírjuk, mit provisionálunk. Nem hiba, csak látható.
+# FETCH ELŐSZÖR. A `--porcelain=2 --branch` `ab +0 -0`-ja a LEGUTÓBBI FETCH-hez mér, nem
+# az origin valódi állapotához — egy sosem fetchelt Pi tehát „naprakész"-nek látszik,
+# miközben commitokkal le van maradva. 2026-08-28-án ez KÉTSZER vitt el egy tesztkört
+# (egy kamera-javítást a régi kódon próbáltunk), a repó szerint korábban napokat.
+#
+# `failed_when: false`: a helyszínen lehet, hogy nincs net. Egy sikertelen fetch nem
+# akadályozhatja meg a provisioningot — csak annyit jelent, hogy a lenti összevetés a
+# régi ismereteinkre épül, és ezt a `-1` jelzi.
+- name: Fetch the upstream refs so "behind" means something
+  when: robot_project.stat.exists
+  command:
+    argv: [git, -C, "{{ robot_src_dir }}", fetch, --quiet]
+  register: robot_fetch
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
 - name: Read the delivered checkout (branch, commit, dirty)
   when: robot_project.stat.exists
   command:
@@ -146,10 +163,21 @@
          | map('regex_replace', '^# branch\.', '') | join(', ') }}
     robot_piszkos: >-
       {{ robot_checkout.stdout_lines | default([]) | reject('match', '^#') | list }}
+    # A `# branch.ab +A -B` sorból a B (lemaradás). Hiányzik, ha nincs upstream.
+    robot_lemaradas: >-
+      {{ (robot_checkout.stdout_lines | default([])
+          | select('match', '^# branch\.ab ') | first | default('')
+         ).split('-') | last | default('0', true) | trim | int }}
   debug:
     msg: >-
-      Kiszállított kód: {{ robot_fej }}{{ ' — FIGYELEM: %d módosított fájl a munkafán, a
-      provisioning NEM ezt frissíti' % (robot_piszkos | length) if robot_piszkos else '' }}
+      Kiszállított kód: {{ robot_fej }}{{
+        ' — FIGYELEM: %d módosított fájl a munkafán, a provisioning NEM ezt frissíti'
+        % (robot_piszkos | length) if robot_piszkos else '' }}{{
+        ' — 🔴 %d COMMITTAL LE VAN MARADVA az upstreamtől: `git -C %s pull` ELŐSZÖR, '
+        'különben a RÉGI kódot méred'
+        % (robot_lemaradas | int, robot_src_dir) if robot_lemaradas | int > 0 else '' }}{{
+        ' — (a fetch nem sikerült, tehát a lemaradás nem ellenőrizhető)'
+        if robot_fetch.rc | default(0) | int != 0 else '' }}
 
 - name: Sync the robot project venv with uv
   when: robot_project.stat.exists
@@ -259,6 +287,35 @@
           create 0640 {{ robot_user }} {{ robot_user }}
       }
 
+# --- Az orchestrátor mint szolgáltatás (Phase 4.3) ---
+#
+# Amíg ez nem létezett, a `freedroid-health` `check_orchestrator_service`-e BUKOTT, és a
+# robot ezért safe-mode-ban állt — dokumentáltan szándékosan (nincs orchestrátor = nem
+# működő robot). Ez a unit zárja azt a tételt.
+#
+# ⚠️ A TRIGGER: a hurok ma billentyűzetről olvas, systemd alatt viszont NINCS stdin, tehát
+# a forrás azonnal elhallgat (naplózza is). A szolgáltatás így BOOTKOR FELÁLL, bemelegíti a
+# modellt, futtatja a watchdogot és VÁR — ez a helyes Phase 4.3 állapot. A gombnyomás az
+# evdev-forrással érkezik (a kattintó 2026-08-31-én), ami ugyanabba a sorba tesz.
+# Bekapcsolás után, parancs kiadása NÉLKÜL is látszódjon (és HALLATSZÓDJON), hogy minden
+# felállt — a Teremtő kérése, 2026-08-28. A hang-hurok 1 kHz-es sípja a hallható jelzés,
+# ami képernyő nélkül is működik; a részletek a journalban.
+- name: Install the boot self-check systemd service
+  when: robot_project.stat.exists
+  template:
+    src: freedroid-selfcheck.service.j2
+    dest: /etc/systemd/system/freedroid-selfcheck.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Install the orchestrator systemd service
+  when: robot_project.stat.exists
+  template:
+    src: freedroid.service.j2
+    dest: /etc/systemd/system/freedroid.service
+    mode: '0644'
+  notify: Reload systemd
+
 # --- Vital-function health check (runs at boot + on a timer) ---
 - name: Install the health-check systemd service
   when: robot_project.stat.exists
@@ -287,6 +344,24 @@
     name: freedroid-health.timer
     enabled: true
     state: started
+
+# `restarted`, nem `started`: egy futó példány a RÉGI kódot futtatja, és ebben a projektben
+# a "melyik kód fut valójában" kérdés már napokat vitt el (a Pi hetekig régi branchen állt).
+# `enabled`, de NEM indítjuk most: a self-check megnyitja a gpiochipet és a hangeszközt,
+# amit az épp futó orchestrátor fog — egy provisioning közbeni futtatás tehát ütközne.
+# Bootkor a `Before=` sorrend ezt megoldja. Kézzel: `systemctl stop freedroid` először.
+- name: Enable the boot self-check (runs at next boot, not now)
+  when: robot_project.stat.exists and robot_selfcheck_at_boot
+  systemd:
+    name: freedroid-selfcheck
+    enabled: true
+
+- name: Enable and (re)start the orchestrator
+  when: robot_project.stat.exists and robot_orchestrator_enabled
+  systemd:
+    name: freedroid
+    enabled: true
+    state: restarted
 
 # ── SSH hardening ────────────────────────────────────────────────────────────
 # A sorrend nem esztétika: ELŐBB ellenőrizzük, hogy van érvényes kulcs, és csak

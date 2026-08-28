@@ -472,6 +472,24 @@ _IGAZ = {"1", "true", "yes", "igen", "on"}
 _HAMIS = {"0", "false", "no", "nem", "off"}
 
 
+def debug_mode() -> bool:
+    """Fut-e a robot DEBUG POSZTÚRÁBAN. Alapból NEM, és a polaritás a lényeg.
+
+    A Teremtő döntése (2026-08-10): a demóig hibakereső posztúra kell (átirat-napló,
+    bőbeszédű naplózás), a demóra viszont a cél az, hogy *egy ellopott robot vagy
+    SD-kártya ne adjon semmit, ami nincs benne a publikus GitHub-repóban*. Ez elérhető
+    bár, mert a modell, a prompt és a korpusz SZÁNDÉKOSAN publikus — egyedül a rögzített
+    beszélgetés bukna el rajta.
+
+    Ezért ALAPÉRTELMEZÉSBEN HAMIS: egy kapcsoló, amit ki KELL kapcsolni, előbb-utóbb
+    bekapcsolva marad, és a hibája a Teremtő beszélgetése egy lopható kártyán. Így a
+    "elfelejtettem" annyit tesz: "nem naplózott".
+
+    A szó szerinti értéklista nem pedantéria: `bool("hamis")` Pythonban IGAZ.
+    """
+    return os.environ.get("FREEDROID_DEBUG", "").strip().lower() in _IGAZ
+
+
 def _ertek(kulcs: str, nyers: str, tipus: str):
     """Sztring -> a mező típusa. Ismeretlen/rossz érték HANGOS hiba.
 

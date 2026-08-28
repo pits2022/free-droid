@@ -129,13 +129,11 @@ def test_start_inditja_a_watchdogot_close_lezar_mindent():
     assert o.watchdog.stopped is True and m.closed is True
 
 
-def test_a_hurok_meg_NEM_letezik_es_ezt_hangosan_mondja():
-    """A `run()` a voice/llm stubokra vár. Ha valaki megírja, ez a teszt szól, hogy
-    frissítse — egy csendben no-oppá vált hurok sokkal rosszabb lenne."""
-    o, _ = orch()
-    with pytest.raises(NotImplementedError):
-        import asyncio
-        asyncio.run(o.run())
+# A `run()` hurok 2026-08-28-án MEGSZÜLETETT, és az őrszem-teszt (ami a
+# `NotImplementedError`-t várta) pontosan úgy szólt, ahogy tervezve volt: nem bukott,
+# hanem BERAGADT — a `run()` a stdin-en várt egy gombnyomásra a teszt-futásban. Ez
+# hasznosabb jelzés volt egy piros pipánál, mert megmutatta, hogy a hurok tényleg fut.
+# A hurok saját tesztjei: `tests/test_run_hurok.py`.
 
 
 # --- PR #85 review ---
@@ -320,3 +318,23 @@ def test_a_MASODIK_generalas_bukasa_is_safe_mode(monkeypatch):
     assert e.forras == "safe"
     # A nyers első választ a napló megőrzi — e nélkül pont a legérdekesebb kör veszne el.
     assert e.valasz.startswith("I am a robot")
+
+
+def test_a_be_nem_kotott_vezerlo_NEM_veremkiiratast_ad(caplog):
+    """A be nem kötött vezérlő VÁRT állapot (ma a kamera: a pan/tilt szervók
+    2026-08-31-ig folyamatos forgásúak), nem programhiba. Egy tíz soros traceback
+    körönként elrejti a naplóban a valódi hibákat — mérve 2026-08-28, élő menetben.
+
+    A robot ettől MEGSZÓLAL, ez a rész változatlan."""
+    import logging
+
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog())   # camera=None
+    with caplog.at_level(logging.WARNING, logger="freedroid.orchestrator"):
+        beszed = o.execute("Külön nézem, Teremtőm. <tool>camera scan</tool>")
+
+    assert beszed == "Külön nézem, Teremtőm."
+    rekordok = [r for r in caplog.records if "camera" in r.getMessage()]
+    assert rekordok, "a be nem kötött vezérlőnek nyomot KELL hagynia"
+    assert all(r.exc_info is None for r in rekordok), \
+        "…de veremkiíratás nélkül — az elrejti a valódi hibákat"
+    assert rekordok[0].levelno == logging.WARNING

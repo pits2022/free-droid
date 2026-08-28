@@ -128,3 +128,21 @@ robot_alsa_capture_card: "U20"           # a webkamera beépített mikrofonja
 #
 # Elgépelésre a betöltő figyelmeztet (stderr -> journald), de nem áll le tőle.
 robot_env: {}
+
+# Fusson-e az orchestrátor SZOLGÁLTATÁSKÉNT. Alapból igen: enélkül a `freedroid-health`
+# `check_orchestrator_service`-e bukik, és a robot safe-mode-ban áll.
+#
+# Kikapcsolva (`-e robot_orchestrator_enabled=false`) a unit TELEPÜL, de nem indul — ez
+# kell a kézi menetekhez: két példány egyszerre nem tudja fogni a gpiochipet és a
+# hangeszközt, tehát egy futó szolgáltatás mellett a `uv run freedroid --debug` elhasal.
+robot_orchestrator_enabled: true
+
+# Fusson-e az AKTÍV önteszt minden bootkor, az orchestrátor ELŐTT. A hang-hurok sípja a
+# hallható „felálltam" jelzés — képernyő nélkül, a színpadon is. `--live-motion` NÉLKÜL:
+# egy magától elinduló lánctalp egy asztalon nem diagnosztika, hanem baleset.
+robot_selfcheck_at_boot: true
+
+# Amit a boot-önteszt a VÉGÉN kimond, Szabi hangján. Ez a jelzés, amihez nem kell
+# képernyő — a színpadon bekapcsolod, és hallod, hogy rendben van-e.
+robot_selfcheck_szoveg_ok: "Felálltam, Teremtőm. Minden rendben."
+robot_selfcheck_szoveg_baj: "Felálltam, Teremtőm, de valami nem stimmel. Nézd meg a naplót."

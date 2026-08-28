@@ -43,3 +43,22 @@ def settings() -> Settings:
 
 
 requires_pi = pytest.mark.skipif(not IS_PI, reason="requires real Raspberry Pi hardware")
+
+
+@pytest.fixture(autouse=True)
+def nincs_valodi_kamera(monkeypatch):
+    """Az `Orchestrator` NE építsen valódi pan/tilt kamerát a tesztekben.
+
+    A kamera 2026-08-28-án lett bekötve (`camera=None` -> épít egyet). A fejlesztőgépen
+    ez láthatatlan, mert a `board` import elhasal és a tűrő ág `None`-t ad — a Pi-n
+    viszont SIKERÜLNE, és a `PanTiltCamera` konstruktora középre hajtja mindkét
+    tengelyt. Vagyis a teszt-suite MEGMOZGATNÁ a szervókat, körönként, egy asztalon álló
+    roboton. Egy tesztfuttatás ne nyúljon hardverhez, hacsak nem az a tárgya
+    (`@requires_pi`).
+
+    Aminek valódi kamera kell, az `monkeypatch`-csel visszaveheti, vagy adjon be sajátot
+    az `Orchestrator(camera=...)` paraméterben — az ág érintetlen.
+    """
+    from freedroid.orchestrator import Orchestrator
+
+    monkeypatch.setattr(Orchestrator, "_kamera", staticmethod(lambda settings: None))
