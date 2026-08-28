@@ -30,7 +30,8 @@ from freedroid.orchestrator import transcript
 from freedroid.orchestrator.guard import GuardResult, guard
 from freedroid.rag.context import build_prompt
 from freedroid.safety import UltrasonicWatchdog
-from freedroid.tools.handlers import ToolRegistry
+from freedroid.tools.handlers import (LEKERDEZO_TOOLOK, ToolRegistry,
+                                      wifi_mondat)
 from freedroid.voice.trigger import Esemeny
 
 if TYPE_CHECKING:
@@ -327,18 +328,33 @@ class Orchestrator:
                         [t.name for t in eredmeny.toolok])
             return BIZTONSAGI_ELHARITAS
 
+        lekerdezes: list[str] = []
         for tool in eredmeny.toolok:
             try:
-                self.tools.dispatch(tool)
+                talalat = self.tools.dispatch(tool)
+                # 🔴 A LEKÉRDEZŐ toolok eredményét KI KELL MONDANI. Eddig a `dispatch()`
+                # visszatérési értéke a földre esett, tehát a `scan_wifi` lefutott, valódi
+                # hálózatlistát gyártott, a robot eldobta — és kitalált helyette valamit.
+                # A mondat DETERMINISZTIKUS (`wifi_mondat`), nem a modellel mondatjuk ki:
+                # a lista TÉNYEK halmaza, és a demó üzenete épp a pontosság.
+                if tool.name in LEKERDEZO_TOOLOK:
+                    lekerdezes.append(wifi_mondat(talalat))
             except LookupError as e:
                 # BE NEM KÖTÖTT vezérlő: konfigurációs állapot, nem programhiba, tehát
                 # nem érdemel veremkiíratást — körönként megismételve épp a VALÓDI
                 # hibákat rejtené el a naplóban. A robot ettől megszólal, csak az adott
                 # tool marad el, és a napló megmondja, melyik.
                 log.warning("%s: %s", tool.name, e)
-            except Exception:  # noqa: BLE001 — a beszéd fontosabb, mint a tool
+            except Exception as e:  # noqa: BLE001 — a beszéd fontosabb, mint a tool
                 log.exception("tool-hívás sikertelen: %r %r", tool.name, tool.args)
-        return eredmeny.beszed
+                # A LEKÉRDEZÉS hibáját KI IS MONDJUK. Egy cselekvő toolnál a néma bukás
+                # elmegy (a robot nem mozdul, az látszik), egy lekérdezésnél viszont a
+                # modell bevezető mondata („Körülnézek") ígéretként ott marad, és a
+                # hallgató azt hinné, hogy nincs egy hálózat sem.
+                if tool.name in LEKERDEZO_TOOLOK:
+                    lekerdezes.append("Nem tudtam megnézni, Teremtőm.")
+                    log.warning("lekérdező tool hibája kimondva: %s", e)
+        return " ".join([eredmeny.beszed, *lekerdezes]).strip()
 
     def guard_result(self, valasz: str) -> GuardResult:
         """A szétválasztás végrehajtás NÉLKÜL — naplózáshoz és szárazpróbához."""

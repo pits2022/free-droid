@@ -338,3 +338,67 @@ def test_a_be_nem_kotott_vezerlo_NEM_veremkiiratast_ad(caplog):
     assert all(r.exc_info is None for r in rekordok), \
         "…de veremkiíratás nélkül — az elrejti a valódi hibákat"
     assert rekordok[0].levelno == logging.WARNING
+
+
+# ── LEKÉRDEZŐ toolok: az eredményt KI KELL MONDANI (2026-08-28) ──────────────────
+
+def test_a_scan_wifi_EREDMENYE_elhangzik_nem_a_modell_kepzelete():
+    """🔴 A nap egyik legfontosabb hibája: a `scan_wifi` VISSZAAD egy hálózatlistát, az
+    orchestrátor viszont eldobta a `dispatch()` visszatérési értékét — a szkennelés
+    lefutott, valódi adatot gyártott, a robot kidobta, és kitalált helyette valamit
+    („Látom a Wi-Fi 6-húzásokat, Teremtőm", mérve az élő menetben).
+
+    Fine-tune ezen NEM segítene: legfeljebb gyakrabban hívná meg a toolt, a válasz attól
+    még kitalált maradna. A kimondott SSID-nek IGAZNAK kell lennie — ez a demó üzenete."""
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog())
+    o.tools.register("scan_wifi", lambda t: [
+        {"ssid": "Wifi196", "signal": 88, "security": "WPA2"},
+        {"ssid": "Vendeg", "signal": 61, "security": "nyílt"},
+    ])
+
+    beszed = o.execute("Körülnézek, Teremtőm. <tool>scan_wifi</tool>")
+
+    assert beszed.startswith("Körülnézek, Teremtőm.")
+    assert "Wifi196" in beszed and "WPA2" in beszed
+    assert "Vendeg" in beszed and "nyílt" in beszed, "a NYÍLT hálózat a demó lényege"
+
+
+def test_ures_scan_eseten_is_MOND_valamit():
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog())
+    o.tools.register("scan_wifi", lambda t: [])
+
+    beszed = o.execute("Körülnézek. <tool>scan_wifi</tool>")
+
+    assert "Nem látok hálózatot" in beszed
+
+
+def test_a_LEKERDEZES_hibaja_is_elhangzik():
+    """Egy cselekvő toolnál a néma bukás elmegy (a robot nem mozdul, az látszik). Egy
+    lekérdezésnél viszont a modell bevezető mondata ígéretként ott marad, és a hallgató
+    azt hinné, hogy tényleg nincs egy hálózat sem."""
+    def robban(_):
+        raise RuntimeError("nmcli sikertelen: Wi-Fi is disabled")
+
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog())
+    o.tools.register("scan_wifi", robban)
+
+    beszed = o.execute("Körülnézek. <tool>scan_wifi</tool>")
+
+    assert "Nem tudtam megnézni" in beszed
+    assert "Nem látok hálózatot" not in beszed, "a hiba NEM ugyanaz, mint az üres lista"
+
+
+def test_a_CSELEKVO_tool_eredmenye_NEM_kerul_a_beszedbe():
+    """A cselekvő toolnál a mondat ÍGÉRET, a beszédet nem szabad megtoldani — ez a
+    megkülönböztetés az egész mechanizmus alapja.
+
+    A `set_mode`-dal mérjük, NEM a `move`-val, és ez nem részletkérdés: a `_move`
+    `None`-t ad vissza, tehát egy „mondj ki minden visszatérési értéket" hiba mellett is
+    átmenne. A `_set_mode` VISSZAAD egy `Mode`-ot — vagyis ez a teszt akkor is szól, ha a
+    szűrés a `LEKERDEZO_TOOLOK` helyett puszta „nem None"-ra menne. (Mutációval mérve.)"""
+    o = Orchestrator(motion=FakeMotion(), watchdog=FakeWatchdog())
+
+    beszed = o.execute("Nyugalomba helyezkedem. "
+                       "<tool>set_mode standby</tool><tool>move forward 2</tool>")
+
+    assert beszed == "Nyugalomba helyezkedem."

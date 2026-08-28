@@ -29,7 +29,8 @@ import logging
 import re
 from dataclasses import dataclass
 
-from freedroid.tools.parser import KNOWN_TOOLS, ParsedTool, parse_tools
+from freedroid.tools.handlers import ervenytelen_ok
+from freedroid.tools.parser import KNOWN_TOOLS, ParsedTool, parse_tools_reszletesen
 
 log = logging.getLogger(__name__)
 
@@ -161,9 +162,25 @@ def guard(valasz: str) -> GuardResult:
     felsorolás jogos, a csatlakozás nem — a robot elhárít ÉS felsorol, ahogy a
     "vegyes kérés" dataset-kategória tanítja.
     """
-    hivasok = parse_tools(valasz)
-    ismert = _ismetles_nelkul(tuple(h for h in hivasok if h.name in KNOWN_TOOLS))
+    hivasok, hibas_blokkok = parse_tools_reszletesen(valasz)
+    # ÉRTELMEZHETETLEN blokkok: eddig NÉMÁN tűntek el a parserben. A
+    # `move forward 2 gyorsan` (kitalált sebesség-szó) így nulla toolt adott, a robot
+    # pedig kimondta, hogy "megyek" — és nem mozdult. Nyomtalan hiba, a legrosszabb fajta.
+    for blokk in hibas_blokkok:
+        log.warning("értelmezhetetlen tool-blokk, eldobva: %r", blokk)
+
+    ismert = tuple(h for h in hivasok if h.name in KNOWN_TOOLS)
     eldobott = tuple(h.name for h in hivasok if h.name not in KNOWN_TOOLS)
+
+    # KITALÁLT ÉRTÉK: a név ismert, az argumentum értéke nem. Eddig ez a KEZELŐBEN dobott
+    # `ValueError`-t, azaz körönkénti veremkiíratást — most már ide sem jut el.
+    ervenyes = []
+    for hivas in ismert:
+        if (ok := ervenytelen_ok(hivas)) is not None:
+            log.warning("érvénytelen tool-argumentum, eldobva: %s", ok)
+            continue
+        ervenyes.append(hivas)
+    ismert = _ismetles_nelkul(tuple(ervenyes))
 
     # A tool-blokk saját sorban is állhat — a törlése után maradó ÜRES SOROKAT is össze
     # kell vonni, különben a TTS-nek adott szövegben "Megyek.\n\nViszlát." marad.

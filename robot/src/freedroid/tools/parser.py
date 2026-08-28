@@ -79,7 +79,22 @@ def parse_tools(text: str, *, strict: bool = False) -> list[ParsedTool]:
     Malformed blocks are dropped (tolerant, runtime default) or raise
     ``ToolParseError`` naming the block (``strict=True``, for the dataset validator).
     """
+    return parse_tools_reszletesen(text, strict=strict)[0]
+
+
+def parse_tools_reszletesen(text: str, *, strict: bool = False
+                            ) -> tuple[list[ParsedTool], list[str]]:
+    """Ugyanaz, de az ELDOBOTT blokkok NYERS szövegét is visszaadja.
+
+    A toleráns mód eddig NÉMÁN nyelte el az értelmezhetetlen blokkokat, és ez mérve
+    okozott bajt (2026-08-28): a `move forward 2 gyorsan` — kitalált sebesség-szó — nulla
+    toolt adott, a robot pedig kimondta, hogy "megyek", és nem mozdult. Nyomtalan hiba.
+
+    Az eldobott blokk a HÍVÓNAK kell (a `guard` naplózza), és dataset-visszajelzés is:
+    megmondja, MIT talál ki a modell, nem csak azt, hogy valamit elrontott.
+    """
     out: list[ParsedTool] = []
+    hibasak: list[str] = []
     for m in _BLOCK.finditer(text or ""):
         try:
             out.append(_parse_one(m.group(1)))
@@ -87,7 +102,8 @@ def parse_tools(text: str, *, strict: bool = False) -> list[ParsedTool]:
             if strict:
                 raise
             # tolerant: skip this block, keep the valid siblings (fail-closed)
-    return out
+            hibasak.append(m.group(1).strip())
+    return out, hibasak
 
 
 def _is_num(tok: str) -> bool:
