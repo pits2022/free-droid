@@ -21,10 +21,15 @@ Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') 
 # `--live-motion` SZÁNDÉKOSAN NINCS. Bekapcsoláskor a robot lehet asztalon, táskában vagy
 # a Teremtő kezében — egy magától elinduló lánctalp ott nem diagnosztika, hanem baleset.
 # A mozgó próbát kézzel kell kérni, felpolcolt robotnál.
-ExecStart={{ robot_venv_bin }}/python {{ robot_src_dir }}/scripts/self_check.py
+ExecStart={{ robot_venv_bin }}/python {{ robot_src_dir }}/scripts/self_check.py \
+  --speak --speak-ok "{{ robot_selfcheck_szoveg_ok }}" \
+  --speak-fail "{{ robot_selfcheck_szoveg_baj }}"
 
-# A HANG-HUROK a hallható „felálltam" jelzés: 1 kHz-et játszik le és vissza is hallgatja.
-# Ez az, amiért ennek boot-kor van értelme — képernyő nélkül is tudod, hogy kész van.
+# KÉT hallható jel, két külön feladattal:
+#   * a hang-hurok 1 kHz-es sípja MÉR (csúcs/medián a felvételben — objektív szám, ez
+#     fogta meg 2026-08-25-én a néma mikrofont, amit a jelenség eltakart),
+#   * a záró MONDAT Szabi hangján SZÓL a Teremtőnek, és a VERDIKTET mondja ki.
+# Ezért nem cserélte le a beszéd a sípot: beszéddel a mérés veszne el.
 
 # A bukás NEM állítja meg a bootot: a `freedroid.service` csak `Wants`-szal függ tőle,
 # tehát az orchestrátor egy bukott önteszt UTÁN is elindul. Egy meglazult kamerakábel

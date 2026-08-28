@@ -141,3 +141,8 @@ robot_orchestrator_enabled: true
 # hallható „felálltam" jelzés — képernyő nélkül, a színpadon is. `--live-motion` NÉLKÜL:
 # egy magától elinduló lánctalp egy asztalon nem diagnosztika, hanem baleset.
 robot_selfcheck_at_boot: true
+
+# Amit a boot-önteszt a VÉGÉN kimond, Szabi hangján. Ez a jelzés, amihez nem kell
+# képernyő — a színpadon bekapcsolod, és hallod, hogy rendben van-e.
+robot_selfcheck_szoveg_ok: "Felálltam, Teremtőm. Minden rendben."
+robot_selfcheck_szoveg_baj: "Felálltam, Teremtőm, de valami nem stimmel. Nézd meg a naplót."
