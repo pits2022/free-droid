@@ -269,7 +269,50 @@ Unsloth QLoRA notebook on a free T4. Base model is a one-line swap via `config.p
 (Q4_K_M for edge, Q8/f16 for cloud) → Ollama `Modelfile`. A **"red team" pass** (provocative/off-topic questions) is
 mandatory before the demo.
 
-### Evaluation loop — the HF chat Space is primary (2026-07-24)
+### Evaluation loop — LIVE SPEECH on the robot is primary (2026-08-28)
+
+**The Creator's decision: the eval is no longer the written benchmark, but a live spoken
+run on the robot, on both the 3B and the 8B** — walk the test questions, then a bit of
+family conversation. More lifelike and faster. Budget for a new model + its persona /
+red-team round: **1 day** (so a cloud VLM fits in principle — see the deferred item below).
+
+**Why this is a real upgrade, measured the same day:** the spoken question travels the
+WHOLE chain (STT → RAG → LLM → TTS), so it catches failures a typed probe structurally
+cannot. On 2026-08-28 the STT heard `arhitektúrádról` (missing `c`); BM25 is lexical, so a
+mangled proper noun returns **nothing**, not something worse — the RAG came back EMPTY and
+the model confabulated. With the correct spelling the same query retrieves fine. No written
+benchmark would ever have shown that.
+
+**The measuring tape already works on it:** `analyze_chat_log.py` now reads the Pi's
+`transcript.jsonl` as well as the HF chat schema (`hallott`/`valasz` → `user`/`assistant`,
+see `_egysegesit()`). The `valasz` field is deliberately the RAW model output with `<tool>`
+markup — that is what the tool/panel analysis needs.
+
+**⚠️ Two things the live loop costs you, both real:**
+
+- **Comparability between rounds.** The written benchmark's value was the *scored,
+  repeatable* regression check — "did fixing X cost me something elsewhere?". Live speech
+  gives different transcripts every time, so a regression can hide. `run_benchmark.py` +
+  `judge_benchmark.py` are therefore **not deleted**: keep them for the before/after
+  question, and use the live run for finding NEW failures.
+- **Blindness.** The shuffled columns / `--anchor` / binary scoring machinery existed to
+  control *scorer* drift. A live run is unblinded by construction — you know which model is
+  talking. Treat live scores as directional, not as a delta between adjacent versions.
+
+**🔴 The eval-leakage trap MOVED WITH THE METHOD, and it already fired.** The documented
+trap (below) was about the HF chat logs; the new sink is `transcript.jsonl`, and it is
+worse in one way: the debug posture records **family conversation** too. Measured on the
+first live run — 53 turns, **2 spoken questions already collided with an eval probe**
+("Mit jelent a neved?" at 1.00). The defences are unchanged and both still apply:
+`analyze_chat_log.py`'s EVAL-ÜTKÖZÉS section, and `dataset/_check_leakage.py`.
+
+**And the private-data gate is open during eval, by necessity.** The live loop needs
+`freedroid --debug`, which is exactly what turns transcript recording on (default-off, see
+the posture section). That is correct for eval and wrong for the demo: **wipe
+`/var/log/freedroid/transcript.jsonl` before the conference**, and remember that family
+conversation is now a category of content in it.
+
+### Evaluation loop — the HF chat Space (2026-07-24, superseded as PRIMARY by the above)
 
 Live chatting on `jabba77/Szabi-Chat` replaced local benchmark runs as the main eval: it
 surfaces failures the benchmarks were never written for (the greeting-vocative collapse,

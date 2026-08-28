@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Mérőszalag a HF chat-logokra — a Space-en folyó csevegés a fő eval-hurok.
+"""Mérőszalag az eval-logokra — a Pi ÉLŐ átirata és a HF chat-log, ugyanazzal a mércével.
+
+A fő eval-hurok 2026-08-28 óta az ÉLŐ BESZÉD a roboton (a Teremtő döntése); a script
+mindkét sémát olvassa, mert a mérendő dolgok ugyanazok. Lásd `_egysegesit()`.
 
     hf download jabba77/szabi-chat-logs --repo-type dataset --local-dir szabi-logs
-    python analyze_chat_log.py szabi-logs/data/*.jsonl
+    python analyze_chat_log.py szabi-logs/data/*.jsonl          # HF chat-log
+    python analyze_chat_log.py transcript.jsonl                 # a Pi ÉLŐ átirata
     python analyze_chat_log.py --before régi.jsonl --after új.jsonl    # két kör összevetése
 
 Amit mér (mind a 2026-07-23-i kézi elemzésből, ami kétszer is újraíródott):
@@ -67,11 +71,28 @@ def load_turns(paths: list[Path]) -> tuple[list[dict], int]:
             if not line.strip():
                 continue
             try:
-                turns.append(json.loads(line))
+                turns.append(_egysegesit(json.loads(line)))
             except json.JSONDecodeError as e:
                 skipped += 1
                 print(f"  ! sérült sor kihagyva: {p.name}:{i} ({e})", file=sys.stderr)
     return turns, skipped
+
+
+def _egysegesit(sor: dict) -> dict:
+    """A Pi ÉLŐ átirat-naplója (`transcript.jsonl`) ugyanaz a mérés, más mezőnevekkel.
+
+    A Teremtő döntése 2026-08-28: az eval ezentúl az ÉLŐ BESZÉD, nem az írott benchmark —
+    a robotnak feltett kérdés végigmegy a teljes láncon (STT -> RAG -> LLM -> TTS), tehát
+    olyan hibát is megfog, amit a begépelt próba szerkezetileg nem tud. Ugyanaznap mérve:
+    az „arhitektúrádról" (hiányzó `c`) ÜRES RAG-találatot adott, helyes írásmóddal viszont
+    talált — ez egy írott benchmarkon SOHA nem jött volna elő.
+
+    A `valasz` szándékosan a NYERS modell-válasz (tool-markuppal), nem a kimondott szöveg:
+    a tool- és panel-elemzésnek pont arra van szüksége.
+    """
+    if "hallott" in sor and "user" not in sor:
+        return {**sor, "user": sor.get("hallott", ""), "assistant": sor.get("valasz", "")}
+    return sor
 
 
 def eval_probes() -> list[tuple[str, str]]:
