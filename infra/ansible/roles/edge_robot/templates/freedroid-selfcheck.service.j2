@@ -1,0 +1,45 @@
+[Unit]
+Description=Free-Droid bring-up self-check (aktív mérések: hang, kamera, szervó, ultrahang)
+# A SZOLGÁLTATÁS ELÉ, nem utána. A self-check megnyitja a gpiochipet, az I2C-t és a
+# hangeszközt — pontosan azokat, amiket az orchestrátor fog. Utána futtatva a két
+# folyamat egymásra taposna; előtte futtatva viszont a modell is bekerül a lapgyorsítóba,
+# tehát az orchestrátor bemelegítése GYORSABB lesz tőle, nem lassabb.
+After=network-online.target ollama.service
+Wants=network-online.target
+Before=freedroid.service
+
+[Service]
+Type=oneshot
+User={{ robot_user }}
+Group={{ robot_user }}
+WorkingDirectory={{ robot_src_dir }}
+
+{% for kulcs, ertek in robot_env.items() %}
+Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
+{% endfor %}
+
+# `--live-motion` SZÁNDÉKOSAN NINCS. Bekapcsoláskor a robot lehet asztalon, táskában vagy
+# a Teremtő kezében — egy magától elinduló lánctalp ott nem diagnosztika, hanem baleset.
+# A mozgó próbát kézzel kell kérni, felpolcolt robotnál.
+ExecStart={{ robot_venv_bin }}/python {{ robot_src_dir }}/scripts/self_check.py
+
+# A HANG-HUROK a hallható „felálltam" jelzés: 1 kHz-et játszik le és vissza is hallgatja.
+# Ez az, amiért ennek boot-kor van értelme — képernyő nélkül is tudod, hogy kész van.
+
+# A bukás NEM állítja meg a bootot: a `freedroid.service` csak `Wants`-szal függ tőle,
+# tehát az orchestrátor egy bukott önteszt UTÁN is elindul. Egy meglazult kamerakábel
+# miatt nem indulni sokkal rosszabb, mint degradáltan futni — a robot fő feladata
+# (beszélni) ettől még megy.
+#
+# ⚠️ `SuccessExitStatus` SZÁNDÉKOSAN NINCS. Az 1-es kilépést sikernek jelölve a
+# `systemctl status` ZÖLDET mutatna egy bukott öntesztre — vagyis pont azt a kérdést
+# hazudná meg, amiért ez a unit létezik ("felállt-e minden?"). Így a bukás PIROSAN
+# látszik, és mégsem blokkol.
+#
+# Az időkorlát nem formalitás: `Type=oneshot` + `Before=` mellett egy BERAGADT önteszt
+# EDDIG késlelteti az orchestrátort. 90 s bőven fedi a mérést (a leghosszabb tétel a
+# hideg modell-betöltés az LLM-ellenőrzésnél), és a színpadon vállalható késés.
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target

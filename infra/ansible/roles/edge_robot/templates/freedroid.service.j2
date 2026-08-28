@@ -6,6 +6,12 @@ Description=Free-Droid (Szabi) orchestrator — trigger, STT, LLM, TTS, motion
 # rosszabb, mint egy lassú.
 After=network-online.target ollama.service
 Wants=network-online.target ollama.service
+# `Wants`, NEM `Requires`: az önteszt bukása (meglazult kamerakábel, néma mikrofon) nem
+# akadályozhatja meg, hogy a robot elinduljon és beszéljen. A sorrendet a self-check
+# unitja mondja ki (`Before=freedroid.service`), a függést pedig ez a sor teszi
+# opcionálissá — így ha az önteszt nincs telepítve, ez a unit ugyanúgy elindul.
+Wants=freedroid-selfcheck.service
+After=freedroid-selfcheck.service
 
 [Service]
 Type=simple

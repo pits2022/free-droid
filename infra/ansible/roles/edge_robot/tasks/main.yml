@@ -269,6 +269,17 @@
 # a forrás azonnal elhallgat (naplózza is). A szolgáltatás így BOOTKOR FELÁLL, bemelegíti a
 # modellt, futtatja a watchdogot és VÁR — ez a helyes Phase 4.3 állapot. A gombnyomás az
 # evdev-forrással érkezik (a kattintó 2026-08-31-én), ami ugyanabba a sorba tesz.
+# Bekapcsolás után, parancs kiadása NÉLKÜL is látszódjon (és HALLATSZÓDJON), hogy minden
+# felállt — a Teremtő kérése, 2026-08-28. A hang-hurok 1 kHz-es sípja a hallható jelzés,
+# ami képernyő nélkül is működik; a részletek a journalban.
+- name: Install the boot self-check systemd service
+  when: robot_project.stat.exists
+  template:
+    src: freedroid-selfcheck.service.j2
+    dest: /etc/systemd/system/freedroid-selfcheck.service
+    mode: '0644'
+  notify: Reload systemd
+
 - name: Install the orchestrator systemd service
   when: robot_project.stat.exists
   template:
@@ -308,6 +319,15 @@
 
 # `restarted`, nem `started`: egy futó példány a RÉGI kódot futtatja, és ebben a projektben
 # a "melyik kód fut valójában" kérdés már napokat vitt el (a Pi hetekig régi branchen állt).
+# `enabled`, de NEM indítjuk most: a self-check megnyitja a gpiochipet és a hangeszközt,
+# amit az épp futó orchestrátor fog — egy provisioning közbeni futtatás tehát ütközne.
+# Bootkor a `Before=` sorrend ezt megoldja. Kézzel: `systemctl stop freedroid` először.
+- name: Enable the boot self-check (runs at next boot, not now)
+  when: robot_project.stat.exists and robot_selfcheck_at_boot
+  systemd:
+    name: freedroid-selfcheck
+    enabled: true
+
 - name: Enable and (re)start the orchestrator
   when: robot_project.stat.exists and robot_orchestrator_enabled
   systemd:

@@ -136,3 +136,8 @@ robot_env: {}
 # kell a kézi menetekhez: két példány egyszerre nem tudja fogni a gpiochipet és a
 # hangeszközt, tehát egy futó szolgáltatás mellett a `uv run freedroid --debug` elhasal.
 robot_orchestrator_enabled: true
+
+# Fusson-e az AKTÍV önteszt minden bootkor, az orchestrátor ELŐTT. A hang-hurok sípja a
+# hallható „felálltam" jelzés — képernyő nélkül, a színpadon is. `--live-motion` NÉLKÜL:
+# egy magától elinduló lánctalp egy asztalon nem diagnosztika, hanem baleset.
+robot_selfcheck_at_boot: true
