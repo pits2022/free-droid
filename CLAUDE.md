@@ -330,6 +330,16 @@ fixed by dataset expansion, not a model swap.
 
 ## Known follow-ups (deferred)
 
+- **What does Szabi do with the camera IMAGE? — OPEN, conditional (the Creator, 2026-08-28).**
+  **If time allows: a VLM in the cloud. If not: no code — dataset/prompt, and Szabi has no
+  eyes.** Parked at the END of the plan (`docs/free-droid.md` §"Nyitva hagyott"); nothing
+  else depends on it. Today the camera is **actuator only** — `PanTiltCamera` never reads a
+  frame, the models are text-only, and `move(mode=approach_speaker)`/`follow_speaker` raise
+  `NotImplementedError: Phase 4.4 needs vision`. ⚠️ **The problem to fix is not the missing
+  vision but the LYING:** in the first live run Szabi invented a visual description ("a
+  kamera szürke, feketéje áthatolhatatlan…"), so the dataset/prompt half is needed **either
+  way** — a VLM would not cover a covered lens or "what is behind you?".
+
 Conscious gaps from the PR #4 review — not bugs, but things a future session should know:
 
 - **Reaching the Pi in production is via the cloud as a jump host — and the generated

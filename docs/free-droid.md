@@ -1111,3 +1111,43 @@ Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se 
 *   **TTS-hang:** `hu_HU-anna-medium`, fiatalosabb karakterhez **pitch-hangolás a hangmintán** (tesztelési feladat, Fázis 4.2).
 *   **Nyelv:** Magyar-only. A Hacktivity előadáson a Teremtő tolmácsol angolra — ez az üzenet része, nem korlát.
 *   **„Tudók" (LLM routing):** OPCIONÁLIS, alapból KIKAPCSOLVA. Csak családi/szórakoztató módban (`mode: extended`). Nehéz kérdésnél Szabi „megpuskázza" a választ egy nagyobb modelltől (alapból Opus 4.8), de a saját Yotengrit-értékrendjén szűri — mindig hozzátesz saját nézőpontot, finoman jelzi a puskázást. Hangkapcsoló: „Szabi, puskázz" / „Szabi, ne puskázz". A demón KI (szuverenitás).
+
+---
+
+## 🕓 Nyitva hagyott, a terv VÉGÉN (idő-függő)
+
+*   **Kameraképpel mihez kezd Szabi? — NYITOTT, feltételes döntés (a Teremtő, 2026-08-28).**
+    **Ha belefér az időbe: VLM a felhőben. Ha nem: nincs kód — dataset/prompt, és Szabinak
+    nincs szeme.** Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
+
+    **A mai állapot, mérve:** a kamera **csak aktuátor**. A `PanTiltCamera` `pan`/`tilt`/
+    gesztust (`face_speaker`, `nod`, `scan`) tud, és **soha nem olvas képkockát**; a
+    `health.check_camera` csak azt nézi, létezik-e `/dev/video*`; a `self_check.py` elkap
+    egy képkockát, de csak a **szórását** méri (bring-up eszköz, nem a robot része). A
+    webkamera valódi szerepe a **mikrofonja** (2026-08-15). A modellek szövegesek, sehol
+    nincs multimodális út — a `move(mode=approach_speaker)` és a `follow_speaker` ezért
+    `NotImplementedError: Phase 4.4 needs vision`, hangosan.
+
+    🔴 **A megoldandó probléma NEM a hiányzó látás, hanem a hazugság.** Az első élő
+    menetben (2026-08-28) a „Nézz körül a kameráddal" erre futott: *„Körben nézek,
+    Teremtőm, de nem látom semmit. A kamera szürke, feketéje áthatolhatatlan. Nem tudom
+    megmondani, milyen falak vannak ott."* — az első fele igaz, a második **kitalált
+    vizuális leírás**. Ha a színpadon valaki megkérdezi, hogy „mit látsz?", Szabi találni
+    fog valamit. Ez a kockázat **ma is fennáll**, a látástól függetlenül.
+
+    **A két ág:**
+
+    *   **VLM a felhőben** (Moondream2 / Qwen2-VL a GPU-n). Szerkezetileg UGYANAZ, amit a
+        `whisper-server`-rel már megcsináltunk (2026-08-28): egy modell, a VPN-címre kötött
+        végpont, tűrő kliens visszaeséssel. A minta tehát kész és mért — a kockázat nem a
+        beépítés, hanem az ÚJ MODELL: saját persona-kérdés (mit mond arra, amit lát), saját
+        red-team kör, és a kép feltöltése a tunnelen. Csak akkor, ha a szept. 30-i szoftver-
+        határidő után marad idő.
+    *   **Nincs kód — dataset/prompt.** Szabi mondja ki, hogy **van feje, de nincs szeme**:
+        „Fordítom a fejem feléd, Teremtőm, de nem látok." A `camera` tool közben ugyanúgy
+        FUT, tehát a fej tényleg megmozdul — a gesztus marad, csak a konfabuláció esik ki.
+        Egy szuverenitásról szóló előadáson ez erősebb is, mint egy kamu képleírás.
+
+    ⚠️ **Bármelyik ág nyer, az alsó ág dataset-munkája KELL** — az a demó-kockázat fedezete,
+    és a VLM sem hoz be minden kérdést (rossz fény, letakart lencse, „mi van mögötted?").
+    Ezért ez a tétel akkor is elvégzendő, ha a VLM belefér.
