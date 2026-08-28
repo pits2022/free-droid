@@ -280,3 +280,41 @@ def test_a_run_hurok_ALLJ_ra_nem_indit_kort_FIGYELJ_re_igen(monkeypatch):
     assert tts.mondatok == ["válasz"], "pontosan egy kör kellett volna, a FIGYELJ-re"
     assert vad.hivasok == 1, "az ALLJ nem indíthat felvételt"
     assert o.motion.megallitva == 1, "az ALLJ nem állította meg a motorokat"
+
+
+# ── 6. leállás szolgáltatásként ──────────────────────────────────────────────────
+
+def test_a_SIGTERM_lezarja_a_hardvert_nem_oli_meg_nyersen():
+    """🔴 A Python alapértelmezett SIGTERM-kezelése AZONNALI kilépés: nem dob kivételt,
+    tehát a `run()` `finally`-ja — ami a watchdogot és a motorvezérlőt lezárja — NEM
+    futna le. Egy systemd-szolgáltatásnál ez járó lánctalpakat hagyna egy kilépett
+    folyamat után, és pont a `systemctl stop` az az út, amin ez bekövetkezne.
+
+    Külön folyamatban mérjük, mert a jelkezelő process-szintű állapot: ugyanabban a
+    folyamatban beállítva átszivárogna a többi tesztre.
+    """
+    import subprocess
+    import sys
+    import textwrap
+
+    program = textwrap.dedent('''
+        import os, signal, sys
+        sys.argv = ["freedroid"]
+        import freedroid.orchestrator as o
+
+        # A hurok helyett egy jelre váró csonk: azt mérjük, hogy a SIGTERM
+        # KeyboardInterrupt-ot ad-e, nem azt, hogy a hurok mit csinál.
+        def hamis_run(self):
+            os.kill(os.getpid(), signal.SIGTERM)
+            raise AssertionError("a SIGTERM nem szakította meg")
+
+        o.Orchestrator.run = hamis_run
+        o.Orchestrator.__init__ = lambda self, *a, **k: None
+        o.main()
+        print("LEZART_RENDESEN")
+    ''')
+    r = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
+
+    assert "LEZART_RENDESEN" in r.stdout, (
+        f"a SIGTERM nem KeyboardInterruptként érkezett — a lezárás elmaradna.\n"
+        f"stdout={r.stdout!r}\nstderr={r.stderr[-500:]!r}")

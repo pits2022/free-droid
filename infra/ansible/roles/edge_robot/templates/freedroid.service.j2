@@ -1,0 +1,46 @@
+[Unit]
+Description=Free-Droid (Szabi) orchestrator — trigger, STT, LLM, TTS, motion
+# Az `ollama` a HELYI (edge) modellt szolgálja ki: nélküle az első kör a felhőre esne,
+# ami mobilneten a leglassabb út. `Wants`, nem `Requires`: az Ollama hiánya NEM ok arra,
+# hogy a robot el se induljon — a fallback-létra pont erre való, és egy néma robot
+# rosszabb, mint egy lassú.
+After=network-online.target ollama.service
+Wants=network-online.target ollama.service
+
+[Service]
+Type=simple
+# NEM root. A GPIO jogosultság nélkül megy: a `creator` benne van a `gpio`, `spi`, `i2c`
+# csoportokban, és a /dev/gpiochip0 `root:gpio 0660` (mérve 2026-08-13). Ez az egyetlen
+# folyamat, ami a modellt és a mikrofont is kezeli — nincs oka rootnak lennie.
+User={{ robot_user }}
+Group={{ robot_user }}
+WorkingDirectory={{ robot_src_dir }}
+
+{# Ugyanaz az idézés/escape-elés, mint a health-unitban, és ugyanazért: idézés nélkül a
+   systemd a SZÓKÖZNÉL vág, a `%` pedig NÉMÁN specifikátorrá válna (`%h` -> home). #}
+{% for kulcs, ertek in robot_env.items() %}
+Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
+{% endfor %}
+
+# ⚠️ `--debug` SZÁNDÉKOSAN NINCS. A szolgáltatás az ÜZEMI posztúra: bőbeszédű napló és
+# elhangzott-mondat rögzítés NÉLKÜL. A hibakereső menet kézzel indul
+# (`uv run freedroid --debug`), és akkor a Teremtő tudja, hogy rögzít.
+ExecStart={{ robot_venv_bin }}/freedroid
+
+# A SIGTERM-et a program KeyboardInterrupttá alakítja, hogy a `finally` lezárja a
+# watchdogot és a motorvezérlőt. A türelmi idő ezért nem formalitás: ennyi ideje van a
+# robotnak MEGÁLLNI. A hurok legfeljebb {{ robot_hurok_ebredes_s | default('0.5') }} s-onként
+# ébred, a lezárás ezredmásodperces — 15 s bőven fedezi, és ha mégsem, a SIGKILL jön.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# Egy elszállt orchestrátor jöjjön vissza — de ne végtelen ciklusban. Ha ötször hasal el
+# 5 percen belül, akkor VALÓDI baj van (hiányzó modell, halott hangeszköz), és a
+# restart-vihar csak elfedi: ilyenkor álljon meg, és a health-check mondja ki.
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

@@ -82,7 +82,12 @@ class BillentyuTrigger:
     def _olvas(self, sor: queue.Queue[Esemeny]) -> None:
         while not self._all.is_set():
             sor_szoveg = self._folyam.readline()
-            if not sor_szoveg:          # EOF: a bemenet elfogyott (pl. lezárt cső)
+            if not sor_szoveg:
+                # EOF. SZOLGÁLTATÁSKÉNT ez a NORMÁLIS eset: a systemd alatt nincs stdin,
+                # tehát ez a forrás azonnal elhallgat — egy fejetlen roboton úgysem
+                # gépel senki. Azért naplózzuk, mert némán ez "a gomb nem működik"
+                # rejtélyként jönne elő, amikor a kattintó megérkezik.
+                log.info("billentyű-trigger: nincs bemenet (EOF), ez a forrás elhallgat")
                 return
             if self._all.is_set():
                 return

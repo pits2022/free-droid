@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import logging
 import os
+import signal
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -478,6 +479,15 @@ def main() -> None:
               "(/var/log/freedroid/transcript.jsonl). ALAPBÓL KI. A demón NE használd: "
               "a cél az, hogy egy ellopott robot ne adjon semmit, ami nincs a publikus "
               "repóban — a rögzített beszélgetés az egyetlen, ami ezen elbukik."))
+    # 🔴 SIGTERM -> KeyboardInterrupt, KÜLÖNBEN A MOTOROK LEZÁRATLANUL MARADNAK.
+    # A Python alapértelmezett SIGTERM-kezelése AZONNALI kilépés: nem dob kivételt, tehát
+    # a `run()` `finally`-ja — ami a watchdogot és a motorvezérlőt lezárja — NEM fut le.
+    # Egy systemd-szolgáltatásnál ez nem elméleti: a `systemctl stop freedroid` pont ezen
+    # az úton megy, és járó lánctalpakat hagyhatna egy kilépett folyamat után. A Ctrl-C
+    # (SIGINT) azért volt eddig rendben, mert az MÁR KeyboardInterruptot dob.
+    signal.signal(signal.SIGTERM,
+                  lambda jel, keret: (_ for _ in ()).throw(KeyboardInterrupt()))
+
     if ertelmezo.parse_args().debug:
         # Egyetlen forrás: a kapcsoló az env-be ír, és MINDEN modul (a transcript-kapu
         # is) onnan olvas. Két külön igazságforrás itt azt jelentené, hogy a napló

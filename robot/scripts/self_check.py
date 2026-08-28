@@ -389,6 +389,14 @@ def check_llm(settings: Settings) -> list[CheckResult]:
 def check_lanctalp(settings: Settings, meter: float) -> CheckResult:
     """LEGUTOLJÁRA, és csak kapcsolóval: ez az egyetlen check, amitől a robot elmozdul.
 
+    KÉT fázis, és az elsőé a diagnosztikai érték:
+
+    1. **fordulás** balra 15 fok, majd vissza jobbra 15 fok. Ez hajtja a két láncot
+       EGYMÁSSAL SZEMBEN, tehát ez az egyetlen próba, ami egy döglött vagy fordítva
+       bekötött motort megfog — az egyenes menetben mindkét lánc ugyanarra megy, és a
+       robot csak ferdén indul el. Helyet sem kér: a robot a helyén marad.
+    2. **egyenes** oda-vissza: a sebesség és a watchdog együttműködése.
+
     A watchdog KÖZBEN fut, mert a menetet neki kell felügyelnie — a mérés így a valódi
     felállást próbálja ki, nem egy védtelen menetet.
     """
@@ -396,11 +404,26 @@ def check_lanctalp(settings: Settings, meter: float) -> CheckResult:
     from freedroid.motion.types import Direction, Speed
     from freedroid.safety import UltrasonicWatchdog
 
+    from freedroid.motion.types import TurnDir
+
     motion = CytronMotionController(settings)
     wd = UltrasonicWatchdog(on_obstacle=motion.stop, settings=settings,
                             heading_source=lambda: (motion.heading, motion.is_turning))
     try:
         wd.start()
+        # ELŐSZÖR A FORDULÁS, és ez a sorrend szándékos. Az egyenes menet MINDKÉT láncot
+        # UGYANABBA az irányba hajtja, tehát egy döglött vagy fordítva bekötött motort
+        # elrejt: a robot elindul, csak ferdén. A fordulás a két láncot EGYMÁSSAL SZEMBEN
+        # hajtja — ha az egyik nem megy, a robot nem fordul, hanem ívet ír le vagy áll.
+        # Ráadásul helyet sem kér: egy 15 fokos kitérés a helyén marad, tehát ez az a
+        # próba, ami egy asztalon vagy egy szűk standon is lefuttatható.
+        t_f = time.perf_counter()
+        motion.turn(direction=TurnDir.LEFT, degrees=15)
+        time.sleep(0.3)
+        motion.turn(direction=TurnDir.RIGHT, degrees=15)   # vissza a kiindulási irányba
+        fordulas = time.perf_counter() - t_f
+
+        time.sleep(0.5)
         t0 = time.perf_counter()
         motion.move(direction=Direction.FORWARD, distance=meter, speed=Speed.SLOW)
         oda = time.perf_counter() - t0
@@ -417,9 +440,18 @@ def check_lanctalp(settings: Settings, meter: float) -> CheckResult:
     # A rövidebb menet nem hiba: azt a watchdog is okozhatta (akadály). A LELET az, ha
     # a robot meg sem mozdult, vagy ha a két irány ideje nem egyezik.
     varhato = meter * 100 / (settings.motion.cm_per_s_at_full * 0.3)
-    return _cr("tracks", Layer.HARDWARE, oda > 0.2 * varhato and vissza > 0.2 * varhato,
+    # A fordulás várható ideje a SZÖGKALIBRÁCIÓBÓL jön, ugyanúgy, ahogy az egyenesé a
+    # sebességből — nem beégetett szám, tehát egy újrakalibrálás automatikusan követi.
+    forgas_varhato = 2 * 15.0 / (settings.motion.deg_per_s_at_full
+                                 * settings.motion.default_speed)
+    rendben = (oda > 0.2 * varhato and vissza > 0.2 * varhato
+               and fordulas > 0.2 * forgas_varhato)
+    return _cr("tracks", Layer.HARDWARE, rendben,
+               f"fordulás bal+jobb 15 fok {fordulas:.1f} s (várható {forgas_varhato:.1f} s), "
                f"előre {oda:.1f} s, hátra {vissza:.1f} s (várható {varhato:.1f} s/irány, "
-               f"a watchdog rövidíthette)", Severity.CRITICAL)
+               f"a watchdog rövidíthette) — a TÉNYLEGES elfordulást nézd meg szemmel: "
+               f"a robotnak a kiindulási irányába kell visszaállnia",
+               Severity.CRITICAL)
 
 
 # --- futtatás ----------------------------------------------------------------

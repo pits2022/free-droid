@@ -128,3 +128,11 @@ robot_alsa_capture_card: "U20"           # a webkamera beépített mikrofonja
 #
 # Elgépelésre a betöltő figyelmeztet (stderr -> journald), de nem áll le tőle.
 robot_env: {}
+
+# Fusson-e az orchestrátor SZOLGÁLTATÁSKÉNT. Alapból igen: enélkül a `freedroid-health`
+# `check_orchestrator_service`-e bukik, és a robot safe-mode-ban áll.
+#
+# Kikapcsolva (`-e robot_orchestrator_enabled=false`) a unit TELEPÜL, de nem indul — ez
+# kell a kézi menetekhez: két példány egyszerre nem tudja fogni a gpiochipet és a
+# hangeszközt, tehát egy futó szolgáltatás mellett a `uv run freedroid --debug` elhasal.
+robot_orchestrator_enabled: true
