@@ -148,16 +148,33 @@ module "cloud_do" {
   do_gpu_size         = var.do_gpu_size
 }
 
+# NO DEFAULT for the GPU size or its region — on purpose (the Creator, 2026-09-03).
+# DO GPU availability changes week to week (the Ada planned on 08-13 has had an empty
+# region list ever since; the H100 appeared in ams3 unannounced), and the price spread
+# is 6x ($0.76 vs $4.41/h ≈ $3,200/month if forgotten). A default would be either
+# undeployable or a silent cost decision. Run `python3 gpu_pick.py` first: it lists what
+# is deployable right now, cheapest and nearest first, and prints the exact -var flags.
+# Both `plan` and `apply` fail with the message below until both are given.
 variable "do_region" {
-  description = "DO region (GPU reality 2026-08-13: Ada cards are tor1-only, no EU GPU region)"
+  description = "DO region for the GPU droplet. REQUIRED with cloud_provider=digitalocean — take it from `python3 gpu_pick.py`."
   type        = string
-  default     = "tor1"
+  default     = null
+
+  validation {
+    condition     = var.cloud_provider != "digitalocean" || (var.do_region != null && var.do_region != "")
+    error_message = "do_region is required for the DigitalOcean cloud: run `python3 gpu_pick.py` and pass -var do_region=<slug>."
+  }
 }
 
 variable "do_gpu_size" {
-  description = "DO GPU size. gpu-4000adax1-20gb ($0.76/h) demo target; gpu-6000adax1-48gb ($1.57/h) is the measured one"
+  description = "DO GPU droplet size. REQUIRED with cloud_provider=digitalocean — take it from `python3 gpu_pick.py` (cheapest deployable NVIDIA box, nearest region)."
   type        = string
-  default     = "gpu-4000adax1-20gb"
+  default     = null
+
+  validation {
+    condition     = var.cloud_provider != "digitalocean" || (var.do_gpu_size != null && var.do_gpu_size != "")
+    error_message = "do_gpu_size is required for the DigitalOcean cloud: run `python3 gpu_pick.py` and pass -var do_gpu_size=<slug>."
+  }
 }
 
 # Az aktív felhő adatai. A `one()` a count-os modul egyelemű listáját bontja ki, és

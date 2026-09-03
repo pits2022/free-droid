@@ -226,8 +226,9 @@ cd infra/terraform
 terraform init          # uses an S3 backend (AWS profile "terraform-s3-access") + hcloud
 terraform fmt -recursive
 terraform plan
-terraform apply         # creates the CAX31, then auto-runs the Ansible site.yml (cloud) via local-exec
-terraform apply -var cloud_server_type=cax41   # bigger cloud box
+python3 gpu_pick.py     # FIRST: which DO GPU box is deployable NOW, cheapest + nearest first → prints the -var flags
+terraform apply -var do_gpu_size=<slug> -var do_region=<slug>   # BOTH REQUIRED (no default, plan/apply fail without them)
+terraform apply -var cloud_provider=hetzner -var cloud_server_type=cax41   # CPU fallback cloud
 terraform destroy       # tears down ONLY the cloud server — the Pi (Ansible-only) is untouched
 ```
 Requires `hcloud_token` (in `terraform.tfvars` — auto-loaded) and AWS S3 access for remote state.
@@ -459,6 +460,8 @@ new one. Host-specific values do not belong in a version-controlled file.
   what you have (a WIP commit is cheap and amendable), then switch. If you need main's latest, branch
   from `origin/main` and cherry-pick — that keeps every change visible in the log instead of hiding it
   in a stash you can drop by accident.
+- **ALWAYS use** english words in branch names.
+- **ALWAYS use** english words as variable names.
 - **Commit messages: always use a QUOTED heredoc** (`git commit -F - <<'EOF'`). With an unquoted one the
   shell runs backticks as command substitution — measured 2026-08-13: `` `1 - elore` `` vanished from a
   commit message and left "Plusz:  -> ." behind.
