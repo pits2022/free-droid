@@ -24,7 +24,9 @@ import time
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
 
+from freedroid import led as led_mod
 from freedroid.config.settings import debug_mode
+from freedroid.led import LedController
 from freedroid.llm import FallbackLLMClient, LLMUnavailable
 from freedroid.llm.language_guard import enforce_hungarian
 from freedroid.motion import CytronMotionController
@@ -75,8 +77,9 @@ HUROK_EBREDES_S = 0.5
 
 
 class State(str, Enum):
-    LISTENING = "listening"   # waiting for wake word
-    THINKING = "thinking"     # STT + LLM
+    LISTENING = "listening"   # a gombra vár — a mikrofon ZÁRVA (ez adatvédelmi állítás)
+    RECORDING = "recording"   # a mikrofon nyitva, a VAD a mondat végét várja
+    THINKING = "thinking"     # STT + RAG + LLM
     SPEAKING = "speaking"     # TTS + tool execution
     SAFE_MODE = "safe_mode"   # critical fault: motion disabled, canned replies
 
@@ -98,7 +101,8 @@ class Orchestrator:
                  tts: TTS | None = None,
                  vad: VAD | None = None,
                  trigger: TriggerBusz | None = None,
-                 akku_olvaso: Callable[[], float] | None = None) -> None:
+                 akku_olvaso: Callable[[], float] | None = None,
+                 led: LedController | None = None) -> None:
         self._settings = settings
         # A kliens konstruktora NEM nyúl a hálózathoz (a háttér-választás kérésenként
         # történik), tehát alapból megépíthető — Pi nélkül is.
@@ -115,7 +119,7 @@ class Orchestrator:
         # A watchdog a `motion`-től olvassa a haladási irányt — EGYETLEN forrás, nem
         # vezet saját nyilvántartást (spec 5. szakasz).
         self.watchdog = watchdog or UltrasonicWatchdog(
-            on_obstacle=self.motion.stop,
+            on_obstacle=self._akadaly,
             settings=settings,
             heading_source=lambda: (self.motion.heading, self.motion.is_turning),
         )
@@ -137,6 +141,10 @@ class Orchestrator:
         # beszéd UTÁN futtatja. A lekérdező toolok (scan_wifi) nem halaszthatók: az
         # eredményük maga a mondat.
         self._halasztott: list | None = None
+        self._akku_gyenge = False
+        # Státusz-gyűrű (spec §6). Húzó modell: a rajzoló szál a `_led_scene()`-t kérdezi
+        # képkockánként, tehát az állapotváltásokhoz NEM kell horog. Pi nélkül NullRing.
+        self.led = led if led is not None else self._gyuru(settings)
         # Diagnosztika: a távoli konzol (telefon) ezt fogja kiolvasni — "épp mit csinál?"
         self.state = State.LISTENING
 
@@ -240,6 +248,9 @@ class Orchestrator:
             bemelegit()
 
     def close(self) -> None:
+        # A gyűrű is itt: a `close()` a `run()` nélkül is hívható (teszt, szöveges
+        # használat), és a rajzoló szál nem maradhat nyitva. (PR #105 review.)
+        self.led.close()
         # A watchdog leállítása is try alatt: ha a szál-join elhasal, a motorok
         # LEZÁRATLANUL maradnának — épp a legrosszabb kimenet (járó lánctalpak egy
         # kilépő folyamat után). A lezárás sorrendje szándékos (előbb a watchdog, hogy
@@ -303,6 +314,37 @@ class Orchestrator:
         esemeny.toolok = [t.name for t in eredmeny.toolok]
         transcript.log(esemeny)
         return self.execute_guarded(eredmeny)
+
+    def _akadaly(self) -> None:
+        """A watchdog reflexe: ELŐBB a motor (a szenzor-szálon, azonnal), aztán a
+        gyűrű villan — a közönség lássa, hogy a robot az LLM-től függetlenül állt meg."""
+        self.motion.stop()
+        self.led.play(led_mod.OBSTACLE, 1.0)
+
+    def _gyuru(self, settings: Settings | None) -> LedController:
+        from freedroid.config.settings import load_settings
+        s = (settings or load_settings()).led
+        ring = led_mod.build_ring(s.count, s.brightness) if s.enabled else led_mod.NullRing()
+        return LedController(ring, self._led_scene, s.count, s.fps)
+
+    def _led_scene(self) -> led_mod.Scene:
+        """Spec §6 — a prioritás felülről lefelé: tiltás > mozgás > állapot."""
+        if self.state is State.SAFE_MODE or self._mozgas_tiltott():
+            return led_mod.SAFE
+        if (heading := getattr(self.motion, "heading", None)) is not None:
+            # A futófény a HALADÁS irányába — hátramenetben visszafelé (PR #105 review).
+            hatra = getattr(heading, "value", heading) == "backward"
+            return led_mod.Scene(led_mod.Pattern.CHASE, led_mod.WHITE, direction=-1 if hatra else 1)
+        if self.state is State.LISTENING:
+            return led_mod.Scene(led_mod.Pattern.BREATHE,
+                                 led_mod.ORANGE if self._akku_gyenge else led_mod.WHITE)
+        if self.state is State.RECORDING:
+            return led_mod.Scene(led_mod.Pattern.PULSE, led_mod.GREEN)
+        forras = getattr(self.llm, "active_backend", lambda: None)()
+        szin = led_mod.SOURCE_COLOR.get(getattr(forras, "value", forras), led_mod.WHITE)
+        if self.state is State.THINKING:
+            return led_mod.Scene(led_mod.Pattern.SPIN, szin)
+        return led_mod.Scene(led_mod.Pattern.SOLID, szin)          # SPEAKING
 
     def _llm_indok(self) -> str:
         indok = getattr(self.llm, "decision", None)
@@ -435,6 +477,7 @@ class Orchestrator:
                 self._akku_hiba_jelezve = True
             return
         log.debug("akku: %.2f V", v)
+        self._akku_gyenge = v < p.warn_v          # a gyűrű "vár" lélegzése narancsra vált
         if not self._akku_kritikus and v < p.critical_v:
             self._akku_kritikus = True
             log.error("AKKU KRITIKUS: %.2f V < %.1f V — mozgás letiltva", v, p.critical_v)
@@ -477,6 +520,8 @@ class Orchestrator:
             log.exception("a TTS bemelegítése elhasalt")
         self.state = State.LISTENING
         self.start()
+        self.led.start()
+        self.led.play(led_mod.BOOT_OK, 2.0)          # "bejelentkeztem" — spec §6
         trigger.start()
         try:
             while True:
@@ -528,7 +573,9 @@ class Orchestrator:
             # egy threading.Event az EnergyVAD olvasó ciklusában, ~3 sor.
             log.info("figyelek…")
             self._csipog()                      # „hallottam a gombot, beszélhetsz"
+            self.state = State.RECORDING
             hang = vad.record_until_silence()
+            self.state = State.THINKING
             mp = len(hang) / 2 / self._minta_rata()
             log.info("felvétel: %.1f s (zajszint %.0f, küszöb %.0f)", mp,
                      getattr(vad, "zajszint", 0.0), getattr(vad, "kuszob", 0.0))

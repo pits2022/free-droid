@@ -76,7 +76,7 @@ LLM (cloud or edge) → TTS Piper (`hu_HU-anna-medium`, pitch-tuned younger) →
 **Target `robot/` module layout** (RPi control software — mostly scaffold, but `rag/` is implemented + tested): `orchestrator/` (main async loop + fallback),
 `motion/` (Cytron HAT, lgpio-based), `safety/` (ultrasonic watchdog thread), `voice/` (wake/STT/TTS/VAD),
 `llm/` (cloud+edge client), `tools/` (parser + handlers), `rag/` (offline BM25 retrieval over the Yotengrit corpus:
-chunker, Hungarian normalizer, self-contained Okapi BM25, grounding-prompt builder), `config/` (GPIO pinout, thresholds, audio params — build this
+chunker, Hungarian normalizer, self-contained Okapi BM25, grounding-prompt builder), `led/` (WS2812 status ring — spec §6 colour code, pull-model render thread, `frame()` pure and tested off-Pi), `config/` (GPIO pinout, thresholds, audio params — build this
 first; every other module reads from it), `oracle/` (**optional** "Tudók" external-LLM routing — see below).
 
 ## Security & sovereignty invariants (do not violate)

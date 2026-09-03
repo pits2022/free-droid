@@ -498,6 +498,23 @@ class PowerSettings:
 
 
 @dataclass(frozen=True)
+class LedSettings:
+    """WS2812 státusz-gyűrű (spec §6). A `count` MÉRENDŐ, amikor a gyűrű rákerül a
+    GPIO-ra (`FREEDROID_LED_COUNT`); a fényerő a konferencia-teremhez hangolandó."""
+
+    enabled: bool = True
+    count: int = 12
+    brightness: float = 0.3
+    fps: float = 30.0
+
+    def __post_init__(self) -> None:
+        if self.count <= 0 or self.fps <= 0:
+            raise ValueError("count és fps > 0 kell legyen")
+        if not 0.0 < self.brightness <= 1.0:
+            raise ValueError("brightness 0 és 1 között kell legyen")
+
+
+@dataclass(frozen=True)
 class Settings:
     llm: LLMEndpoints = field(default_factory=LLMEndpoints)
     safety: SafetySettings = field(default_factory=SafetySettings)
@@ -506,6 +523,7 @@ class Settings:
     rag: RAGSettings = field(default_factory=RAGSettings)
     camera: CameraSettings = field(default_factory=CameraSettings)
     power: PowerSettings = field(default_factory=PowerSettings)
+    led: LedSettings = field(default_factory=LedSettings)
 
 
 # Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt
@@ -519,7 +537,7 @@ _EGYEB_ENV = frozenset({
 _SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
              "MOTION": ("motion", MotionSettings), "VOICE": ("voice", VoiceSettings),
              "RAG": ("rag", RAGSettings), "CAMERA": ("camera", CameraSettings),
-             "POWER": ("power", PowerSettings)}
+             "POWER": ("power", PowerSettings), "LED": ("led", LedSettings)}
 
 # Csak skalár mezők írhatók felül. A `per_sensor_cm` (Mapping) szándékosan kimarad:
 # egy env-be sűrített dict saját mini-nyelvtant kívánna, és az elgépelése némán
