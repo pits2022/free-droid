@@ -244,16 +244,16 @@ class FifoTrigger:
                 sor.put(_esemeny(elso.decode("utf-8", "replace")))
 
 
-# A kattintó gombjai -> esemény. Linux `input-event-codes.h` kódok. A KÓDOK MÉRENDŐK:
-# a 2026-09-03-i Elan "Wireless Present" (04f3:1812) még nem lett lenyomva; az itt álló
-# leképezés a szokásos prezenter-kiosztás (PageDown = következő dia, PageUp = előző,
-# Esc/`b` = elsötétítés). Az ismeretlen kódot a naplóból olvasd ki, és ide írd be.
-# A fehérlista NEM opcionális — lásd a modul biztonsági bekezdését.
+# A kattintó gombjai -> esemény. Linux `input-event-codes.h` kódok, MÉRVE 2026-09-03 az
+# Elan "Wireless Present" (04f3:1812) hét gombján, evdev-ből: PageUp · PageDown ·
+# `b` · Meta+Enter · Ctrl+Shift · Meta+Alt+P · Shift+F5. A négy kombó módosító+billentyű,
+# ezek a fehérlistán NINCSENEK rajta (a forrás egyedi kódokat néz, a kombó tagjai
+# ismeretlenként naplózódnak). A nagy "következő dia" gomb a FIGYELJ; az ÁLLJ-nak KÉT
+# gomb, mert a stopból a több a biztonságos irány.
 KATTINTO_GOMBOK: dict[int, Esemeny] = {
-    109: Esemeny.FIGYELJ,   # KEY_PAGEDOWN
-    104: Esemeny.ALLJ,      # KEY_PAGEUP
-    1: Esemeny.ALLJ,        # KEY_ESC
-    48: Esemeny.ALLJ,       # KEY_B
+    109: Esemeny.FIGYELJ,   # KEY_PAGEDOWN — "következő dia"
+    104: Esemeny.ALLJ,      # KEY_PAGEUP   — "előző dia"
+    48: Esemeny.ALLJ,       # KEY_B        — "elsötétítés"
 }
 
 
