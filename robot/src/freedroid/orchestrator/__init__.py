@@ -180,6 +180,12 @@ class Orchestrator:
                         type(e).__name__, e)
             return None
 
+    def _csipog(self) -> None:
+        from freedroid.config.settings import load_settings
+        from freedroid.voice import csipog
+        v = (self._settings or load_settings()).voice
+        csipog(v.play_command, hz=v.listen_beep_hz, seconds=v.listen_beep_s)
+
     def _minta_rata(self) -> int:
         from freedroid.config.settings import load_settings
         return (self._settings or load_settings()).voice.stt_sample_rate
@@ -453,6 +459,12 @@ class Orchestrator:
         visszahozhatatlan — egy elrontott válasz nem az.
         """
         stt, tts, vad, trigger = self._hang()
+        # A Piper-modell betöltése (2 s) ITT, nem az első válasz előtt — a Teremtő a
+        # felhős menetben pont ezt hallotta „lemaradásként" minden mondat előtt.
+        try:
+            getattr(tts, "warm_up", lambda: None)()
+        except Exception:  # noqa: BLE001 — a hiba a speak()-nél úgyis újra előjön, hangosan
+            log.exception("a TTS bemelegítése elhasalt")
         self.state = State.LISTENING
         self.start()
         trigger.start()
@@ -505,6 +517,7 @@ class Orchestrator:
             # pár másodperc kárba vész, aztán a jelző eldobja a kört. Ha kell:
             # egy threading.Event az EnergyVAD olvasó ciklusában, ~3 sor.
             log.info("figyelek…")
+            self._csipog()                      # „hallottam a gombot, beszélhetsz"
             hang = vad.record_until_silence()
             mp = len(hang) / 2 / self._minta_rata()
             log.info("felvétel: %.1f s (zajszint %.0f, küszöb %.0f)", mp,

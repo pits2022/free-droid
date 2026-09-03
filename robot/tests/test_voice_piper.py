@@ -15,11 +15,12 @@ from freedroid.config.settings import Settings, VoiceSettings
 from freedroid.voice import PiperTTS
 
 
-def hang(tmp_path, **kw) -> PiperTTS:
-    """Piper-példány egy KÉSZ (de üres súlyú) modell-config mellett."""
+def hang(tmp_path, synth=None, **kw) -> PiperTTS:
+    """Piper-példány egy KÉSZ (de üres súlyú) modell-config mellett. A `synth` a
+    cserélhető szintetizátor: szöveg -> PCM-darabok; nélküle a valódi modell töltődne."""
     (tmp_path / "v.onnx.json").write_text(json.dumps({"audio": {"sample_rate": 16000}}))
     cfg = VoiceSettings(piper_model=str(tmp_path / "v"), **kw)
-    return PiperTTS(dataclasses.replace(Settings(), voice=cfg))
+    return PiperTTS(dataclasses.replace(Settings(), voice=cfg), synth=synth)
 
 
 def test_a_rata_a_MODELL_configjabol_jon(tmp_path):
@@ -67,15 +68,11 @@ def test_a_lejatszo_parancsba_a_MERT_rata_kerul(tmp_path, monkeypatch):
             return None
 
     monkeypatch.setattr(voice.subprocess, "Popen", AlFolyamat)
-    hang(tmp_path).speak("Megyek, Teremtőm.")
+    hang(tmp_path, synth=lambda t: [b"\0" * 4]).speak("Megyek, Teremtőm.")
 
-    gen, jatszo = parancsok
-    # A bináris TELJES útvonallal megy: a `.venv/bin` nincs a PATH-on, amikor a systemd
-    # a `{venv}/bin/freedroid`-ot indítja — `uv run` alatt viszont igen, tehát ez a hiba
-    # pont a fejlesztés közben LÁTHATATLAN, és először a szolgáltatásként futó roboton
-    # jönne elő.
-    assert gen[0].endswith("piper") and "--output-raw" in gen
-    assert gen[gen.index("--model") + 1].endswith(".onnx")   # a KITERJESZTÉS is kell
+    # EGYETLEN folyamat: a lejátszó. A piper 2026-09-03 óta a folyamaton BELÜL fut
+    # (a modell egyszer töltődik, mérve 2,07 s hívásonként a binárissal).
+    (jatszo,) = parancsok
     assert "16000" in jatszo, jatszo
 
 
@@ -105,31 +102,13 @@ def test_a_binaris_kereses_a_VENV_bol_indul(tmp_path, monkeypatch):
     assert find_voice_binary("nincs-ilyen-binaris-remelem") is None
 
 
-def test_a_beragadt_lejatszo_IDOKORLATRA_bukik_nem_nemul_el(tmp_path, monkeypatch):
-    """PR #91 review: a szálas stderr-olvasás ÖNMAGÁBAN nem elég.
-
-    Ha a lejátszó beragad a hangeszköz megnyitásán anélkül, hogy kilépne, a `piper`
-    örökre blokkol az írásnál, az ő stderr-je sosem ér EOF-ot, és a `join()` ugyanúgy
-    örökre vár. A robot NÉMÁN, határidő nélkül állna meg — a legrosszabb kimenet.
-    """
+def test_a_beragadt_lejatszo_IDOKORLATRA_bukik_nem_nemul_el(tmp_path):
+    """PR #91 review: ha a lejátszó beragad a hangeszköz megnyitásán anélkül, hogy
+    kilépne, a robot NÉMÁN, határidő nélkül állna meg — a legrosszabb kimenet."""
     import time
 
-    from freedroid import voice
-    from freedroid.config.settings import Settings, VoiceSettings
-
-    (tmp_path / "v.onnx.json").write_text(json.dumps({"audio": {"sample_rate": 22050}}))
-    # "piper" helyett egy script, ami beolvassa a bemenetet, aztán ÉL TOVÁBB — pontosan
-    # úgy, ahogy egy beragadt lejátszó mellett a valódi piper viselkedne.
-    alpiper = tmp_path / "alpiper"
-    alpiper.write_text("#!/bin/sh\ncat > /dev/null\nsleep 30\n")
-    alpiper.chmod(0o755)
-    monkeypatch.setattr(voice, "find_voice_binary",
-                        lambda nev: str(alpiper) if nev == "piper" else None)
-
-    cfg = VoiceSettings(piper_model=str(tmp_path / "v"),
-                        play_command="sleep 30", speak_timeout_s=1.0)
-    tts = PiperTTS(dataclasses.replace(Settings(), voice=cfg))
-
+    tts = hang(tmp_path, synth=lambda t: [b"\0" * 100], play_command="sleep 30",
+               speak_timeout_s=1.0)
     kezd = time.perf_counter()
     with pytest.raises(RuntimeError, match="beragadt"):
         tts.speak("Megyek, Teremtőm.")
@@ -137,50 +116,103 @@ def test_a_beragadt_lejatszo_IDOKORLATRA_bukik_nem_nemul_el(tmp_path, monkeypatc
     assert 0.5 < time.perf_counter() - kezd < 15
 
 
-def test_azonnal_kilepo_piper_a_SAJAT_hibajat_mondja(tmp_path, monkeypatch):
-    """Rossz modell-útvonalnál a piper kilép, és az írás BrokenPipe-ot dob. A hívónak
-    a piper ÜZENETÉT kell látnia, nem egy nyers csőhibát."""
-    from freedroid import voice
-    from freedroid.config.settings import Settings, VoiceSettings
+def test_a_szintezis_hibaja_a_SAJAT_uzenetet_mondja(tmp_path):
+    """Rossz modellnél a szintézis dob. A hívónak az ŐZENETÉT kell látnia, nem egy
+    nyers csőhibát vagy egy néma, üres lejátszást."""
+    def rossz(t):
+        raise RuntimeError("nincs ilyen modell")
+        yield  # noqa: RET503 — generátor kell
 
-    (tmp_path / "v.onnx.json").write_text(json.dumps({"audio": {"sample_rate": 22050}}))
-    alpiper = tmp_path / "alpiper"
-    alpiper.write_text("#!/bin/sh\necho 'nincs ilyen modell' >&2\nexit 3\n")
-    alpiper.chmod(0o755)
-    monkeypatch.setattr(voice, "find_voice_binary",
-                        lambda nev: str(alpiper) if nev == "piper" else None)
-
-    cfg = VoiceSettings(piper_model=str(tmp_path / "v"), play_command="cat > /dev/null")
-    tts = PiperTTS(dataclasses.replace(Settings(), voice=cfg))
+    tts = hang(tmp_path, synth=rossz, play_command="cat > /dev/null")
     with pytest.raises(RuntimeError, match="nincs ilyen modell"):
         tts.speak("Megyek, Teremtőm.")
 
 
-def test_az_idokorlat_a_TELJES_beszedre_vonatkozik(tmp_path, monkeypatch):
+def test_az_idokorlat_a_TELJES_beszedre_vonatkozik(tmp_path):
     """PR #91 review: két külön időkorlát a legrosszabb esetben a KÉTSZERESÉT engedné.
-
-    Itt a "piper" gyorsan végez, a lejátszó viszont beragad. Közös határidővel a teljes
-    idő a korlát körül marad; két külön korláttal a piper ideje MÉG RÁJÖNNE.
-    """
+    Itt a szintézis 0,8 s, a lejátszó beragad; közös korláttal ~1 s, külön ~1,8 s."""
     import time
 
-    from freedroid import voice
-    from freedroid.config.settings import Settings, VoiceSettings
+    def lassu(t):
+        time.sleep(0.8)
+        yield b"\0" * 100
 
-    (tmp_path / "v.onnx.json").write_text(json.dumps({"audio": {"sample_rate": 22050}}))
-    alpiper = tmp_path / "alpiper"
-    alpiper.write_text("#!/bin/sh\ncat > /dev/null\nsleep 0.8\n")
-    alpiper.chmod(0o755)
-    monkeypatch.setattr(voice, "find_voice_binary",
-                        lambda nev: str(alpiper) if nev == "piper" else None)
-
-    cfg = VoiceSettings(piper_model=str(tmp_path / "v"),
-                        play_command="sleep 30", speak_timeout_s=1.0)
-    tts = PiperTTS(dataclasses.replace(Settings(), voice=cfg))
-
+    tts = hang(tmp_path, synth=lassu, play_command="sleep 30", speak_timeout_s=1.0)
     kezd = time.perf_counter()
     with pytest.raises(RuntimeError, match="beragadt"):
         tts.speak("Megyek, Teremtőm.")
-    telt = time.perf_counter() - kezd
-    # Két külön korláttal ez ~1,8 s lenne (0,8 piper + 1,0 lejátszó).
-    assert telt < 1.5, f"a határidő nem a TELJES beszédre vonatkozott: {telt:.2f} s"
+    assert time.perf_counter() - kezd < 1.5
+
+
+def test_warm_up_EGYSZER_tolt_es_a_hibaja_az_utvonalat_mondja(tmp_path, monkeypatch):
+    """A modell hívásonkénti újratöltése volt a 2 s-os „lemaradás" (mérve 2026-09-03)."""
+    import sys
+    import types
+
+    toltesek = []
+
+    class AlVoice:
+        @staticmethod
+        def load(path):
+            toltesek.append(path)
+            return object()
+    monkeypatch.setitem(sys.modules, "piper", types.SimpleNamespace(PiperVoice=AlVoice))
+    tts = hang(tmp_path)
+    tts.warm_up()
+    tts.warm_up()
+    assert toltesek == [str(tmp_path / "v") + ".onnx"]      # egyszer, KITERJESZTÉSSEL
+
+    class Rossz:
+        @staticmethod
+        def load(path):
+            raise FileNotFoundError(path)
+    monkeypatch.setitem(sys.modules, "piper", types.SimpleNamespace(PiperVoice=Rossz))
+    with pytest.raises(RuntimeError, match="nem tölthető be .*v.onnx"):
+        hang(tmp_path).warm_up()
+
+
+def test_csipogas_a_lejatszora_megy_es_nullaval_kikapcsol(monkeypatch):
+    from freedroid import voice
+
+    hivasok = []
+    monkeypatch.setattr(voice.subprocess, "run",
+                        lambda cmd, **kw: hivasok.append((cmd, len(kw["input"]))))
+    voice.csipog("aplay -q -r {rate} -f S16_LE -t raw -", rate=22050, seconds=0.12)
+    (cmd, n), = hivasok
+    assert "22050" in cmd and n == int(22050 * 0.12) * 2       # 16 bites mono
+    voice.csipog("aplay -r {rate}", seconds=0)
+    assert len(hivasok) == 1                                    # 0 = nincs hang
+
+
+def test_csipogas_rossz_sablonnal_sem_dob(monkeypatch):
+    """PR #106 review: egy elgépelt `play_command` KeyError-je nem viheti el a felvételt."""
+    from freedroid import voice
+
+    monkeypatch.setattr(voice.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError))
+    voice.csipog("aplay -r {rat}")                       # KeyError a format-ban -> csak warning
+    voice.csipog("aplay -r {")                           # ValueError -> csak warning
+
+
+def test_warm_up_egyszerre_ket_szalrol_is_EGYSZER_tolt(tmp_path, monkeypatch):
+    """PR #106 review: párhuzamos warm_up/speak kétszer töltené a 63 MB-os modellt."""
+    import sys
+    import threading
+    import time
+    import types
+
+    toltesek = []
+
+    class Lassu:
+        @staticmethod
+        def load(path):
+            time.sleep(0.2)
+            toltesek.append(path)
+            return object()
+    monkeypatch.setitem(sys.modules, "piper", types.SimpleNamespace(PiperVoice=Lassu))
+    tts = hang(tmp_path)
+    szalak = [threading.Thread(target=tts.warm_up) for _ in range(3)]
+    for sz in szalak:
+        sz.start()
+    for sz in szalak:
+        sz.join()
+    assert len(toltesek) == 1
