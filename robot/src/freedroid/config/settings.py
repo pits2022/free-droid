@@ -102,6 +102,14 @@ class MotionSettings:
     kick_duty: float = 0.85
     kick_s: float = 0.15
     ramp_s: float = 0.4
+    # A rámpa NEM megy 0-ig (mérve 2026-09-03: egy 90°-os fordulás 0,34 s, ebből a
+    # lökés utáni 0,19 s egészében rámpa volt 0,8→0, a fele a súrlódási küszöb ALATT —
+    # a lánctalp ott már áll, az eredmény 5° a 90 helyett). A rámpa a `ramp_floor_duty`-ig
+    # tart (a küszöb környéke), onnan a stop; és legfeljebb a menet `ramp_max_share`-e,
+    # hogy egy rövid menetnek maradjon utazó szakasza. A rámpán elveszett hajtás az utazó
+    # szakaszhoz adódik, így a ∫duty·dt ≈ duty×menetidő — a fok fok, a méter méter.
+    ramp_floor_duty: float = 0.5
+    ramp_max_share: float = 0.3
     # FORDULÁS külön dutyval (mérve 2026-09-03, 10,8 V): egyenesben a 0,6 utazó duty
     # viszi az 1 m-t, helyben fordulásnál viszont a két lánctalp ELLENTÉTESEN forog, a
     # csúszó súrlódás többszörös — 0,6-on „megfeszül", 1 cm-t moccan, vagy semmi. A
@@ -204,6 +212,8 @@ class MotionSettings:
             raise ValueError("kick_duty (0,1], kick_s >= 0, ramp_s >= 0 kell legyen")
         if not 0.0 < self.turn_duty <= 1.0:
             raise ValueError("turn_duty (0,1] kell legyen")
+        if not 0.0 <= self.ramp_floor_duty < 1.0 or not 0.0 < self.ramp_max_share <= 1.0:
+            raise ValueError("ramp_floor_duty [0,1), ramp_max_share (0,1] kell legyen")
 
 
 @dataclass(frozen=True)

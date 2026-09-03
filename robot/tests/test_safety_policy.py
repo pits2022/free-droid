@@ -333,8 +333,30 @@ def test_a_menet_lokessel_indul_es_rampaval_all_meg():
     assert bal[0] == pytest.approx(85.0)                    # lökés
     assert bal[1] == pytest.approx(60.0)                    # utazó
     rampa = bal[2:]
-    assert rampa == sorted(rampa, reverse=True) and rampa[-1] == 0.0   # csökken, 0-ra
+    assert rampa == sorted(rampa, reverse=True) and rampa[-1] == 0.0   # csökken, a végén stop
+    assert rampa[-2] == pytest.approx(50.0)                  # a rámpa a PADLÓIG (0,5), nem 0-ig
     assert 3 <= len(rampa) <= 7                              # ~0,1 s / 20 ms lépés
+
+
+def test_a_rovid_fordulasnak_marad_utazo_szakasza():
+    """Mérve 2026-09-03: 90° 0,8-on 0,34 s; a lökés utáni maradék EGÉSZE rámpa volt 0-ig →
+    5° a 90 helyett. A rámpa legfeljebb a menet 30%-a, a padlóig, és a hiány az utazóé."""
+    fake = FakeLgpio()
+    m = _bare_motion(fake)
+    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.15, ramp_s=0.4, ramp_floor_duty=0.5,
+                            ramp_max_share=0.3, default_speed=0.6)
+    kezd = time.perf_counter()
+    m._run(1, 1, 0.8, 0.344, heading=None, turning=True)
+    telt = time.perf_counter() - kezd
+    pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
+    assert pwm[0] == pytest.approx(85.0) and pwm[1] == pytest.approx(80.0)
+    assert min(d for d in pwm if d > 0) >= 50.0              # sosem a küszöb alatt
+    assert 0.34 < telt < 0.42, telt                          # + az elveszett hajtás, nem több
+    # ∫duty·dt ≈ duty × menetidő, azaz a fok fok marad
+    rampa_s = 0.3 * 0.344
+    integral = 0.15 * 0.85 + (telt - 0.15 - rampa_s) * 0.8 + rampa_s * 0.65
+    assert integral == pytest.approx(0.8 * 0.344, rel=0.08)
+
 
 
 def test_a_stop_a_rampa_kozben_NEM_indit_ujra():
