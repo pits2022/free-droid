@@ -247,19 +247,20 @@ class FifoTrigger:
 # A kattintó gombjai -> esemény. Linux `input-event-codes.h` kódok, MÉRVE 2026-09-03 az
 # Elan "Wireless Present" (04f3:1812) gombjain, evdev-ből, a Teremtő kiosztásával:
 #
-#   középső ("vetítés")  → FIGYELJ   ⚠️ VÁLTAKOZVA küld Shift+F5-öt és Esc-et (a
-#                                     prezenter maga tartja számon, "megy-e a vetítés"),
-#                                     ezért MINDKÉT kód FIGYELJ — egyik nélkül a gomb
-#                                     minden második nyomásra süket lenne. Mérve.
+#   ALSÓ gomb            → FIGYELJ   ⚠️ EGY nyomás egy MAKRÓ: Meta+Enter, Ctrl+Shift,
+#                                     Meta+Alt+P, majd Shift+F5 — és az ELENGEDÉSKOR
+#                                     külön egy Esc (mérve 10 s-os tartással: az Esc a
+#                                     tartás végén jött). Ezért CSAK az F5 a FIGYELJ;
+#                                     az Esc-et leképezve egy nyomás két kört indítana.
 #   "elsötétítés" (b)    → ÁLLJ      egyetlen, félreérthetetlen stop-gomb
+#   középső gomb         → semmi     az a lézer, kódot nem küld
 #   PageUp / PageDown    → semmi     szándékosan: a lapozók lógó ujjra is mennek
-#   Meta+Enter, Ctrl+Shift, Meta+Alt+P → semmi (a tagjaik ismeretlen kódként naplózódnak)
 #
-# A módosítók (Shift=42 stb.) külön lenyomásként jönnek, a fehérlistán nincsenek.
+# A makró tagjai és a módosítók (Shift=42 stb.) ismeretlen kódként naplózódnak — ez a
+# kalibrálás nyoma, nem hiba.
 KATTINTO_GOMBOK: dict[int, Esemeny] = {
-    63: Esemeny.FIGYELJ,    # KEY_F5  — középső gomb, "vetítés indul" fázis
-    1: Esemeny.FIGYELJ,     # KEY_ESC — középső gomb, "vetítés vége" fázis
-    48: Esemeny.ALLJ,       # KEY_B   — "elsötétítés"
+    63: Esemeny.FIGYELJ,    # KEY_F5 — az alsó gomb lenyomása
+    48: Esemeny.ALLJ,       # KEY_B  — "elsötétítés"
 }
 
 
