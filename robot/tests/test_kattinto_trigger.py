@@ -18,12 +18,13 @@ def test_lenyomas_leképezve_ismeretlen_es_felengedes_eldobva(tmp_path, monkeypa
     monkeypatch.setattr(trigger.fcntl, "ioctl", lambda *a: 0)   # sima fájlon nincs EVIOCGRAB
     eszkoz = tmp_path / "x-event-kbd"
     eszkoz.write_bytes(
-        _esemeny(109, 1)            # PageDown lenyomás -> FIGYELJ
-        + _esemeny(109, 0)          # felengedés -> semmi
-        + _esemeny(109, 2)          # ismétlés -> semmi
-        + _esemeny(30, 1)           # KEY_A: nincs a fehérlistán -> semmi
+        _esemeny(42, 1)             # Shift lenyomás (a középső gomb kísérője) -> semmi
+        + _esemeny(63, 1)           # F5 lenyomás -> FIGYELJ
+        + _esemeny(63, 0)           # felengedés -> semmi
+        + _esemeny(63, 2)           # ismétlés -> semmi
+        + _esemeny(109, 1)          # PageDown: szándékosan NINCS leképezve -> semmi
         + _esemeny(4, 1, tipus=4)   # EV_MSC scancode -> semmi
-        + _esemeny(104, 1)          # PageUp: szándékosan NINCS leképezve -> semmi
+        + _esemeny(1, 1)            # Esc (a középső gomb másik fázisa) -> FIGYELJ
         + _esemeny(48, 1)           # b lenyomás -> ALLJ
     )
     sor: queue.Queue[Esemeny] = queue.Queue()
@@ -31,7 +32,7 @@ def test_lenyomas_leképezve_ismeretlen_es_felengedes_eldobva(tmp_path, monkeypa
     forras.start(sor)
     assert forras._szal is not None
     forras._szal.join(timeout=2)
-    assert [sor.get(timeout=1), sor.get(timeout=1)] == [Esemeny.FIGYELJ, Esemeny.ALLJ]
+    assert [sor.get(timeout=1) for _ in range(3)] == [Esemeny.FIGYELJ, Esemeny.FIGYELJ, Esemeny.ALLJ]
     assert sor.empty()
     forras.close()
 
