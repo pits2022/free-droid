@@ -19,6 +19,7 @@ import asyncio
 import logging
 import os
 import signal
+import threading
 import time
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
@@ -567,17 +568,22 @@ class Orchestrator:
         # A MOZGÁS a beszéd UTÁN. És az ÁLLJ itt is szakaszhatár: egy elhangzott
         # gombnyomás után a bejelentett mozgás el sem indul — ez a biztonságos irány.
         halasztott, self._halasztott = self._halasztott or [], None
-        if halasztott and not trigger.allj.is_set():
-            self._halasztott_futtat(halasztott)
+        if halasztott:
+            self._halasztott_futtat(halasztott, trigger.allj)
 
-    def _halasztott_futtat(self, toolok: list) -> None:
+    def _halasztott_futtat(self, toolok: list, allj: threading.Event) -> None:
         """A beszéd után a mozgató toolok, ugyanazzal a hibakezeléssel, mint az azonnali
-        út: egy elhasalt tool nem viheti el a kört, és a naplóban ott a nyom."""
+        út: egy elhasalt tool nem viheti el a kört, és a naplóban ott a nyom. Az ÁLLJ
+        TOOLONKÉNT nézve (PR #107 review): egy `[turn, move]` kötegnél a turn alatt
+        megnyomott gomb után a move már el sem indul."""
         if self._mozgas_tiltott():
             log.warning("mozgás letiltva, a halasztott köteg eldobva: %r",
                         [t.name for t in toolok])
             return
         for tool in toolok:
+            if allj.is_set():
+                log.info("állj: a maradék halasztott mozgás eldobva")
+                return
             try:
                 self.tools.dispatch(tool)
             except Exception:  # noqa: BLE001 — a következő kör fontosabb, mint ez a tool

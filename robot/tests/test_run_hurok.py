@@ -456,3 +456,26 @@ def test_a_mozgas_a_beszed_UTAN_jon_es_az_allj_meg_is_akadalyozza(monkeypatch):
     sorrend.clear()
     o.execute_guarded(guard("<tool>turn left 90</tool>"))
     assert sorrend == ["turn"]
+
+
+def test_az_allj_a_halasztott_koteg_KOZBEN_is_hat(monkeypatch):
+    """PR #107 review: `[turn, move]` kötegnél a turn alatt megnyomott ÁLLJ után a move
+    már el sem indul."""
+    from freedroid.orchestrator.guard import guard
+
+    busz = TriggerBusz()
+    sorrend: list[str] = []
+
+    class Tools:
+        def dispatch(self, tool):
+            sorrend.append(tool.name)
+            if tool.name == "turn":
+                busz.allj.set()             # gomb a fordulás KÖZBEN
+    o = robot(stt=HamisSTT("Fordulj és menj!"), tts=HamisTTS(), vad=HamisVAD())
+    o.tools = Tools()
+    monkeypatch.setattr(o, "ask", lambda k: o.execute_guarded(
+        guard("Megyek. <tool>turn left 90</tool><tool>move forward 1</tool>")))
+    tts = HamisTTS()
+    tts.engedd.set()
+    o._egy_kor(o._stt, tts, o._vad, busz)
+    assert sorrend == ["turn"]
