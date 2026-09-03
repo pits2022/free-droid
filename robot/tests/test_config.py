@@ -53,7 +53,7 @@ def test_default_settings_load():
     assert isinstance(s, Settings)
     assert s.llm.cloud_url == "http://10.0.0.1:11434"
     assert s.llm.edge_url == "http://127.0.0.1:11434"
-    assert s.safety.stop_threshold_cm == 35.0   # 2026-09-03: a mért 0,8 duty fékútja miatt (lásd SafetySettings)
+    assert s.safety.stop_threshold_cm == 25.0
 
 
 @pytest.mark.parametrize("bad", [-1.0, 0.0])

@@ -77,10 +77,7 @@ class LLMEndpoints:
 
 @dataclass(frozen=True)
 class SafetySettings:
-    # 25 → 35 cm (2026-09-03): a motor 10,9 V-on csak 0,8 duty-tól indul (mérve), és a
-    # fékút-szerződés (test_motion_types) 0,8-on 30,3 cm, 0,9-en 34,1 cm — a küszöb
-    # követi a mért dutyt, nem fordítva. A 25 a Teremtő eredeti száma volt 0,5-höz.
-    stop_threshold_cm: float = 35.0
+    stop_threshold_cm: float = 25.0   # confirmed with Creator; a FAST duty (0,65) fékútja 24,6 cm
     poll_interval_s: float = 0.05     # watchdog thread cadence
     # Per-sensor overrides, e.g. {"front": 30.0}. Read-only (frozen settings).
     per_sensor_cm: Mapping[str, float] = field(default_factory=lambda: MappingProxyType({}))
@@ -94,7 +91,17 @@ class SafetySettings:
 
 @dataclass(frozen=True)
 class MotionSettings:
-    default_speed: float = 0.8      # 0.0–1.0 duty — MÉRVE 2026-09-03: 0,5-ön 10,9 V-nál a lánctalp nem indul, 0,8-on megy (lásd SPEED_DUTY)
+    default_speed: float = 0.6      # 0.0–1.0 UTAZÓ duty (az indítás a `kick_duty`, lásd lent)
+    # INDÍTÓ LÖKÉS + RÁMPA (mérve 2026-09-03, 10,9 V-os akku, padló): 0,5 duty-n a motor
+    # zúg, de a tapadási súrlódást nem lépi át; 0,8-on megy, de „rángat, hirtelen indul
+    # és áll" (a Teremtő). Ezért az indulás `kick_s` ideig `kick_duty`-val megy (a
+    # súrlódás átlépéséhez), utána az utazó duty, a végén `ramp_s` alatt lineárisan 0-ra
+    # (a watchdog `stop()`-ja NEM rámpáz: az azonnali). `ramp_s = 0` kikapcsolja.
+    # Hogy az utazó 0,6 fenntartja-e a mozgást, MÉRENDŐ — a csavarok:
+    # FREEDROID_MOTION_DEFAULT_SPEED / KICK_DUTY / KICK_S / RAMP_S.
+    kick_duty: float = 0.85
+    kick_s: float = 0.15
+    ramp_s: float = 0.4
     pwm_frequency_hz: int = 1000
 
     # ÚJRAMÉRVE 2026-08-26, TELI AKKUN, a mai trimmel: 200 cm-es parancsra a robot
@@ -186,6 +193,8 @@ class MotionSettings:
         self._validate_trim("right_duty_trim", self.right_duty_trim)
         if self.track_width_cm <= 0:
             raise ValueError("track_width_cm must be > 0")
+        if not 0.0 < self.kick_duty <= 1.0 or self.kick_s < 0 or self.ramp_s < 0:
+            raise ValueError("kick_duty (0,1], kick_s >= 0, ramp_s >= 0 kell legyen")
 
 
 @dataclass(frozen=True)

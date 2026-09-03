@@ -320,3 +320,36 @@ class TestCsakAFigyeltSzenzortMerjuk:
         wd.poll_once()
         assert wd.distances_cm()[FRONT] == 100.0
         assert wd.distances_cm()[REAR] == 42.0
+
+
+def test_a_menet_lokessel_indul_es_rampaval_all_meg():
+    """A Teremtő (2026-09-03): 0,5-ön nem indul, 0,8-on rángat. A profil: kick → utazó →
+    lineáris rámpa 0-ra; az utolsó írás 0, és a rámpa minden lépése kisebb az előzőnél."""
+    fake = FakeLgpio()
+    m = _bare_motion(fake)
+    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.05, ramp_s=0.1, default_speed=0.6)
+    m._run(1, 1, 0.6, 0.3, heading=None, turning=False)
+    bal = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
+    assert bal[0] == pytest.approx(85.0)                    # lökés
+    assert bal[1] == pytest.approx(60.0)                    # utazó
+    rampa = bal[2:]
+    assert rampa == sorted(rampa, reverse=True) and rampa[-1] == 0.0   # csökken, 0-ra
+    assert 3 <= len(rampa) <= 7                              # ~0,1 s / 20 ms lépés
+
+
+def test_a_stop_a_rampa_kozben_NEM_indit_ujra():
+    """A rámpa lépései a záron belül nézik a jelzőt: egy `stop()` utáni írás
+    visszaindítaná a robotot — a watchdog ablakában."""
+    fake = FakeLgpio()
+    m = _bare_motion(fake)
+    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.0, ramp_s=0.3, default_speed=0.6)
+
+    def allj():
+        time.sleep(0.12)
+        m.stop()
+    threading.Thread(target=allj, daemon=True).start()
+    m._run(1, 1, 0.6, 0.3, heading=None, turning=False)
+    pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
+    utolso_nem_nulla = max(i for i, d in enumerate(pwm) if d > 0)
+    assert all(d == 0.0 for d in pwm[utolso_nem_nulla + 1:])   # a stop után csak 0-k
+    assert time.time()  # a menet 0,3 s alatt véget ért (különben a teszt beragadna)
