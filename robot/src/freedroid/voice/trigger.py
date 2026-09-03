@@ -340,6 +340,9 @@ class KattintoTrigger:
                     continue
                 esemeny = self._gombok.get(kod)
                 if esemeny is None:
-                    log.info("kattintó: ismeretlen gomb, kód %d (eldobva)", kod)
+                    # DEBUG, nem INFO: az alsó gomb makrója nyomásonként 8 ismeretlen
+                    # kódot ad (mérve), INFO-n ez minden gombnyomásnál 8 journald-sor
+                    # lenne. Kalibráláskor `--debug` alatt látszik. (PR #102 review.)
+                    log.debug("kattintó: ismeretlen gomb, kód %d (eldobva)", kod)
                     continue
                 sor.put(esemeny)
