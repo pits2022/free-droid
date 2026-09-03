@@ -77,7 +77,10 @@ class LLMEndpoints:
 
 @dataclass(frozen=True)
 class SafetySettings:
-    stop_threshold_cm: float = 25.0   # confirmed with Creator
+    # 25 → 35 cm (2026-09-03): a motor 10,9 V-on csak 0,8 duty-tól indul (mérve), és a
+    # fékút-szerződés (test_motion_types) 0,8-on 30,3 cm, 0,9-en 34,1 cm — a küszöb
+    # követi a mért dutyt, nem fordítva. A 25 a Teremtő eredeti száma volt 0,5-höz.
+    stop_threshold_cm: float = 35.0
     poll_interval_s: float = 0.05     # watchdog thread cadence
     # Per-sensor overrides, e.g. {"front": 30.0}. Read-only (frozen settings).
     per_sensor_cm: Mapping[str, float] = field(default_factory=lambda: MappingProxyType({}))
@@ -91,7 +94,7 @@ class SafetySettings:
 
 @dataclass(frozen=True)
 class MotionSettings:
-    default_speed: float = 0.5      # 0.0–1.0 duty
+    default_speed: float = 0.8      # 0.0–1.0 duty — MÉRVE 2026-09-03: 0,5-ön 10,9 V-nál a lánctalp nem indul, 0,8-on megy (lásd SPEED_DUTY)
     pwm_frequency_hz: int = 1000
 
     # ÚJRAMÉRVE 2026-08-26, TELI AKKUN, a mai trimmel: 200 cm-es parancsra a robot

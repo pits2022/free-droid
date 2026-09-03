@@ -67,8 +67,16 @@ class StopCond(str, Enum):
 # kényelmi fokozat. Ráadásul a szót a MODELL is kimondhatja (`move forward 2 fast` a
 # nyelvtan része), tehát viselkedési szabállyal ("a demón ne mondjunk fast-ot") nem
 # lehet kikényszeríteni.
+# MÉRVE 2026-09-03 (akku 10,9 V, padlón): 0,5 duty-n a motor ZÚG, de a lánctalp nem
+# indul el (tapadási súrlódás); 0,8-on „nagy tempóval" megy, és az 1 m 1 m maradt (a
+# menetidő a duty-val skálázódik, `run_seconds`). A 08-28-i menet 12,3 V-on 0,5-tel
+# még ment — a küszöb az akku feszültségével csúszik, ezért a NORMAL a mért 0,8, és a
+# SLOW sem mehet a fél alá. A kalibrációs csavar: `FREEDROID_MOTION_DEFAULT_SPEED`.
+# A FÉKÚT-SZERZŐDÉS (test_motion_types): 76,6 cm/s × duty × 1,1 × (0,25 + 0,2) s < a
+# stop-küszöb. 0,8-on ez 30,3 cm, 0,9-en 34,1 → a küszöb 25-ről 35 cm-re megy vele
+# (SafetySettings), nem a duty vissza: 0,5-ön a robot ÁLL. Az 1,0 (37,9 cm) kimarad.
 SPEED_DUTY: dict[Speed, float] = {
-    Speed.SLOW: 0.3,
-    Speed.NORMAL: 0.5,
-    Speed.FAST: 0.6,
+    Speed.SLOW: 0.6,
+    Speed.NORMAL: 0.8,
+    Speed.FAST: 0.9,
 }

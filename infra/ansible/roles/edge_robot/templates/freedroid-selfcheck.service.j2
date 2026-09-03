@@ -21,7 +21,12 @@ Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') 
 # `--live-motion` SZÁNDÉKOSAN NINCS. Bekapcsoláskor a robot lehet asztalon, táskában vagy
 # a Teremtő kezében — egy magától elinduló lánctalp ott nem diagnosztika, hanem baleset.
 # A mozgó próbát kézzel kell kérni, felpolcolt robotnál.
+# `--skip orchestrator_service`: ez az egység `Before=freedroid.service`, tehát az
+# orchestrátor ITT MINDIG inaktív — a check nélküle minden bootkor és restartkor a
+# „valami nem stimmel" szöveget mondatta ki, hibátlan roboton (mérve 2026-09-03, 20:01:
+# 23 OK + ez az egy BUKÁS). A health-timerben a check marad CRITICAL, ott jogos.
 ExecStart={{ robot_venv_bin }}/python {{ robot_src_dir }}/scripts/self_check.py \
+  --skip orchestrator_service \
   --speak --speak-ok "{{ robot_selfcheck_szoveg_ok }}" \
   --speak-fail "{{ robot_selfcheck_szoveg_baj }}"
 
