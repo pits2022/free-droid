@@ -443,10 +443,12 @@ def csipog(play_command: str, rate: int = 22050, hz: float = 880.0, seconds: flo
     n = int(rate * seconds)
     pcm = array.array("h", (int(12000 * math.sin(2 * math.pi * hz * i / rate)) for i in range(n)))
     try:
-        subprocess.run(shlex.split(play_command.format(rate=rate)), input=pcm.tobytes(),
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0,
-                       check=False)
-    except (OSError, subprocess.TimeoutExpired) as e:
+        # A `format` is a try-n BELÜL: egy elgépelt `play_command` (`{rat}`) KeyError-t
+        # dobna, és a csipogás hibája sosem viheti el a felvételt. (PR #106 review.)
+        parancs = shlex.split(play_command.format(rate=rate))
+        subprocess.run(parancs, input=pcm.tobytes(), stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=2.0, check=False)
+    except (OSError, subprocess.TimeoutExpired, KeyError, IndexError, ValueError) as e:
         log.warning("a csipogás nem ment ki (%s) — a felvétel megy tovább", e)
 
 
@@ -481,6 +483,9 @@ class PiperTTS:
         self._folyamatok: tuple | None = None
         self._zar = threading.Lock()
         self._megszakitva = threading.Event()
+        # KÜLÖN zár a betöltésre, nem a `_zar`: azt az `abort()` is fogja, és egy 2 s-os
+        # modellbetöltés alatt az ÁLLJ-nak nem szabad várnia. (PR #106 review.)
+        self._betoltes_zar = threading.Lock()
 
     def sample_rate(self) -> int:
         """A modell mintavételi frekvenciája, a MELLETTE lévő configból.
@@ -500,15 +505,16 @@ class PiperTTS:
     def warm_up(self) -> None:
         """A modell betöltése (2 s a Pi-n) — az indításkor, ne az első válasz előtt.
         Hiba esetén `RuntimeError` a modell ÚTVONALÁVAL: ez a leggyakoribb ok."""
-        if self._synth is not None or self._voice is not None:
-            return
-        t0 = time.monotonic()
-        try:
-            from piper import PiperVoice  # noqa: PLC0415 — nehéz import, csak itt kell
-            self._voice = PiperVoice.load(self._model + ".onnx")
-        except Exception as e:  # noqa: BLE001 — ImportError, hiányzó fájl, hibás onnx
-            raise RuntimeError(f"a Piper modell nem tölthető be ({self._model}.onnx): {e}") from e
-        log.info("Piper modell betöltve %.1f s alatt", time.monotonic() - t0)
+        with self._betoltes_zar:
+            if self._synth is not None or self._voice is not None:
+                return
+            t0 = time.monotonic()
+            try:
+                from piper import PiperVoice  # noqa: PLC0415 — nehéz import, csak itt kell
+                self._voice = PiperVoice.load(self._model + ".onnx")
+            except Exception as e:  # noqa: BLE001 — ImportError, hiányzó fájl, hibás onnx
+                raise RuntimeError(f"a Piper modell nem tölthető be ({self._model}.onnx): {e}") from e
+            log.info("Piper modell betöltve %.1f s alatt", time.monotonic() - t0)
 
     def _piper_synth(self, text: str):
         from piper import SynthesisConfig  # noqa: PLC0415

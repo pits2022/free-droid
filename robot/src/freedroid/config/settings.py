@@ -304,8 +304,8 @@ class VoiceSettings:
             raise ValueError("length_scale must be > 0")
         if self.speak_timeout_s <= 0:
             raise ValueError("speak_timeout_s must be > 0")
-        if self.listen_beep_s < 0 or self.listen_beep_hz <= 0:
-            raise ValueError("listen_beep_s >= 0 és listen_beep_hz > 0 kell legyen")
+        if self.listen_beep_s < 0 or (self.listen_beep_s > 0 and self.listen_beep_hz <= 0):
+            raise ValueError("listen_beep_s >= 0, és bekapcsolva listen_beep_hz > 0 kell legyen")
         if self.stt_threads <= 0:
             raise ValueError("stt_threads must be > 0")
         if self.stt_timeout_s <= 0:

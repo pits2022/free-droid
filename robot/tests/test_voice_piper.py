@@ -182,3 +182,37 @@ def test_csipogas_a_lejatszora_megy_es_nullaval_kikapcsol(monkeypatch):
     assert "22050" in cmd and n == int(22050 * 0.12) * 2       # 16 bites mono
     voice.csipog("aplay -r {rate}", seconds=0)
     assert len(hivasok) == 1                                    # 0 = nincs hang
+
+
+def test_csipogas_rossz_sablonnal_sem_dob(monkeypatch):
+    """PR #106 review: egy elgépelt `play_command` KeyError-je nem viheti el a felvételt."""
+    from freedroid import voice
+
+    monkeypatch.setattr(voice.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError))
+    voice.csipog("aplay -r {rat}")                       # KeyError a format-ban -> csak warning
+    voice.csipog("aplay -r {")                           # ValueError -> csak warning
+
+
+def test_warm_up_egyszerre_ket_szalrol_is_EGYSZER_tolt(tmp_path, monkeypatch):
+    """PR #106 review: párhuzamos warm_up/speak kétszer töltené a 63 MB-os modellt."""
+    import sys
+    import threading
+    import time
+    import types
+
+    toltesek = []
+
+    class Lassu:
+        @staticmethod
+        def load(path):
+            time.sleep(0.2)
+            toltesek.append(path)
+            return object()
+    monkeypatch.setitem(sys.modules, "piper", types.SimpleNamespace(PiperVoice=Lassu))
+    tts = hang(tmp_path)
+    szalak = [threading.Thread(target=tts.warm_up) for _ in range(3)]
+    for sz in szalak:
+        sz.start()
+    for sz in szalak:
+        sz.join()
+    assert len(toltesek) == 1
