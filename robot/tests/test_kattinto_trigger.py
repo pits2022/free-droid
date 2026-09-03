@@ -1,0 +1,45 @@
+"""KattintoTrigger: fehérlista + csak lenyomás + hiányzó eszköz nem végzetes."""
+from __future__ import annotations
+
+import queue
+import struct
+
+from freedroid.voice import trigger
+from freedroid.voice.trigger import Esemeny, KattintoTrigger
+
+REKORD = struct.Struct("llHHi")
+
+
+def _esemeny(kod: int, ertek: int, tipus: int = 1) -> bytes:
+    return REKORD.pack(0, 0, tipus, kod, ertek)
+
+
+def test_lenyomas_leképezve_ismeretlen_es_felengedes_eldobva(tmp_path, monkeypatch):
+    monkeypatch.setattr(trigger.fcntl, "ioctl", lambda *a: 0)   # sima fájlon nincs EVIOCGRAB
+    eszkoz = tmp_path / "x-event-kbd"
+    eszkoz.write_bytes(
+        _esemeny(42, 1)             # Shift lenyomás (az alsó gomb makrójából) -> semmi
+        + _esemeny(63, 1)           # F5 lenyomás -> FIGYELJ
+        + _esemeny(63, 0)           # felengedés -> semmi
+        + _esemeny(63, 2)           # ismétlés -> semmi
+        + _esemeny(109, 1)          # PageDown: szándékosan NINCS leképezve -> semmi
+        + _esemeny(4, 1, tipus=4)   # EV_MSC scancode -> semmi
+        + _esemeny(1, 1)            # Esc (az alsó gomb ELENGEDÉSE) -> semmi
+        + _esemeny(48, 1)           # b lenyomás -> ALLJ
+    )
+    sor: queue.Queue[Esemeny] = queue.Queue()
+    forras = KattintoTrigger(minta=str(tmp_path / "*-event-kbd"))
+    forras.start(sor)
+    assert forras._szal is not None
+    forras._szal.join(timeout=2)
+    assert [sor.get(timeout=1) for _ in range(2)] == [Esemeny.FIGYELJ, Esemeny.ALLJ]
+    assert sor.empty()
+    forras.close()
+
+
+def test_hianyzo_eszkoz_nem_vegzetes(tmp_path):
+    sor: queue.Queue[Esemeny] = queue.Queue()
+    forras = KattintoTrigger(minta=str(tmp_path / "nincs-*"))
+    forras.start(sor)            # nem dob
+    assert forras._szal is None
+    forras.close()
