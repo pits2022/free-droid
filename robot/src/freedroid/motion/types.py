@@ -67,8 +67,13 @@ class StopCond(str, Enum):
 # kényelmi fokozat. Ráadásul a szót a MODELL is kimondhatja (`move forward 2 fast` a
 # nyelvtan része), tehát viselkedési szabállyal ("a demón ne mondjunk fast-ot") nem
 # lehet kikényszeríteni.
+# MÉRVE 2026-09-03 (akku 10,9 V, padlón): 0,5 duty-n a motor ZÚG, de nem indul; 0,8-on
+# „rángat". Ezért az INDÍTÁS külön van (`MotionSettings.kick_duty`, 0,85 egy pillanatra),
+# itt csak az UTAZÓ duty áll, és a FÉKÚT-SZERZŐDÉS (test_motion_types) köti: 76,6 cm/s ×
+# duty × 1,1 × 0,45 s < 25 cm → a FAST legfeljebb 0,65 (24,6 cm). Kalibrációs csavar:
+# FREEDROID_MOTION_DEFAULT_SPEED.
 SPEED_DUTY: dict[Speed, float] = {
-    Speed.SLOW: 0.3,
-    Speed.NORMAL: 0.5,
-    Speed.FAST: 0.6,
+    Speed.SLOW: 0.5,
+    Speed.NORMAL: 0.6,
+    Speed.FAST: 0.65,
 }

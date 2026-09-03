@@ -198,16 +198,52 @@ class CytronMotionController:
             self._turning = turning
             self._lgpio.gpio_write(self._h, G.LEFT_MOTOR_DIR, left_level)
             self._lgpio.gpio_write(self._h, G.RIGHT_MOTOR_DIR, right_level)
-            # Az OLDALANKÉNTI trim itt kerül rá, egyetlen helyen: a `move` és a `turn`
-            # ugyanazon az úton megy, tehát a kimért szorzó mindkettőre érvényes.
-            freq = self._cfg.pwm_frequency_hz
-            self._lgpio.tx_pwm(self._h, G.LEFT_MOTOR_PWM, freq,
-                               _pct(duty, self._cfg.left_duty_trim))
-            self._lgpio.tx_pwm(self._h, G.RIGHT_MOTOR_PWM, freq,
-                               _pct(duty, self._cfg.right_duty_trim))
+            # Az indítás: LÖKÉS (kick), ha van — a tapadási súrlódás átlépéséhez.
+            self._pwm(max(duty, self._cfg.kick_duty) if self._cfg.kick_s > 0 else duty)
+        seconds = min(seconds, self._cfg.max_run_s)
+        # A három szakasz hossza ELŐRE, úgy, hogy az összegük PONTOSAN `seconds` legyen
+        # (PR #107 review: az első változatban egy rövid menet a kért idő DUPLÁJÁIG
+        # ment, mert a lökés és a rámpa is külön-külön `seconds`-ig futhatott). A
+        # rámpa lépésszáma legalább 1: egy 20 ms alatti rámpa különben kimaradt volna.
+        kick_time = min(self._cfg.kick_s, seconds) if self._cfg.kick_s > 0 else 0.0
+        remaining = seconds - kick_time
+        ramp_time = min(self._cfg.ramp_s, remaining)
+        cruise_time = remaining - ramp_time
         try:
-            # Megszakítható alvás, a záron KÍVÜL: a watchdog `stop()`-ja azonnal
-            # visszaadja a vezérlést, és közben nem kell a zárra várnia.
-            self._interrupt.wait(min(seconds, self._cfg.max_run_s))
+            # A menet SZAKASZAI, mind megszakítható alvással a záron KÍVÜL (a watchdog
+            # `stop()`-ja azonnal kirántja, és nem kell a zárra várnia): lökés → utazó →
+            # lineáris rámpa 0-ra. A rámpa a menetidőn BELÜL van, tehát a távolság kicsit
+            # rövidül — ez a kalibráció (`cm_per_s_at_full`) dolga, nem külön korrekció.
+            if kick_time > 0:
+                if self._interrupt.wait(kick_time):
+                    return
+                if not self._pwm_ha_szabad(duty):
+                    return
+            if cruise_time > 0 and self._interrupt.wait(cruise_time):
+                return
+            if ramp_time > 0:
+                n = max(1, int(ramp_time / 0.02))
+                lepes = ramp_time / n
+                for i in range(1, n + 1):
+                    if self._interrupt.wait(lepes):
+                        return
+                    if not self._pwm_ha_szabad(duty * (1 - i / n)):
+                        return
         finally:
             self.stop()
+
+    def _pwm(self, duty: float) -> None:
+        """Mindkét oldal PWM-je az oldalankénti trimmel — EGY helyen, a `move` és a
+        `turn` ugyanazon az úton megy. A hívó tartja a zárat."""
+        freq = self._cfg.pwm_frequency_hz
+        self._lgpio.tx_pwm(self._h, G.LEFT_MOTOR_PWM, freq, _pct(duty, self._cfg.left_duty_trim))
+        self._lgpio.tx_pwm(self._h, G.RIGHT_MOTOR_PWM, freq, _pct(duty, self._cfg.right_duty_trim))
+
+    def _pwm_ha_szabad(self, duty: float) -> bool:
+        """PWM-írás a záron belül, CSAK ha közben nem állítottak meg: egy `stop()` utáni
+        rámpa-lépés különben visszaindítaná a robotot — pont a watchdog ablakában."""
+        with self._lock:
+            if self._interrupt.is_set():
+                return False
+            self._pwm(duty)
+            return True
