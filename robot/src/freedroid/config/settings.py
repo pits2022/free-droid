@@ -220,6 +220,12 @@ class VoiceSettings:
     # megállás. 17 szó kimondása a Pi-n 9,8 s volt (mérve), tehát a 60 s bőséges tartalék.
     speak_timeout_s: float = 60.0
 
+    # FIGYELJ-csipogás a felvétel ELŐTT (a Teremtő, 2026-09-03: a gombnyomás visszajelzés
+    # nélkül nem egyértelmű). `listen_beep_s = 0` kikapcsolja. Nem veszi fel magát: a
+    # felvétel a hang UTÁN indul, és a lejátszó/felvevő két külön eszköz.
+    listen_beep_hz: float = 880.0
+    listen_beep_s: float = 0.12
+
     # --- STT: whisper.cpp (natív bináris, NEM pip-csomag) ---
     #
     # PUSZTA NÉV, tehát a `find_voice_binary` keresi meg (venv, majd PATH) — UGYANAZ a
@@ -298,6 +304,8 @@ class VoiceSettings:
             raise ValueError("length_scale must be > 0")
         if self.speak_timeout_s <= 0:
             raise ValueError("speak_timeout_s must be > 0")
+        if self.listen_beep_s < 0 or self.listen_beep_hz <= 0:
+            raise ValueError("listen_beep_s >= 0 és listen_beep_hz > 0 kell legyen")
         if self.stt_threads <= 0:
             raise ValueError("stt_threads must be > 0")
         if self.stt_timeout_s <= 0:

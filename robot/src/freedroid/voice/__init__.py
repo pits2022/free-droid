@@ -429,30 +429,55 @@ class EnergyVAD:
         return b"".join(felvett)
 
 
+def csipog(play_command: str, rate: int = 22050, hz: float = 880.0, seconds: float = 0.12) -> None:
+    """FIGYELJ-visszajelzés: egy rövid hang a felvétel ELŐTT, a lejátszó eszközön.
+
+    A Teremtő mérése (2026-09-03, élő felhős menet): a gomb működik, de a napló nélkül
+    nem lehet tudni, ÉRZÉKELTE-e — nem tudja, mikor beszéljen. A gyűrű ezt zöld
+    pulzálással mutatja majd, de a fül gyorsabb és nem kell hozzá ránézni. Az `aplay`
+    indulása mérve 40 ms; a felvétel CSAK a hang után indul, tehát a saját csipogását
+    nem veszi fel (és a lejátszó és a felvevő két külön eszköz). `seconds=0` kikapcsolja.
+    """
+    if seconds <= 0:
+        return
+    n = int(rate * seconds)
+    pcm = array.array("h", (int(12000 * math.sin(2 * math.pi * hz * i / rate)) for i in range(n)))
+    try:
+        subprocess.run(shlex.split(play_command.format(rate=rate)), input=pcm.tobytes(),
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0,
+                       check=False)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log.warning("a csipogás nem ment ki (%s) — a felvétel megy tovább", e)
+
+
 class PiperTTS:
-    """Piper TTS: szöveg -> nyers audio -> lejátszás. Offline, a Pi-n (szuverenitás).
+    """Piper TTS: a modell EGYSZER töltődik be, a hang mondatonként folyik az `aplay`-be.
 
-    A `piper` BINÁRIST hívjuk, nem a Python API-t: a health-check is a binárist keresi
-    (`which piper`), tehát egy út marad ellenőrizve.
+    **Miért a Python-API, és nem a bináris (2026-09-03, mérve a Pi-n):** a `piper`
+    bináris minden hívásra újratölti a 63 MB-os modellt — **2,07 s** — és ez volt a
+    Teremtő által hallott „lemaradás" minden válasz előtt. Melegen: 15 karakter → első
+    hang 0,31 s (hideg 2,29), 103 karakter → 0,92 s (hideg 2,93), és a `synthesize()`
+    MONDATONKÉNT ad hangot, tehát az első mondat már szól, amíg a többi készül. A
+    health-check továbbra is a binárist keresi (`which piper`): ugyanaz a csomag
+    (`piper-tts`) adja mindkettőt, tehát egy hiányzó csomagot az is elkapja.
 
-    A két folyamat CSŐVEL van összekötve (`--output-raw | aplay`), nem ideiglenes
-    WAV-fájlon át. Ez nem teljesítmény-kérdés: a demó előtti posztúra szerint a gépen
-    NEM tárolunk elhangzott mondatot, egy `/tmp`-be írt hangfájl pedig pontosan az lenne.
-
-    A kapcsolók MÉRVE, nem a dokumentációból: `piper --help` + három valódi futtatás
-    (2026-08-18). A `--output-raw` 16 bites, mono, a modell mintavételi frekvenciáján —
-    ezért kell a rátát a modell mellől kiolvasni, és nem beégetni.
+    A lejátszó marad külön folyamat (`aplay`), mert az ALSA-t így NEM tartjuk nyitva a
+    mondatok között, és az `abort()` egy `kill()`-lel azonnal elhallgattat.
     """
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, settings: Settings | None = None, synth=None) -> None:
         from freedroid.config.settings import load_settings
 
         self._cfg = (settings or load_settings()).voice
         # `expanduser`: a config `~`-t ír (a modell a robot-user home-jában van), és a
         # subprocess NEM oldja fel a tildét — shell nélkül futunk, nincs, ami kibontsa.
         self._model = str(Path(self._cfg.piper_model).expanduser())
-        # A FUTÓ folyamatok, hogy az `abort()` MÁS SZÁLRÓL is elérje őket. A zár nem
-        # díszítés: az `abort()` a trigger szálán fut, a `speak()` a főszálon.
+        # Cserélhető szintetizátor (teszt): szöveg -> PCM-darabok iterátora. Alapból a
+        # melegen tartott Piper-modell (`_piper_synth`).
+        self._synth = synth
+        self._voice = None
+        # A FUTÓ lejátszó, hogy az `abort()` MÁS SZÁLRÓL is elérje. A zár nem díszítés:
+        # az `abort()` a trigger szálán fut, a `speak()` a főszálon.
         self._folyamatok: tuple | None = None
         self._zar = threading.Lock()
         self._megszakitva = threading.Event()
@@ -472,6 +497,25 @@ class PiperTTS:
                 f"a Piper hang configja nem olvasható ({config}): {e} — a hang KÉT "
                 f"fájlból áll (.onnx + .onnx.json), és mindkettő kell") from e
 
+    def warm_up(self) -> None:
+        """A modell betöltése (2 s a Pi-n) — az indításkor, ne az első válasz előtt.
+        Hiba esetén `RuntimeError` a modell ÚTVONALÁVAL: ez a leggyakoribb ok."""
+        if self._synth is not None or self._voice is not None:
+            return
+        t0 = time.monotonic()
+        try:
+            from piper import PiperVoice  # noqa: PLC0415 — nehéz import, csak itt kell
+            self._voice = PiperVoice.load(self._model + ".onnx")
+        except Exception as e:  # noqa: BLE001 — ImportError, hiányzó fájl, hibás onnx
+            raise RuntimeError(f"a Piper modell nem tölthető be ({self._model}.onnx): {e}") from e
+        log.info("Piper modell betöltve %.1f s alatt", time.monotonic() - t0)
+
+    def _piper_synth(self, text: str):
+        from piper import SynthesisConfig  # noqa: PLC0415
+        cfg = SynthesisConfig(length_scale=self._cfg.length_scale)
+        for darab in self._voice.synthesize(text, cfg):
+            yield darab.audio_int16_bytes
+
     @staticmethod
     def _olvas(nev: str, folyam, ide: dict) -> None:
         """Egy stderr teljes kiolvasása, saját szálon. Sosem dob: egy hibaüzenet
@@ -480,6 +524,23 @@ class PiperTTS:
             ide[nev] = folyam.read()
         except Exception:  # noqa: BLE001 — a diagnosztika sosem fontosabb a működésnél
             ide[nev] = b""
+
+    def _ir(self, text: str, jatszo, hibak: dict) -> None:
+        """A szintézis szála: mondatonként a lejátszó csövébe. A `BrokenPipe` a
+        megszakítás normális jele (a lejátszót kilőtték), nem hiba."""
+        synth = self._synth or self._piper_synth
+        try:
+            for darab in synth(text):
+                jatszo.stdin.write(darab)
+        except (BrokenPipeError, OSError):
+            pass
+        except Exception as e:  # noqa: BLE001 — a hívó dönti el, mit ér a szintézis hibája
+            hibak["szintézis"] = repr(e)
+        finally:
+            try:
+                jatszo.stdin.close()
+            except OSError:
+                pass
 
     def abort(self) -> None:
         """A FOLYAMATBAN LÉVŐ beszéd azonnali megszakítása, más szálról.
@@ -514,91 +575,43 @@ class PiperTTS:
         # ELŐBB töröljük a jelzőt: egy KORÁBBI mondat megszakítása nem némíthatja el a
         # következőt. (A gomb megnyomása és az új mondat indulása között a jelző áll.)
         self._megszakitva.clear()
-
-        gen_parancs = [find_voice_binary("piper") or "piper",
-                       "--model", self._model + ".onnx", "--output-raw",
-                       "--length-scale", str(self._cfg.length_scale)]
+        self.warm_up()
         jatszo_parancs = shlex.split(self._cfg.play_command.format(rate=self.sample_rate()))
-
         try:
-            gen = subprocess.Popen(gen_parancs, stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except OSError as e:
-            raise RuntimeError(f"a `piper` nem indult el: {e}") from e
-        try:
-            jatszo = subprocess.Popen(jatszo_parancs, stdin=gen.stdout,
+            jatszo = subprocess.Popen(jatszo_parancs, stdin=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
         except OSError as e:
-            # A csöveket EXPLICITEN zárjuk. A CPython refszámlálása általában elintézné,
-            # de a kivétel-objektum életben tartja a keretet (és vele a `gen`-t), amíg a
-            # traceback él — egy tartósan hibázó lejátszónál (pl. hiányzó `aplay`) ez
-            # mondatonként három leíró, egy hosszan futó szolgáltatásban.
-            for folyam in (gen.stdin, gen.stdout, gen.stderr):
-                if folyam is not None:
-                    folyam.close()
-            gen.kill()
-            gen.wait()
             raise RuntimeError(f"a lejátszó nem indult el ({jatszo_parancs[0]}): {e}") from e
 
-        # Innentől megszakítható: az `abort()` más szálról ezt a két folyamatot lövi ki.
-        # A nyilvántartásba vétel a MÁSODIK Popen után van, hogy félig felépült állapotot
-        # ne adjunk ki — de MÉG az írás/várakozás előtt, tehát nincs olyan pillanat,
-        # amikor a robot beszél, de nem lehet elhallgattatni.
+        # Innentől megszakítható: az `abort()` más szálról ezt a folyamatot lövi ki. A
+        # nyilvántartásba vétel MÉG az írás előtt van, tehát nincs olyan pillanat, amikor
+        # a robot beszél, de nem lehet elhallgattatni; és ha az `abort()` PONT a Popen
+        # alatt futott, a jelző már áll, és a most induló mondatot azonnal elvágjuk.
         with self._zar:
-            self._folyamatok = (gen, jatszo)
-        # És ha az `abort()` PONT a két lépés között futott le, azt itt kapjuk el: a
-        # jelző már áll, tehát a most induló mondatot azonnal el is vágjuk. Enélkül a
-        # gombnyomás átcsúszna a résen, és a robot mégis megszólalna.
+            self._folyamatok = (jatszo,)
         if self._megszakitva.is_set():
-            for folyamat in (gen, jatszo):
-                folyamat.kill()
+            jatszo.kill()
 
-        # A SZÜLŐNEK el kell engednie a cső olvasó végét, különben az `aplay` sosem lát
-        # EOF-ot, és a beszéd végén örökre várna. Ez a klasszikus cső-holtpont.
-        gen.stdout.close()
-
-        # MINDKÉT stderr-t PÁRHUZAMOSAN olvassuk. Sorban olvasva ez holtpontba futhat:
-        # ha a lejátszó megáll (foglalt hangeszköz), a `piper` a megtelt csőre írva
-        # blokkol, tehát az ő stderr-je sosem ér EOF-ot — és a lejátszó hibaüzenetéhez,
-        # ami épp megmagyarázná az egészet, sosem jutnánk el. (PR #91 review.)
-        hibak: dict[str, bytes] = {}
-        szalak = [threading.Thread(target=self._olvas, args=(nev, folyam, hibak),
-                                   daemon=True)
-                  for nev, folyam in (("piper", gen.stderr), ("lejátszó", jatszo.stderr))]
+        hibak: dict[str, object] = {}
+        szalak = [threading.Thread(target=self._ir, args=(text, jatszo, hibak), daemon=True),
+                  threading.Thread(target=self._olvas, args=("lejátszó", jatszo.stderr, hibak),
+                                   daemon=True)]
         for szal in szalak:
             szal.start()
 
-        # A `piper` AZONNAL kiléphet (rossz modell-útvonal, hibás kapcsoló), és akkor az
-        # írás `BrokenPipeError`-t dob. Elnyeljük — nem azért, mert nem érdekes, hanem
-        # mert az ÉRDEKES üzenet a piper stderr-jén van, és azt pár sorral lejjebb
-        # ki is olvassuk. A nyers BrokenPipeError csak elrejtené a valódi okot.
-        try:
-            gen.stdin.write(text.encode("utf-8"))
-            gen.stdin.close()
-        except (BrokenPipeError, OSError):
-            pass
-
-        # ÉS IDŐKORLÁT. A szálas olvasás önmagában NEM elég — a review javaslata itt
-        # megáll félúton: ha a lejátszó beragad a hangeszköz megnyitásán anélkül, hogy
-        # kilépne, a `piper` örökre blokkol az írásnál, az ő stderr-je sosem ér EOF-ot,
-        # és a `join()` ugyanúgy örökre vár. Csak a szálak mellett a robot NÉMÁN,
-        # határidő nélkül állna meg a színpadon — a legrosszabb kimenet.
-        # KÖZÖS határidő, nem két külön időkorlát. Egymás után, teljes értékkel hívva a
-        # legrosszabb eset a KÉTSZERESE lett volna — vagyis a `speak_timeout_s` nem azt
-        # jelentette volna, amit a neve és a dokumentációja ígér. (PR #91 review.)
+        # IDŐKORLÁT, KÖZÖS a szintézisre és a lejátszásra (PR #91 review): ha a lejátszó
+        # beragad a hangeszköz megnyitásán anélkül, hogy kilépne, a robot NÉMÁN, határidő
+        # nélkül állna a színpadon — a legrosszabb kimenet.
         hatarido = self._cfg.speak_timeout_s
-        vege = time.monotonic() + hatarido
         try:
-            gen.wait(timeout=max(0.0, vege - time.monotonic()))
-            jatszo.wait(timeout=max(0.0, vege - time.monotonic()))
+            jatszo.wait(timeout=hatarido)
         except subprocess.TimeoutExpired as e:
-            for folyamat in (gen, jatszo):
-                folyamat.kill()
-                folyamat.wait()
+            jatszo.kill()
+            jatszo.wait()
             for szal in szalak:
                 szal.join(timeout=1.0)
             # A nyilvántartást a HIBAÁGON is ürítjük: különben egy beragadt mondat után
-            # az `abort()` halott folyamatokra hivatkozna, és a jelző a KÖVETKEZŐ
+            # az `abort()` halott folyamatra hivatkozna, és a jelző a KÖVETKEZŐ
             # mondatot vágná el.
             with self._zar:
                 self._folyamatok = None
@@ -606,7 +619,6 @@ class PiperTTS:
                                f"— foglalt vagy hibás hangeszköz?") from e
         for szal in szalak:
             szal.join(timeout=1.0)
-
         with self._zar:
             self._folyamatok = None
 
@@ -615,12 +627,8 @@ class PiperTTS:
         if self._megszakitva.is_set():
             log.info("a beszéd megszakítva (állj)")
             return
-
-        gen_hiba = hibak.get("piper", b"").decode("utf-8", "replace")
-        jatszo_hiba = hibak.get("lejátszó", b"").decode("utf-8", "replace")
-
-        if gen.returncode:
-            raise RuntimeError(f"piper hiba ({gen.returncode}): {gen_hiba.strip()[:300]}")
+        if (szint_hiba := hibak.get("szintézis")) is not None:
+            raise RuntimeError(f"piper hiba: {str(szint_hiba)[:300]}")
         if jatszo.returncode:
-            raise RuntimeError(f"lejátszás hiba ({jatszo.returncode}): "
-                               f"{jatszo_hiba.strip()[:300]}")
+            jatszo_hiba = (hibak.get("lejátszó") or b"").decode("utf-8", "replace")
+            raise RuntimeError(f"lejátszás hiba ({jatszo.returncode}): {jatszo_hiba.strip()[:300]}")
