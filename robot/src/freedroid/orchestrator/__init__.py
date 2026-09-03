@@ -136,7 +136,8 @@ class Orchestrator:
     def _hang(self) -> tuple[STT, TTS, VAD, TriggerBusz]:
         """A hang-lánc + a trigger, első használatkor megépítve."""
         from freedroid.voice import EnergyVAD, FallbackSTT, PiperTTS
-        from freedroid.voice.trigger import BillentyuTrigger, FifoTrigger, TriggerBusz
+        from freedroid.voice.trigger import (BillentyuTrigger, FifoTrigger, KattintoTrigger,
+                                             TriggerBusz)
 
         if self._stt is None:
             self._stt = FallbackSTT(self._settings)
@@ -145,11 +146,11 @@ class Orchestrator:
         if self._vad is None:
             self._vad = EnergyVAD(self._settings)
         if self._trigger is None:
-            # KÉT forrás, mert kétféle üzemmód van, és egyik sem elég önmagában:
+            # HÁROM forrás, mert háromféle üzemmód van, és egyik sem elég önmagában:
             # a billentyűzet a kézi menethez (systemd alatt azonnal elhallgat, nincs
-            # stdin), a FIFO a SZOLGÁLTATÁShoz és a távoli konzolhoz. Aug. 31-én az
-            # evdev-kattintó harmadikként esik be, a hurok változatlanul.
-            self._trigger = TriggerBusz(BillentyuTrigger(), FifoTrigger(),
+            # stdin), a FIFO a SZOLGÁLTATÁShoz és a távoli konzolhoz, a kattintó a
+            # DEMÓhoz (2026-09-03 óta be van dugva). Amelyik nincs, az csendben kimarad.
+            self._trigger = TriggerBusz(BillentyuTrigger(), FifoTrigger(), KattintoTrigger(),
                                         azonnal=self._azonnali_allj)
         return self._stt, self._tts, self._vad, self._trigger
 

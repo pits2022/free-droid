@@ -28,9 +28,12 @@ külön kockázat, és csak az egyik védhető:
 
 from __future__ import annotations
 
+import fcntl
+import glob
 import logging
 import os
 import queue
+import struct
 import sys
 import threading
 from enum import Enum
@@ -239,3 +242,97 @@ class FifoTrigger:
             while b"\n" in maradek:
                 elso, maradek = maradek.split(b"\n", 1)
                 sor.put(_esemeny(elso.decode("utf-8", "replace")))
+
+
+# A kattintó gombjai -> esemény. Linux `input-event-codes.h` kódok. A KÓDOK MÉRENDŐK:
+# a 2026-09-03-i Elan "Wireless Present" (04f3:1812) még nem lett lenyomva; az itt álló
+# leképezés a szokásos prezenter-kiosztás (PageDown = következő dia, PageUp = előző,
+# Esc/`b` = elsötétítés). Az ismeretlen kódot a naplóból olvasd ki, és ide írd be.
+# A fehérlista NEM opcionális — lásd a modul biztonsági bekezdését.
+KATTINTO_GOMBOK: dict[int, Esemeny] = {
+    109: Esemeny.FIGYELJ,   # KEY_PAGEDOWN
+    104: Esemeny.ALLJ,      # KEY_PAGEUP
+    1: Esemeny.ALLJ,        # KEY_ESC
+    48: Esemeny.ALLJ,       # KEY_B
+}
+
+
+class KattintoTrigger:
+    """Prezenter-kattintó (HID-billentyűzet) az evdev-en, KÖNYVTÁR NÉLKÜL.
+
+    ponytail: nincs python-evdev — egy C-kiterjesztés egy 24 bájtos struct olvasásáért.
+    A `struct input_event` = `timeval` (2×long) + type (u16) + code (u16) + value (s32);
+    a `struct.Struct("llHHi")` natív igazítással pont ezt adja 64 biten (a spec 64 bites
+    Pi OS-t ír elő). Az `EVIOCGRAB` egy `ioctl`: `_IOW('E', 0x90, int)` = 0x40044590.
+
+    A biztonsági kötelességek a modul docstringjéből: (1) kizárólagos lefoglalás, a
+    leütés sehová máshova nem jut; (2) csak a `gombok` fehérlistája hat, minden más
+    eldobva (naplózva, mert a kalibráláshoz pont az ismeretlen kód kell); (3) csak a
+    LENYOMÁS (value == 1) számít — az ismétlés (2) egy lenyomva tartott gombból
+    sorozat-FIGYELJ-et csinálna.
+
+    A szál `daemon`, ugyanazért, mint a billentyűzeté: az `os.read` egy karakteres
+    eszközön a következő eseményig blokkol, a `close()` nem ébreszti fel. Kilépéskor a
+    folyamat viszi magával.
+    """
+
+    _REKORD = struct.Struct("llHHi")
+    _EVIOCGRAB = 0x40044590
+    _EV_KEY = 1
+
+    def __init__(self, minta: str = "/dev/input/by-id/*Present*-event-kbd",
+                 gombok: dict[int, Esemeny] | None = None) -> None:
+        self._minta = minta
+        self._gombok = gombok if gombok is not None else KATTINTO_GOMBOK
+        self._fd: int | None = None
+        self._szal: threading.Thread | None = None
+        self._all = threading.Event()
+
+    def start(self, sor: queue.Queue[Esemeny]) -> None:
+        utak = sorted(glob.glob(self._minta))
+        if not utak:
+            # NEM végzetes (a FIFO és a billentyűzet marad), de hangos: e nélkül a
+            # bedugott, de ismeretlen nevű kattintó némán "nem működne".
+            log.warning("kattintó nem található (%s) — ezen az úton NEM szólítható meg",
+                        self._minta)
+            return
+        try:
+            self._fd = os.open(utak[0], os.O_RDONLY)
+            fcntl.ioctl(self._fd, self._EVIOCGRAB, 1)
+        except OSError as e:
+            # A grab hibája is végzetes ERRE a forrásra: grab nélkül a leütés a konzolig
+            # jut, ami a modul biztonsági bekezdése szerint tilos.
+            log.warning("kattintó nem foglalható le (%s): %s", utak[0], e)
+            self.close()
+            return
+        self._szal = threading.Thread(target=self._olvas, args=(sor,), daemon=True)
+        self._szal.start()
+        log.info("kattintó él: %s, gombok %s", utak[0], sorted(self._gombok))
+
+    def close(self) -> None:
+        self._all.set()
+        if self._fd is not None:
+            os.close(self._fd)
+            self._fd = None
+
+    def _olvas(self, sor: queue.Queue[Esemeny]) -> None:
+        meret = self._REKORD.size
+        while not self._all.is_set():
+            fd = self._fd              # helyi másolat, mint a FIFO-nál: a close() más szálon fut
+            if fd is None:
+                return
+            try:
+                darab = os.read(fd, meret * 64)
+            except OSError:
+                return                 # lezárt leíró vagy kihúzott eszköz (ENODEV)
+            if not darab:
+                return                 # EOF: az eszköz eltűnt
+            egesz = darab[:len(darab) - len(darab) % meret]
+            for _, _, tipus, kod, ertek in self._REKORD.iter_unpack(egesz):
+                if tipus != self._EV_KEY or ertek != 1:
+                    continue
+                esemeny = self._gombok.get(kod)
+                if esemeny is None:
+                    log.info("kattintó: ismeretlen gomb, kód %d (eldobva)", kod)
+                    continue
+                sor.put(esemeny)
