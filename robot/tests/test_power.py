@@ -12,8 +12,10 @@ from freedroid.power import volt_from_raw
 
 class HamisMotion:
     heading, is_turning = None, False
+    megallitva = 0
 
-    def stop(self) -> None: ...
+    def stop(self) -> None:
+        self.megallitva += 1
 
     def close(self) -> None: ...
 
@@ -79,6 +81,7 @@ def test_orchestrator_kritikus_akku_tilt_es_egyszer_szol():
     assert not o._mozgas_tiltott()
     o._akku_ellenor(tts, most=100.0)
     assert o._mozgas_tiltott()
+    assert o.motion.megallitva == 1                # a FUTÓ mozgás is megáll
     assert tts.mondott == [AKKU_KRITIKUS_VALASZ]
     o._akku_ellenor(tts, most=200.0)               # még mindig kritikus: nem ismétli
     assert tts.mondott == [AKKU_KRITIKUS_VALASZ]
@@ -98,3 +101,16 @@ def test_orchestrator_olvashatatlan_mero_nem_tilt():
                      akku_olvaso=nincs)
     o._akku_ellenor(HamisTTS(), most=100.0)
     assert not o._mozgas_tiltott()
+
+
+def test_read_battery_v_csonka_olvasas_oserror(monkeypatch):
+    """A csonka busz-válasz OSError, nem ValueError — a hívók csak azt kapják el."""
+    import freedroid.power as power
+    monkeypatch.setattr(power.os, "open", lambda *a: 42)
+    monkeypatch.setattr(power.os, "close", lambda fd: None)
+    monkeypatch.setattr(power.os, "write", lambda fd, b: len(b))
+    monkeypatch.setattr(power.os, "read", lambda fd, n: b"\x41")
+    monkeypatch.setattr(power.fcntl, "ioctl", lambda *a: 0)
+    monkeypatch.setattr(power.time, "sleep", lambda s: None)
+    with pytest.raises(OSError, match="csonka"):
+        power.read_battery_v(PowerSettings())

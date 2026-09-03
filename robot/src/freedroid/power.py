@@ -20,7 +20,7 @@ from freedroid.config.settings import PowerSettings
 
 I2C_SLAVE = 0x0703          # linux/i2c-dev.h
 _CONFIG_AIN0_6V = bytes([0x01, 0xC1, 0x83])
-_LSB_V = 6.144 / 32767
+_LSB_V = 6.144 / 32768     # 187,5 µV: a ±FSR 2^15 lépés (adatlap; PR #103 review)
 
 
 def volt_from_raw(hi: int, lo: int, divider: float) -> float:
@@ -38,7 +38,12 @@ def read_battery_v(s: PowerSettings) -> float:
         os.write(fd, _CONFIG_AIN0_6V)
         time.sleep(0.01)
         os.write(fd, bytes([0x00]))
-        hi, lo = os.read(fd, 2)
+        adat = os.read(fd, 2)
     finally:
         os.close(fd)
-    return volt_from_raw(hi, lo, s.divider)
+    # Rövid olvasás -> OSError, NEM ValueError: a hívók (health, orchestrator) csak
+    # OSError-t kapnak el, egy csonka busz-válasz különben a főhurkot vinné el.
+    # (PR #103 review.)
+    if len(adat) < 2:
+        raise OSError(f"csonka I2C-olvasás az ADS1115-ről: {len(adat)} bájt 2 helyett")
+    return volt_from_raw(adat[0], adat[1], s.divider)

@@ -422,6 +422,12 @@ class Orchestrator:
         if not self._akku_kritikus and v < p.critical_v:
             self._akku_kritikus = True
             log.error("AKKU KRITIKUS: %.2f V < %.1f V — mozgás letiltva", v, p.critical_v)
+            # A FUTÓ mozgást is: a tiltás csak a KÖVETKEZŐ köteget fogja meg, egy
+            # menet közben lévő `move` viszont másodpercekig hajt. (PR #103 review.)
+            try:
+                self.motion.stop()
+            except Exception:  # noqa: BLE001 — a megállítás hibája sem viheti el a hurkot
+                log.exception("a motor leállítása elhasalt kritikus akkunál")
             if tts is not None:
                 try:
                     tts.speak(AKKU_KRITIKUS_VALASZ)
