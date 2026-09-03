@@ -371,3 +371,17 @@ def test_a_rovid_menet_NEM_hosszabb_a_kert_idonel():
     m._run(1, 1, 0.6, 0.05, heading=None, turning=False)
     pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
     assert pwm[0] == pytest.approx(60.0) and pwm[-1] == 0.0
+
+
+def test_a_fordulas_a_turn_duty_val_megy_nem_a_fokozattal():
+    """Mérve 2026-09-03: helyben fordulásnál a 0,6 utazó duty megfeszül. A `turn()` a
+    `turn_duty`-t használja, a `set_speed` fokozata csak az egyenes menetet szabja."""
+    from freedroid.motion.types import TurnDir
+
+    fake = FakeLgpio()
+    m = _bare_motion(fake)
+    m._cfg = MotionSettings(kick_s=0.0, ramp_s=0.0, turn_duty=0.8, default_speed=0.6)
+    m._duty = 0.6
+    m.turn(TurnDir.LEFT, degrees=5)
+    pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
+    assert pwm[0] == pytest.approx(80.0)

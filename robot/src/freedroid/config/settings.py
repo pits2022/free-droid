@@ -102,6 +102,13 @@ class MotionSettings:
     kick_duty: float = 0.85
     kick_s: float = 0.15
     ramp_s: float = 0.4
+    # FORDULÁS külön dutyval (mérve 2026-09-03, 10,8 V): egyenesben a 0,6 utazó duty
+    # viszi az 1 m-t, helyben fordulásnál viszont a két lánctalp ELLENTÉTESEN forog, a
+    # csúszó súrlódás többszörös — 0,6-on „megfeszül", 1 cm-t moccan, vagy semmi. A
+    # fékút-szerződés a fordulásra nem vonatkozik (helyben forog, nem közelít semmit),
+    # ezért mehet magasabbra. `set_speed`/`speed=` ezt NEM írja felül: az egyenes
+    # menet fokozata. Csavar: FREEDROID_MOTION_TURN_DUTY.
+    turn_duty: float = 0.8
     pwm_frequency_hz: int = 1000
 
     # ÚJRAMÉRVE 2026-08-26, TELI AKKUN, a mai trimmel: 200 cm-es parancsra a robot
@@ -195,6 +202,8 @@ class MotionSettings:
             raise ValueError("track_width_cm must be > 0")
         if not 0.0 < self.kick_duty <= 1.0 or self.kick_s < 0 or self.ramp_s < 0:
             raise ValueError("kick_duty (0,1], kick_s >= 0, ramp_s >= 0 kell legyen")
+        if not 0.0 < self.turn_duty <= 1.0:
+            raise ValueError("turn_duty (0,1] kell legyen")
 
 
 @dataclass(frozen=True)
