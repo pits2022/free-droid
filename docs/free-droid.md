@@ -453,9 +453,31 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 *   **Szoftver:** `robot/src/freedroid/power.py` — stdlib, `ioctl(I2C_SLAVE)`, nincs smbus.
 
 ### 6. LED ring
-*   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V.
+*   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V. (Összeforrasztva 2026-09-03, a GPIO-ra még nincs rádugva; a LED-szám mérendő → `FREEDROID_LED_COUNT`.)
 *   **Vezérlés:** SPI módban (`/dev/spidev0.0`) – konfliktus-mentes az RPi 5-ön (elkerüli a PWM/DMA ütközést az audio és motorvezérlővel).
 *   **Táp:** RPi 5V pin (kis ringhez elegendő, sok LED esetén külső 5V vonal ajánlott).
+
+**Színkód — DÖNTÉS (a Teremtő, 2026-09-03).** Két elv: kevés állapot, és a MINTA legalább
+annyit mond, mint a szín (5 méterről, színtévesztőnek is); a piros EGYET jelent. A fő sor a
+szuverenitás-demó láthatóvá tétele: gondolkodás közben a gyűrű a FORRÁS színében forog.
+
+| állapot | szín + minta | miért |
+| :--- | :--- | :--- |
+| **Vár** (gomb előtt) | halvány fehér, lassú lélegzés | „Él, de NEM hallgat" — felvétel csak gombra: adatvédelmi állítás a színpadon |
+| **FIGYEL** (felvétel) | zöld, gyors pulzálás | a VAD végével azonnal megszűnik → látszik, mikor zárta le a mondatot |
+| **Gondolkodik — FELHŐ** | kék, körbefutó | húzd ki a WireGuardot, és a kör… |
+| **Gondolkodik — EDGE** | lila, körbefutó | …lilára vált, és mégis válaszol. Ez az egy sor eladja az előadást |
+| **Beszél** | a forrás színe, folyamatos | a közönség végig látja, melyik elme felelt |
+| **Mozog** | fehér futófény a haladás irányába | a `move`/`turn` tool alatt |
+| **Akadály-stop** (reflex) | piros, 3 villanás, aztán vissza | a watchdog az LLM-től függetlenül állt meg — ezt is látni kell |
+| **Akku gyenge** (3,4 V/cella) | a „vár" lélegzés narancsra vált | csak tétlenül zavar, nem nyomja el a többit |
+| **SAFE MODE / watchdog-hiba / akku kritikus** | folyamatos piros | egyetlen jelentés: „ne várj tőle mozgást" |
+| **Boot OK** | egy szivárvány-söprés | a robot bejelentkezett |
+
+Szándékosan NEM jelezve: RAG-találat, tool-hívás, `extended` mód — a közönség nem tudja
+olvasni, a Teremtő a naplóból látja. Implementáció: `robot/src/freedroid/led/` (húzó modell: a
+rajzoló szál képkockánként kérdezi az orchestrátor `_led_scene()`-jét; a `frame()` tiszta
+függvény, hardver nélkül tesztelt). Bring-up: `uv run python scripts/led_test.py`.
 
 ### 7. USB perifériák
 
