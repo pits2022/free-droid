@@ -118,14 +118,15 @@ terraform init                 # S3 state backend + hcloud provider
 terraform fmt -recursive
 terraform validate
 terraform plan
-terraform apply                # creates the CAX31 (mother-001), renders the Ansible
+python3 gpu_pick.py            # FIRST: which DO GPU box is deployable NOW (cheapest, nearest) -> prints the -var flags
+terraform apply -var do_gpu_size=<slug> -var do_region=<slug>   # both REQUIRED; creates mother-001, renders the Ansible
                                # inventory, then runs the cloud play via local-exec
 ```
 
 The cloud server type is a **one-line / one-flag switch** (default `cax31`):
 
 ```bash
-terraform apply -var cloud_server_type=cax41     # bigger ARM box
+terraform apply -var cloud_provider=hetzner -var cloud_server_type=cax41   # CPU fallback cloud (ARM)
 # or set  cloud_server_type = "cax41"  in terraform.tfvars
 ```
 
