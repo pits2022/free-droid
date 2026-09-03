@@ -149,15 +149,15 @@ module "cloud_do" {
 }
 
 variable "do_region" {
-  description = "DO region (GPU reality 2026-08-13: Ada cards are tor1-only, no EU GPU region)"
+  description = "DO region. Measured 2026-08-28: the H100 IS in ams3 (44.9 ms RTT from the Pi); the Ada cards are deployable nowhere (empty region list, re-checked 2026-09-03)"
   type        = string
-  default     = "tor1"
+  default     = "ams3"
 }
 
 variable "do_gpu_size" {
-  description = "DO GPU size. gpu-4000adax1-20gb ($0.76/h) demo target; gpu-6000adax1-48gb ($1.57/h) is the measured one"
+  description = "DO GPU size. gpu-h100x1-80gb ($4.41/h) is the measured demo box (233 tok/s on the 8B); gpu-4000adax1-20gb ($0.76/h) has NO region today, so it is not a valid default"
   type        = string
-  default     = "gpu-4000adax1-20gb"
+  default     = "gpu-h100x1-80gb"
 }
 
 # Az aktív felhő adatai. A `one()` a count-os modul egyelemű listáját bontja ki, és

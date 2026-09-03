@@ -7,18 +7,20 @@ variable "ssh_public_key_path" {
 # A régió NEM szabadon választható: 2026-08-13-án mérve az Ada-kártyák csak `tor1`-ben
 # vannak, és európai DO GPU-régió nincs. Ha egyszer lesz, ez az egysoros váltás.
 variable "do_region" {
-  description = "DigitalOcean region. GPU reality (2026-08-13): the Ada cards are tor1-only; no EU GPU region exists."
+  description = "DigitalOcean region. Measured 2026-08-28: the H100 is in ams3 (EU, 44.9 ms RTT from the Pi). The 2026-08-13 'Ada is tor1-only, no EU GPU region' finding is superseded."
   type        = string
-  default     = "tor1"
+  default     = "ams3"
 }
 
-# A demó-cél a legkisebb Ada: 20 GB VRAM egy 8B Q4-hez (~5 GB) bőven elég, és fele
-# annyi, mint a 6000 Ada. A H200-mérés a 6000 Ada-n futott (144 tok/s) — a 4000 Ada
-# ugyanaz a generáció, tehát a szám jól extrapolálható.
+# A demó-doboz a H100 (mérve 2026-08-28: 233 tok/s a 8B-n, whisper 0,31 s), mert a
+# „legkisebb Ada" terv MEGDŐLT: a gpu-4000adax1 régiólistája ÜRES (2026-08-13 óta,
+# újra ellenőrizve 2026-09-03), tehát alapértelmezésként egy sima `apply` elbukott
+# volna vele. Az ár 5,8× ($4,41/h), cserébe EU-régió. Az `-var do_gpu_size=...`
+# felülírás megmaradt, ha egy olcsóbb kártya újra kapna régiót.
 variable "do_gpu_size" {
-  description = "GPU droplet size. gpu-4000adax1-20gb ($0.76/h) is the demo target; gpu-6000adax1-48gb ($1.57/h) is the measured one."
+  description = "GPU droplet size. gpu-h100x1-80gb ($4.41/h, ams3) is the measured demo box; gpu-4000adax1-20gb ($0.76/h) currently has no region at all."
   type        = string
-  default     = "gpu-4000adax1-20gb"
+  default     = "gpu-h100x1-80gb"
 }
 
 variable "do_image" {
