@@ -112,9 +112,11 @@ robot_hotspot_priority: 50       # nmcli autoconnect-priority; a magasabb nyer
 # újraindításnál/újradugásnál elcsúszhat, és ez a robot a konferencián kerül
 # újra bedugásra. A nevet az `aplay -L` / `arecord -L` adja (CARD=... rész).
 robot_alsa_playback_card: "UACDemoV10"   # USB sztereó hangszóró (Jieli 4c4a:4155)
-robot_alsa_capture_card: "U20"           # a webkamera beépített mikrofonja
-                                         # (Jieli 1224:2a25 "USB PHY 2.0" — egy
-                                         # összetett eszköz: UVC videó + audio)
+robot_alsa_capture_card: "Device"        # a csíptethető vezeték nélküli mikrofon
+                                         # vevője (Jieli 4c4a:4155 "USB Composite
+                                         # Device", 2026-09-03 óta). Az ID általános,
+                                         # de ezen a gépen egyedi. Tartalék: "U20" —
+                                         # a webkamera (Jieli 1224:2a25) mikrofonja.
 
 # Hoszt-specifikus beállítás-felülírások, a `freedroid.config.settings` env-formájában
 # (`FREEDROID_<SZEKCIÓ>_<MEZŐ>`). Ez a HELYE a gép-specifikus értéknek — NEM a
