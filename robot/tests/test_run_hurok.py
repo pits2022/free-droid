@@ -402,3 +402,49 @@ def test_a_fifo_lezarasa_NEM_dob_a_szalban(tmp_path):
 
     assert not szal.is_alive(), "az olvasó ciklus beragadt lezárt leíró mellett"
     assert not hiba, f"a lezárás kivételt dobott a szálban: {hiba}"
+
+
+# ── 5. előbb mond, aztán mozdul ─────────────────────────────────────────────────
+
+def test_a_mozgas_a_beszed_UTAN_jon_es_az_allj_meg_is_akadalyozza(monkeypatch):
+    """A Teremtő (2026-09-03): „előbb mondja, hogy balra fordulok, aztán forduljon".
+    A lekérdező tool (scan_wifi) NEM halasztható: az eredménye maga a mondat."""
+    from freedroid.orchestrator.guard import guard
+
+    sorrend: list[str] = []
+
+    class NaploTTS(HamisTTS):
+        def speak(self, text: str) -> None:
+            sorrend.append("beszéd")
+            self.mondatok.append(text)
+
+    class NaploTools:
+        def dispatch(self, tool):
+            sorrend.append(tool.name)
+            return [] if tool.name == "scan_wifi" else None
+
+    vad, stt, tts = HamisVAD(), HamisSTT("Fordulj balra!"), NaploTTS()
+    o = robot(stt=stt, tts=tts, vad=vad)
+    o.tools = NaploTools()
+    monkeypatch.setattr(o, "ask", lambda k: o.execute_guarded(
+        guard("Balra fordulok, Teremtőm. <tool>scan_wifi</tool><tool>turn left 90</tool>")))
+    o._egy_kor(stt, tts, vad, TriggerBusz())
+    assert sorrend == ["scan_wifi", "beszéd", "turn"]
+    assert o._halasztott is None                       # a kör után nem marad függő köteg
+
+    # ÁLLJ a beszéd alatt: a bejelentett fordulás EL SEM INDUL.
+    sorrend.clear()
+    busz = TriggerBusz()
+
+    class AlljTTS(NaploTTS):
+        def speak(self, text: str) -> None:
+            super().speak(text)
+            busz.allj.set()
+    tts2 = AlljTTS()
+    o._egy_kor(stt, tts2, vad, busz)
+    assert sorrend == ["scan_wifi", "beszéd"]
+
+    # Az `ask()` SZÖVEGES útja (halasztás nélkül) változatlan: azonnal mozdul.
+    sorrend.clear()
+    o.execute_guarded(guard("<tool>turn left 90</tool>"))
+    assert sorrend == ["turn"]

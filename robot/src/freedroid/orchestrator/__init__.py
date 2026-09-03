@@ -130,6 +130,12 @@ class Orchestrator:
         self._akku_kritikus = False
         self._akku_utolso = 0.0
         self._akku_hiba_jelezve = False
+        # A mozgató toolok HALASZTÁSA a beszéd utánra (a Teremtő, 2026-09-03: „előbb
+        # mondja, hogy balra fordulok, aztán forduljon"). `None` = azonnali végrehajtás
+        # (az `ask()` szöveges útja, tesztek); listaként a `_egy_kor` gyűjti, és a
+        # beszéd UTÁN futtatja. A lekérdező toolok (scan_wifi) nem halaszthatók: az
+        # eredményük maga a mondat.
+        self._halasztott: list | None = None
         # Diagnosztika: a távoli konzol (telefon) ezt fogja kiolvasni — "épp mit csinál?"
         self.state = State.LISTENING
 
@@ -343,6 +349,9 @@ class Orchestrator:
 
         lekerdezes: list[str] = []
         for tool in eredmeny.toolok:
+            if self._halasztott is not None and tool.name in MOZGATO_TOOLOK:
+                self._halasztott.append(tool)
+                continue
             try:
                 talalat = self.tools.dispatch(tool)
                 # 🔴 A LEKÉRDEZŐ toolok eredményét KI KELL MONDANI. Eddig a `dispatch()`
@@ -522,6 +531,7 @@ class Orchestrator:
                 return
             if trigger.allj.is_set():
                 return
+            self._halasztott = []
             valasz = self.ask(szoveg)
             log.debug("válasz: %r", valasz)
         except Exception:  # noqa: BLE001 — egy hibás kör nem viheti el a hurkot
@@ -548,6 +558,24 @@ class Orchestrator:
             log.exception("a beszéd elhasalt")
         finally:
             self.state = State.LISTENING
+        # A MOZGÁS a beszéd UTÁN. És az ÁLLJ itt is szakaszhatár: egy elhangzott
+        # gombnyomás után a bejelentett mozgás el sem indul — ez a biztonságos irány.
+        halasztott, self._halasztott = self._halasztott or [], None
+        if halasztott and not trigger.allj.is_set():
+            self._halasztott_futtat(halasztott)
+
+    def _halasztott_futtat(self, toolok: list) -> None:
+        """A beszéd után a mozgató toolok, ugyanazzal a hibakezeléssel, mint az azonnali
+        út: egy elhasalt tool nem viheti el a kört, és a naplóban ott a nyom."""
+        if self._mozgas_tiltott():
+            log.warning("mozgás letiltva, a halasztott köteg eldobva: %r",
+                        [t.name for t in toolok])
+            return
+        for tool in toolok:
+            try:
+                self.tools.dispatch(tool)
+            except Exception:  # noqa: BLE001 — a következő kör fontosabb, mint ez a tool
+                log.exception("halasztott tool-hívás sikertelen: %r %r", tool.name, tool.args)
 
 
 def _sigterm(jel, keret) -> None:  # noqa: ANN001, ARG001 — a signal API írja elő
