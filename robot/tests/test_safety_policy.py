@@ -407,3 +407,61 @@ def test_a_fordulas_a_turn_duty_val_megy_nem_a_fokozattal():
     m.turn(TurnDir.LEFT, degrees=5)
     pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
     assert pwm[0] == pytest.approx(80.0)
+
+
+# ── a watchdog döntése a FRISS irány szerint ─────────────────────────────────────
+
+def _watchdog_mert_tavolsagokkal(fake, heading_source, tavolsagok: dict, monkeypatch):
+    """Watchdog hardver nélkül: a mérést a `tavolsagok` adja (név -> cm)."""
+    from freedroid import safety
+
+    monkeypatch.setattr(safety, "measure_cm_min3",
+                        lambda lg, h, trig, echo: tavolsagok[_nev(trig)])
+    w = object.__new__(safety.UltrasonicWatchdog)
+    w._lgpio, w._h = fake, 0
+    w._cfg = SafetySettings()
+    w._on_obstacle = lambda: fake.calls.append(("stop",))
+    w._heading_source = heading_source
+    w._distances = dict.fromkeys(G.ULTRASONIC)
+    w._blocked, w._fault = False, None
+    return w
+
+
+def _nev(trig: int) -> str:
+    return next(n for n, p in G.ULTRASONIC.items() if p["trig"] == trig)
+
+
+def test_allo_robotot_a_hatso_fal_NEM_allitja_meg_de_jelzi(monkeypatch):
+    """Mérve 2026-09-03: 17 cm-es hátsó fal mellett minden kör stop()-ot hívott, és az
+    induló menetek ebbe haltak bele. Álló robot: `is_blocked` igaz, stop NINCS."""
+    from freedroid.motion.types import Direction
+
+    fake = FakeLgpio()
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: (None, False), {"front": 114.0, "rear": 17.0}, monkeypatch)
+    w.poll_once()
+    assert w.is_blocked() and ("stop",) not in fake.calls
+
+    # ELŐRE menet közben a hátsó fal nem számít: nincs stop.
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: (Direction.FORWARD, False), {"front": 114.0, "rear": 17.0},
+                       monkeypatch)
+    w.poll_once()
+    assert ("stop",) not in fake.calls
+
+    # A kör elején ÁLLT (mindkét szenzor figyelt), de mire a hátsó 17-et mér, már ELŐRE
+    # megy: a friss irány dönt — nincs stop. Ez volt a „moccanás".
+    allapot = [(None, False)]
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: allapot[0], {"front": 114.0, "rear": 17.0}, monkeypatch)
+
+    def meres(lg, h, trig, echo):
+        allapot[0] = (Direction.FORWARD, False)       # a menet a mérés KÖZBEN indul
+        return {"front": 114.0, "rear": 17.0}[_nev(trig)]
+    from freedroid import safety
+    monkeypatch.setattr(safety, "measure_cm_min3", meres)
+    w.poll_once()
+    assert ("stop",) not in fake.calls
+
+    # És a valódi akadály ELŐRE menetben továbbra is megállít.
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: (Direction.FORWARD, False), {"front": 10.0, "rear": 17.0},
+                       monkeypatch)
+    w.poll_once()
+    assert ("stop",) in fake.calls
