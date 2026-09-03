@@ -439,6 +439,19 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 > Ha a `min(3)` sem lenne elég: a következő lépcső a watchdog szál `SCHED_FIFO`
 > prioritása (`os.sched_setscheduler`), és csak azután jöhet szóba külön MCU.
 
+### 5b. Akku-feszültség — ADS1115 (bekötve és mérve 2026-09-03)
+*   **Alkatrész:** ADS1115 16 bites ADC, I2C `0x48` (gyári cím; a `0x40` a PCA9685). AIN0 az
+    akkura egy feszültségosztón át, AIN1–3 szabad.
+*   **Kalibráció (mérve):** AIN0 = 3,143 V az akkun mért 12,3 V mellett → **osztó 3,91:1**.
+    A szorzó beállítás (`FREEDROID_POWER_DIVIDER`), nem kódkonstans — ellenállás-cserénél itt
+    igazítandó.
+*   **Küszöbök (a Teremtő csipogó mérőjéhez igazítva):** 3,4 V/cella (10,2 V) → health
+    WARNING; **3,2 V/cella (9,6 V) → KRITIKUS: a mozgás tilt, és a robot kimondja: „Pihennem
+    kell, Teremtőm!"** (előre megírt mondat, nem a modellé). Az orchestrator percenként olvas,
+    a `freedroid-health` is jelenti. Egy hiányzó/olvashatatlan mérő csak WARNING — a demó
+    mérő nélkül is megy, egy mélykisütött LiPo viszont nem jön vissza.
+*   **Szoftver:** `robot/src/freedroid/power.py` — stdlib, `ioctl(I2C_SLAVE)`, nincs smbus.
+
 ### 6. LED ring
 *   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V.
 *   **Vezérlés:** SPI módban (`/dev/spidev0.0`) – konfliktus-mentes az RPi 5-ön (elkerüli a PWM/DMA ütközést az audio és motorvezérlővel).

@@ -444,6 +444,40 @@ class CameraSettings:
 
 
 @dataclass(frozen=True)
+class PowerSettings:
+    """Akku-feszültség az ADS1115-ön (I2C 0x48, AIN0, feszültségosztón át).
+
+    MÉRVE 2026-09-03: a 0x48 a gyári cím, AIN0 = 3,143 V az akkun mért 12,3 V mellett
+    → az osztó 3,91:1. A `divider` a kalibrációs csavar: egy ellenállás-csere vagy egy
+    másik osztó ITT javítandó (`FREEDROID_POWER_DIVIDER`), nem a kódban. A cellánkénti
+    küszöbök a Teremtő csipogó feszültségmérőjéhez igazodnak (riasztás 3,4 V/cella);
+    a kritikus szint alatt a LiPo VISSZAFORDÍTHATATLANUL sérül, ezért az a motor-tiltás.
+    """
+
+    i2c_bus: str = "/dev/i2c-1"
+    ads_address: int = 0x48
+    divider: float = 3.91             # osztó aránya: V_akku = V_AIN0 × divider
+    cells: int = 3                    # 3S LiPo
+    warn_v_per_cell: float = 3.4      # WARNING (health) — a csipogó is itt szól
+    critical_v_per_cell: float = 3.2  # CRITICAL: motor tilt + "Pihennem kell, Teremtőm!"
+    check_every_s: float = 60.0       # az orchestrator ilyen sűrűn olvassa
+
+    def __post_init__(self) -> None:
+        if self.divider <= 0 or self.cells <= 0 or self.check_every_s <= 0:
+            raise ValueError("divider, cells és check_every_s > 0 kell legyen")
+        if not 0 < self.critical_v_per_cell < self.warn_v_per_cell:
+            raise ValueError("0 < critical_v_per_cell < warn_v_per_cell kell legyen")
+
+    @property
+    def warn_v(self) -> float:
+        return self.warn_v_per_cell * self.cells
+
+    @property
+    def critical_v(self) -> float:
+        return self.critical_v_per_cell * self.cells
+
+
+@dataclass(frozen=True)
 class Settings:
     llm: LLMEndpoints = field(default_factory=LLMEndpoints)
     safety: SafetySettings = field(default_factory=SafetySettings)
@@ -451,6 +485,7 @@ class Settings:
     voice: VoiceSettings = field(default_factory=VoiceSettings)
     rag: RAGSettings = field(default_factory=RAGSettings)
     camera: CameraSettings = field(default_factory=CameraSettings)
+    power: PowerSettings = field(default_factory=PowerSettings)
 
 
 # Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt
@@ -463,7 +498,8 @@ _EGYEB_ENV = frozenset({
 
 _SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
              "MOTION": ("motion", MotionSettings), "VOICE": ("voice", VoiceSettings),
-             "RAG": ("rag", RAGSettings), "CAMERA": ("camera", CameraSettings)}
+             "RAG": ("rag", RAGSettings), "CAMERA": ("camera", CameraSettings),
+             "POWER": ("power", PowerSettings)}
 
 # Csak skalár mezők írhatók felül. A `per_sensor_cm` (Mapping) szándékosan kimarad:
 # egy env-be sűrített dict saját mini-nyelvtant kívánna, és az elgépelése némán

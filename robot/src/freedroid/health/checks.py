@@ -164,6 +164,31 @@ def check_thermal(settings: Settings) -> CheckResult:
     return ok(name, Layer.HARDWARE, detail=f"CPU {temp_c:.0f}°C")
 
 
+def check_battery(settings: Settings) -> CheckResult:
+    """Akku-feszültség az ADS1115-ről. A HIÁNYZÓ mérő WARNING, az ALACSONY akku CRITICAL.
+
+    Nem fordítva: egy le nem kötött ADS ne vigye safe-mode-ba a robotot a színpadon
+    (a demó mérő nélkül is megy), de egy 3,2 V/cella alatti LiPo VISSZAFORDÍTHATATLANUL
+    sérül — az a vitális eset. A kimondott figyelmeztetés az orchestratorban van
+    (ott van hangszóró); ez a check a naplónak és a safe-mode zászlónak szól.
+    """
+    name = "battery"
+    if not is_pi():
+        return skipped(name, Layer.HARDWARE, "not on a Raspberry Pi")
+    from freedroid.power import read_battery_v
+    try:
+        v = read_battery_v(settings.power)
+    except OSError as e:
+        return warn(name, Layer.HARDWARE, f"ADS1115 unreadable ({e}) — battery unmonitored")
+    p = settings.power
+    if v < p.critical_v:
+        return fail(name, Layer.HARDWARE, Severity.CRITICAL,
+                    f"battery CRITICAL: {v:.2f} V < {p.critical_v:.1f} V — motion disabled")
+    if v < p.warn_v:
+        return warn(name, Layer.HARDWARE, f"battery low: {v:.2f} V < {p.warn_v:.1f} V")
+    return ok(name, Layer.HARDWARE, detail=f"battery {v:.2f} V")
+
+
 def check_disk_space(settings: Settings) -> CheckResult:
     name = "disk_space"
     try:
@@ -254,6 +279,7 @@ ALL_CHECKS: tuple[Check, ...] = (
     check_audio_output,
     check_camera,
     check_thermal,
+    check_battery,
     check_disk_space,
     check_edge_ollama,
     check_edge_model,

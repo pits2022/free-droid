@@ -19,8 +19,9 @@ import asyncio
 import logging
 import os
 import signal
+import time
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from freedroid.config.settings import debug_mode
 from freedroid.llm import FallbackLLMClient, LLMUnavailable
@@ -58,6 +59,10 @@ BIZTONSAGI_ELHARITAS = "Most nem mozdulok, Teremtőm. Nem látok tisztán."
 SAFE_MODE_VALASZ = ("Most nem tudok gondolkodni, Teremtőm. "
                     "Se a felhő, se a helyi elme nem felel.")
 
+# Kritikus akku: a Teremtő mondata (2026-09-03). Nem a modell mondja — előre megírt,
+# mint a safe-mode-é: egy lemerülő robot pont akkor ne függjön az elmétől.
+AKKU_KRITIKUS_VALASZ = "Pihennem kell, Teremtőm!"
+
 # Nyelvi újrapróbálkozás. A `language_guard` ezt a thunkot hívja, ha a modell kilépett
 # a magyarból; ha a második kör sem magyar, konzerv mondat megy ki (CANNED_HU).
 MAGYARUL = "Magyarul válaszolj!\n\n"
@@ -91,7 +96,8 @@ class Orchestrator:
                  stt: STT | None = None,
                  tts: TTS | None = None,
                  vad: VAD | None = None,
-                 trigger: TriggerBusz | None = None) -> None:
+                 trigger: TriggerBusz | None = None,
+                 akku_olvaso: Callable[[], float] | None = None) -> None:
         self._settings = settings
         # A kliens konstruktora NEM nyúl a hálózathoz (a háttér-választás kérésenként
         # történik), tehát alapból megépíthető — Pi nélkül is.
@@ -118,6 +124,12 @@ class Orchestrator:
         # `piper` nem akadályozhatja meg a lánc többi részének a próbáját.
         self._stt, self._tts, self._vad = stt, tts, vad
         self._trigger = trigger
+        # Akku-őr. Az olvasó cserélhető (teszt); alapból az ADS1115. A hiba NEM
+        # tiltó: egy le nem kötött mérő ne állítsa meg a demót — csak egyszer szól.
+        self._akku_olvaso = akku_olvaso
+        self._akku_kritikus = False
+        self._akku_utolso = 0.0
+        self._akku_hiba_jelezve = False
         # Diagnosztika: a távoli konzol (telefon) ezt fogja kiolvasni — "épp mit csinál?"
         self.state = State.LISTENING
 
@@ -377,7 +389,53 @@ class Orchestrator:
         normális "akadály van előttem" állapot, amit maga a watchdog kezel — abból
         letiltást csinálni azt jelentené, hogy a robot egy fal előtt soha többé nem
         indul el, még elfelé sem."""
-        return getattr(self.watchdog, "fault", None) is not None
+        return (getattr(self.watchdog, "fault", None) is not None
+                or self._akku_kritikus)
+
+    def _akku_ellenor(self, tts: TTS | None, most: float | None = None) -> None:
+        """Akku-feszültség `check_every_s`-enként. Kritikus szint alatt: a mozgás TILT
+        (a `_mozgas_tiltott()` viszi), és a robot EGYSZER kimondja a Teremtő mondatát.
+        Hiszterézis: a tiltás a kritikus szint + 0,1 V/cella FÖLÖTT oldódik (akkucsere),
+        hogy a küszöbön billegő feszültség ne kapcsolgassa.
+
+        ponytail: 10 ms-os blokkoló I2C-olvasás a hurok szálán — elhanyagolható, külön
+        szál nem kell.
+        """
+        from freedroid.config.settings import load_settings
+        p = (self._settings or load_settings()).power
+        most = time.monotonic() if most is None else most
+        if most - self._akku_utolso < p.check_every_s:
+            return
+        self._akku_utolso = most
+        try:
+            if self._akku_olvaso is not None:
+                v = self._akku_olvaso()
+            else:
+                from freedroid.power import read_battery_v
+                v = read_battery_v(p)
+        except OSError as e:
+            if not self._akku_hiba_jelezve:
+                log.warning("akku-mérő nem olvasható (%s) — az akku ŐRIZETLEN", e)
+                self._akku_hiba_jelezve = True
+            return
+        log.debug("akku: %.2f V", v)
+        if not self._akku_kritikus and v < p.critical_v:
+            self._akku_kritikus = True
+            log.error("AKKU KRITIKUS: %.2f V < %.1f V — mozgás letiltva", v, p.critical_v)
+            # A FUTÓ mozgást is: a tiltás csak a KÖVETKEZŐ köteget fogja meg, egy
+            # menet közben lévő `move` viszont másodpercekig hajt. (PR #103 review.)
+            try:
+                self.motion.stop()
+            except Exception:  # noqa: BLE001 — a megállítás hibája sem viheti el a hurkot
+                log.exception("a motor leállítása elhasalt kritikus akkunál")
+            if tts is not None:
+                try:
+                    tts.speak(AKKU_KRITIKUS_VALASZ)
+                except Exception:  # noqa: BLE001 — a beszéd hibája nem viheti el a hurkot
+                    log.exception("az akku-figyelmeztetés kimondása elhasalt")
+        elif self._akku_kritikus and v > p.critical_v + 0.1 * p.cells:
+            self._akku_kritikus = False
+            log.info("akku rendben: %.2f V — mozgás újra engedélyezve", v)
 
     async def run(self) -> None:
         """A fő hurok: trigger -> felvétel -> STT -> `ask()` -> beszéd. Push-to-talk.
@@ -413,6 +471,7 @@ class Orchestrator:
                 # motorvezérlővel. (Egy teszt fogta meg: beragadt, nem bukott.)
                 esemeny = await asyncio.to_thread(trigger.var, HUROK_EBREDES_S)
                 if esemeny is None:
+                    await asyncio.to_thread(self._akku_ellenor, tts)
                     continue
                 trigger.allj.clear()
                 if esemeny is not Esemeny.FIGYELJ:
