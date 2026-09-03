@@ -353,3 +353,21 @@ def test_a_stop_a_rampa_kozben_NEM_indit_ujra():
     utolso_nem_nulla = max(i for i, d in enumerate(pwm) if d > 0)
     assert all(d == 0.0 for d in pwm[utolso_nem_nulla + 1:])   # a stop után csak 0-k
     assert time.time()  # a menet 0,3 s alatt véget ért (különben a teszt beragadna)
+
+
+def test_a_rovid_menet_NEM_hosszabb_a_kert_idonel():
+    """PR #107 review: az első változatban egy 0,1 s-os menet 0,2 s-ig ment (a lökés és a
+    rámpa is külön `seconds`-ig futhatott). A három szakasz összege PONTOSAN `seconds`."""
+    fake = FakeLgpio()
+    m = _bare_motion(fake)
+    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.15, ramp_s=0.4, default_speed=0.6)
+    kezd = time.perf_counter()
+    m._run(1, 1, 0.6, 0.1, heading=None, turning=False)
+    telt = time.perf_counter() - kezd
+    assert 0.08 < telt < 0.16, telt
+    # És egy 20 ms alatti rámpa sem marad ki: legalább egy lépés, ami 0-ra visz.
+    fake.calls.clear()
+    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.0, ramp_s=0.01, default_speed=0.6)
+    m._run(1, 1, 0.6, 0.05, heading=None, turning=False)
+    pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
+    assert pwm[0] == pytest.approx(60.0) and pwm[-1] == 0.0

@@ -443,6 +443,14 @@ def test_a_mozgas_a_beszed_UTAN_jon_es_az_allj_meg_is_akadalyozza(monkeypatch):
     tts2 = AlljTTS()
     o._egy_kor(stt, tts2, vad, busz)
     assert sorrend == ["scan_wifi", "beszéd"]
+    assert o._halasztott is None                       # PR #107: az ÁLLJ-ág is üríti
+
+    # ÁLLJ még az `ask()` UTÁN, a beszéd ELŐTT: a köteg akkor sem ragad bent.
+    busz2 = TriggerBusz()
+    monkeypatch.setattr(o, "ask", lambda k: (busz2.allj.set(), o.execute_guarded(
+        guard("Fordulok. <tool>turn left 90</tool>")))[1])
+    o._egy_kor(stt, HamisTTS(), vad, busz2)
+    assert o._halasztott is None
 
     # Az `ask()` SZÖVEGES útja (halasztás nélkül) változatlan: azonnal mozdul.
     sorrend.clear()

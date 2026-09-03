@@ -201,26 +201,34 @@ class CytronMotionController:
             # Az indítás: LÖKÉS (kick), ha van — a tapadási súrlódás átlépéséhez.
             self._pwm(max(duty, self._cfg.kick_duty) if self._cfg.kick_s > 0 else duty)
         seconds = min(seconds, self._cfg.max_run_s)
+        # A három szakasz hossza ELŐRE, úgy, hogy az összegük PONTOSAN `seconds` legyen
+        # (PR #107 review: az első változatban egy rövid menet a kért idő DUPLÁJÁIG
+        # ment, mert a lökés és a rámpa is külön-külön `seconds`-ig futhatott). A
+        # rámpa lépésszáma legalább 1: egy 20 ms alatti rámpa különben kimaradt volna.
+        kick_time = min(self._cfg.kick_s, seconds) if self._cfg.kick_s > 0 else 0.0
+        remaining = seconds - kick_time
+        ramp_time = min(self._cfg.ramp_s, remaining)
+        cruise_time = remaining - ramp_time
         try:
             # A menet SZAKASZAI, mind megszakítható alvással a záron KÍVÜL (a watchdog
             # `stop()`-ja azonnal kirántja, és nem kell a zárra várnia): lökés → utazó →
             # lineáris rámpa 0-ra. A rámpa a menetidőn BELÜL van, tehát a távolság kicsit
             # rövidül — ez a kalibráció (`cm_per_s_at_full`) dolga, nem külön korrekció.
-            if self._cfg.kick_s > 0:
-                if self._interrupt.wait(min(self._cfg.kick_s, seconds)):
+            if kick_time > 0:
+                if self._interrupt.wait(kick_time):
                     return
                 if not self._pwm_ha_szabad(duty):
                     return
-            ramp = min(self._cfg.ramp_s, seconds)
-            if self._interrupt.wait(max(0.0, seconds - self._cfg.kick_s - ramp)):
+            if cruise_time > 0 and self._interrupt.wait(cruise_time):
                 return
-            lepes = 0.02
-            n = int(ramp / lepes)
-            for i in range(1, n + 1):
-                if self._interrupt.wait(lepes):
-                    return
-                if not self._pwm_ha_szabad(duty * (1 - i / n)):
-                    return
+            if ramp_time > 0:
+                n = max(1, int(ramp_time / 0.02))
+                lepes = ramp_time / n
+                for i in range(1, n + 1):
+                    if self._interrupt.wait(lepes):
+                        return
+                    if not self._pwm_ha_szabad(duty * (1 - i / n)):
+                        return
         finally:
             self.stop()
 

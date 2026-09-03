@@ -537,7 +537,13 @@ class Orchestrator:
         except Exception:  # noqa: BLE001 — egy hibás kör nem viheti el a hurkot
             log.exception("a kör elhasalt a válasz ELŐTT")
             valasz = SAFE_MODE_VALASZ
+            # Egy félbeszakadt `ask()` alatt összegyűlt mozgás NEM futhat le: a
+            # safe-mode mondat mellé nem jár lánctalp.
+            self._halasztott = None
         if trigger.allj.is_set():
+            # A köteg itt is ürül (PR #107 review): különben egy KÖVETKEZŐ, szöveges
+            # `ask()` a listába gyűjtené a mozgást, és soha nem futtatná.
+            self._halasztott = None
             return
         # A BESZÉDDEL MINDIG PRÓBÁLKOZUNK, egy elhasalt felvétel/átirat UTÁN IS — a
         # review (PR #100) felvetette, hogy egy ALSA-hiba után a TTS is elhasalhat, és
