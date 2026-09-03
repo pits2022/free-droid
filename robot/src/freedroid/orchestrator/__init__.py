@@ -248,6 +248,9 @@ class Orchestrator:
             bemelegit()
 
     def close(self) -> None:
+        # A gyűrű is itt: a `close()` a `run()` nélkül is hívható (teszt, szöveges
+        # használat), és a rajzoló szál nem maradhat nyitva. (PR #105 review.)
+        self.led.close()
         # A watchdog leállítása is try alatt: ha a szál-join elhasal, a motorok
         # LEZÁRATLANUL maradnának — épp a legrosszabb kimenet (járó lánctalpak egy
         # kilépő folyamat után). A lezárás sorrendje szándékos (előbb a watchdog, hogy
@@ -548,7 +551,6 @@ class Orchestrator:
             # egy kilépő folyamat után a legrosszabb kimenet.
             trigger.close()
             self.close()
-            self.led.close()
         # A `CancelledError` SZÁNDÉKOSAN nincs elkapva: elnyelve a hívó nem tudná meg,
         # hogy a megszakítás megtörtént-e (`await feladat` némán `None`-t adna), és ez a
         # megszakítás-szemantika csendes elrontása. A takarítást a `finally` végzi, a

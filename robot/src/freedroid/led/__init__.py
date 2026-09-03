@@ -72,10 +72,11 @@ def _scale(c: RGB, k: float) -> RGB:
 
 def _hue(h: float) -> RGB:
     """0..1 -> RGB a színkörön (6 szektor), a szivárványhoz."""
-    # `int(h)` sosem 6: a legnagyobb double 1 alatt ×6 = 5.999999999999999 (mérve a
-    # PR #105 review-ra, az 1 alatti 1e6 legnagyobb double-re is). Nem kell `% 6`.
+    # `% 6` a NEGATÍV bemenet miatt (PR #105 review, 2. kör): `(-1e-18) % 1.0` Pythonban
+    # pontosan 1.0, ×6 = 6.0 → index 6. Pozitívra sosem 6 (a legnagyobb double 1 alatt
+    # ×6 = 5.999999999999999, mérve), és a `t` monoton — de egy token a biztonság.
     h = h % 1.0 * 6
-    i, f = int(h), h - int(h)
+    i, f = int(h) % 6, h - int(h)
     q, t = int(255 * (1 - f)), int(255 * f)
     return [(255, t, 0), (q, 255, 0), (0, 255, t), (0, q, 255), (t, 0, 255), (255, 0, q)][i]
 
@@ -168,6 +169,8 @@ class LedController:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
+        if isinstance(self._ring, NullRing):
+            return          # nincs gyűrű: 30 fps-en a semmit rajzolni CPU-pazarlás (PR #105)
         self._thread = threading.Thread(target=self._loop, daemon=True, name="led")
         self._thread.start()
 

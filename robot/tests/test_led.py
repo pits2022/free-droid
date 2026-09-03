@@ -86,3 +86,17 @@ def test_frame_tiszta_es_ertelmes():
     on, off = frame(led.OBSTACLE, 0.05, n), frame(led.OBSTACLE, 0.25, n)
     assert on[0] == led.RED and off[0] == led.BLACK                                 # villan
     assert len({p for p in frame(led.BOOT_OK, 0.0, n)}) == n                       # szivárvány: mind más
+
+
+def test_hue_negativ_bemenetre_sem_index_6():
+    """PR #105 review: `(-1e-18) % 1.0` Pythonban 1.0, ×6 = 6.0 → index 6 lett volna."""
+    assert led._hue(-1e-18) == led._hue(0.0)
+
+
+def test_nullring_nem_indit_szalat_es_a_close_lezar():
+    ctl = LedController(NullRing(), lambda: led.OFF, 12)
+    ctl.start()
+    assert ctl._thread is None
+    o = robot()
+    o.close()                                   # run() nélkül is lezárja a gyűrűt
+    assert o.led._stop.is_set()
