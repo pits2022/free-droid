@@ -203,10 +203,27 @@ class UltrasonicWatchdog:
             # némította el az elülsőt. Az `inf` (válaszolt, de üres a tér) NEM akadály.
             if name in watched and (cm is None or cm < self._threshold_cm(name)):
                 blocked = True
+                # A MEGÁLLÍTÁS a FRISS irány szerint dől el, nem a kör elején olvasott
+                # szerint. MÉRVE 2026-09-03 (a Teremtő: „percekig csak moccan, aztán
+                # megint jó — előre, hátra, fordulás egyaránt"): álló robotnál a
+                # `watched` MINDKÉT szenzor, a hátsó 17 cm-re látta a falat, tehát
+                # minden ~160 ms-os kör `stop()`-ot hívott — és egy ÉPP INDULÓ menet
+                # (a kör elején még állt) ebbe halt bele. A robot helyzetétől függött,
+                # ezért jött-ment percekre. Álló robotot nem állítunk meg (nincs mit;
+                # az induló menet a KÖVETKEZŐ körben a saját irányával mérődik — a
+                # fékút-szerződés 0,25 s-os döntése ezt fedi), menet közben pedig
+                # csak a haladási irány szenzora állít.
+                heading_most, turning_most = self._heading_source()
+                if heading_most is None and not turning_most:
+                    continue
+                if name not in relevant_sensors(heading_most, turning_most):
+                    continue
                 # AZONNAL, nem a kör végén. A `min(3)` miatt a másik szenzor bevárása
                 # legrosszabb esetben 3 × 60 ms = 180 ms fékezési késleltetés lenne —
                 # 25 cm-es küszöbnél ez elfogyasztja a teljes tartalékot. A ciklus
                 # SZÁNDÉKOSAN nem szakad meg: a `distances_cm()` maradjon teljes.
+                log.info("watchdog: %s %s — megállítás (%s)", name,
+                         "néma" if cm is None else f"{cm:.0f} cm", heading_most or "fordul")
                 self._on_obstacle()
 
         self._blocked = blocked

@@ -147,7 +147,10 @@ class CytronMotionController:
         left = G.LEFT_FORWARD_LEVEL if left_fwd else G.LEFT_FORWARD_LEVEL ^ 1
         right = G.RIGHT_FORWARD_LEVEL ^ 1 if left_fwd else G.RIGHT_FORWARD_LEVEL
 
-        duty = self._duty
+        # Fordulásnál a `turn_duty`, nem a beállított fokozat: a helyben fordulás
+        # súrlódása többszörös (mérve: 0,6-on megfeszül). A menetidő ugyanúgy a
+        # dutyval skálázódik, tehát a fok fok marad.
+        duty = self._cfg.turn_duty
         seconds = (run_seconds(degrees, self._cfg.deg_per_s_at_full, duty)
                    if degrees is not None else self._cfg.max_run_s)
         self._run(left, right, duty, seconds, heading=None, turning=True)
@@ -207,8 +210,12 @@ class CytronMotionController:
         # rámpa lépésszáma legalább 1: egy 20 ms alatti rámpa különben kimaradt volna.
         kick_time = min(self._cfg.kick_s, seconds) if self._cfg.kick_s > 0 else 0.0
         remaining = seconds - kick_time
-        ramp_time = min(self._cfg.ramp_s, remaining)
-        cruise_time = remaining - ramp_time
+        ramp_time = min(self._cfg.ramp_s, remaining, self._cfg.ramp_max_share * seconds)
+        # A rámpa a padlóig (nem 0-ig), és az elveszett hajtás vissza az utazó szakaszba:
+        # a rámpa átlagos dutyja (duty+padló)/2, a hiány ramp_time × (1 − átlag/duty).
+        floor = min(self._cfg.ramp_floor_duty, duty)
+        lost = ramp_time * (1.0 - (duty + floor) / (2.0 * duty)) if duty > 0 else 0.0
+        cruise_time = remaining - ramp_time + lost
         try:
             # A menet SZAKASZAI, mind megszakítható alvással a záron KÍVÜL (a watchdog
             # `stop()`-ja azonnal kirántja, és nem kell a zárra várnia): lökés → utazó →
@@ -227,7 +234,7 @@ class CytronMotionController:
                 for i in range(1, n + 1):
                     if self._interrupt.wait(lepes):
                         return
-                    if not self._pwm_ha_szabad(duty * (1 - i / n)):
+                    if not self._pwm_ha_szabad(duty - (duty - floor) * i / n):
                         return
         finally:
             self.stop()

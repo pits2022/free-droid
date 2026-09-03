@@ -333,8 +333,30 @@ def test_a_menet_lokessel_indul_es_rampaval_all_meg():
     assert bal[0] == pytest.approx(85.0)                    # lökés
     assert bal[1] == pytest.approx(60.0)                    # utazó
     rampa = bal[2:]
-    assert rampa == sorted(rampa, reverse=True) and rampa[-1] == 0.0   # csökken, 0-ra
+    assert rampa == sorted(rampa, reverse=True) and rampa[-1] == 0.0   # csökken, a végén stop
+    assert rampa[-2] == pytest.approx(50.0)                  # a rámpa a PADLÓIG (0,5), nem 0-ig
     assert 3 <= len(rampa) <= 7                              # ~0,1 s / 20 ms lépés
+
+
+def test_a_rovid_fordulasnak_marad_utazo_szakasza():
+    """Mérve 2026-09-03: 90° 0,8-on 0,34 s; a lökés utáni maradék EGÉSZE rámpa volt 0-ig →
+    5° a 90 helyett. A rámpa legfeljebb a menet 30%-a, a padlóig, és a hiány az utazóé."""
+    fake = FakeLgpio()
+    m = _bare_motion(fake)
+    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.15, ramp_s=0.4, ramp_floor_duty=0.5,
+                            ramp_max_share=0.3, default_speed=0.6)
+    kezd = time.perf_counter()
+    m._run(1, 1, 0.8, 0.344, heading=None, turning=True)
+    telt = time.perf_counter() - kezd
+    pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
+    assert pwm[0] == pytest.approx(85.0) and pwm[1] == pytest.approx(80.0)
+    assert min(d for d in pwm if d > 0) >= 50.0              # sosem a küszöb alatt
+    assert 0.34 < telt < 0.42, telt                          # + az elveszett hajtás, nem több
+    # ∫duty·dt ≈ duty × menetidő, azaz a fok fok marad
+    rampa_s = 0.3 * 0.344
+    integral = 0.15 * 0.85 + (telt - 0.15 - rampa_s) * 0.8 + rampa_s * 0.65
+    assert integral == pytest.approx(0.8 * 0.344, rel=0.08)
+
 
 
 def test_a_stop_a_rampa_kozben_NEM_indit_ujra():
@@ -371,3 +393,75 @@ def test_a_rovid_menet_NEM_hosszabb_a_kert_idonel():
     m._run(1, 1, 0.6, 0.05, heading=None, turning=False)
     pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
     assert pwm[0] == pytest.approx(60.0) and pwm[-1] == 0.0
+
+
+def test_a_fordulas_a_turn_duty_val_megy_nem_a_fokozattal():
+    """Mérve 2026-09-03: helyben fordulásnál a 0,6 utazó duty megfeszül. A `turn()` a
+    `turn_duty`-t használja, a `set_speed` fokozata csak az egyenes menetet szabja."""
+    from freedroid.motion.types import TurnDir
+
+    fake = FakeLgpio()
+    m = _bare_motion(fake)
+    m._cfg = MotionSettings(kick_s=0.0, ramp_s=0.0, turn_duty=0.8, default_speed=0.6)
+    m._duty = 0.6
+    m.turn(TurnDir.LEFT, degrees=5)
+    pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
+    assert pwm[0] == pytest.approx(80.0)
+
+
+# ── a watchdog döntése a FRISS irány szerint ─────────────────────────────────────
+
+def _watchdog_mert_tavolsagokkal(fake, heading_source, tavolsagok: dict, monkeypatch):
+    """Watchdog hardver nélkül: a mérést a `tavolsagok` adja (név -> cm)."""
+    from freedroid import safety
+
+    monkeypatch.setattr(safety, "measure_cm_min3",
+                        lambda lg, h, trig, echo: tavolsagok[_nev(trig)])
+    w = object.__new__(safety.UltrasonicWatchdog)
+    w._lgpio, w._h = fake, 0
+    w._cfg = SafetySettings()
+    w._on_obstacle = lambda: fake.calls.append(("stop",))
+    w._heading_source = heading_source
+    w._distances = dict.fromkeys(G.ULTRASONIC)
+    w._blocked, w._fault = False, None
+    return w
+
+
+def _nev(trig: int) -> str:
+    return next(n for n, p in G.ULTRASONIC.items() if p["trig"] == trig)
+
+
+def test_allo_robotot_a_hatso_fal_NEM_allitja_meg_de_jelzi(monkeypatch):
+    """Mérve 2026-09-03: 17 cm-es hátsó fal mellett minden kör stop()-ot hívott, és az
+    induló menetek ebbe haltak bele. Álló robot: `is_blocked` igaz, stop NINCS."""
+    from freedroid.motion.types import Direction
+
+    fake = FakeLgpio()
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: (None, False), {"front": 114.0, "rear": 17.0}, monkeypatch)
+    w.poll_once()
+    assert w.is_blocked() and ("stop",) not in fake.calls
+
+    # ELŐRE menet közben a hátsó fal nem számít: nincs stop.
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: (Direction.FORWARD, False), {"front": 114.0, "rear": 17.0},
+                       monkeypatch)
+    w.poll_once()
+    assert ("stop",) not in fake.calls
+
+    # A kör elején ÁLLT (mindkét szenzor figyelt), de mire a hátsó 17-et mér, már ELŐRE
+    # megy: a friss irány dönt — nincs stop. Ez volt a „moccanás".
+    allapot = [(None, False)]
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: allapot[0], {"front": 114.0, "rear": 17.0}, monkeypatch)
+
+    def meres(lg, h, trig, echo):
+        allapot[0] = (Direction.FORWARD, False)       # a menet a mérés KÖZBEN indul
+        return {"front": 114.0, "rear": 17.0}[_nev(trig)]
+    from freedroid import safety
+    monkeypatch.setattr(safety, "measure_cm_min3", meres)
+    w.poll_once()
+    assert ("stop",) not in fake.calls
+
+    # És a valódi akadály ELŐRE menetben továbbra is megállít.
+    w = _watchdog_mert_tavolsagokkal(fake, lambda: (Direction.FORWARD, False), {"front": 10.0, "rear": 17.0},
+                       monkeypatch)
+    w.poll_once()
+    assert ("stop",) in fake.calls
