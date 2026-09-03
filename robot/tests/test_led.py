@@ -59,7 +59,9 @@ def test_prioritas_tiltas_mozgas_akku():
     o._akku_gyenge = True
     assert o._led_scene() == Scene(Pattern.BREATHE, led.ORANGE)   # gyenge akku: narancs lélegzés
     o.motion.heading = "forward"
-    assert o._led_scene().pattern is Pattern.CHASE                  # mozgás a lélegzés fölött
+    assert o._led_scene() == Scene(Pattern.CHASE, led.WHITE, direction=1)   # mozgás a lélegzés fölött
+    o.motion.heading = "backward"
+    assert o._led_scene().direction == -1                           # hátra: a futófény is (PR #105)
     o._akku_kritikus = True
     assert o._led_scene() == led.SAFE                               # tiltás mindenek fölött
 

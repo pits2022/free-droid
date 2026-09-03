@@ -72,6 +72,8 @@ def _scale(c: RGB, k: float) -> RGB:
 
 def _hue(h: float) -> RGB:
     """0..1 -> RGB a színkörön (6 szektor), a szivárványhoz."""
+    # `int(h)` sosem 6: a legnagyobb double 1 alatt ×6 = 5.999999999999999 (mérve a
+    # PR #105 review-ra, az 1 alatti 1e6 legnagyobb double-re is). Nem kell `% 6`.
     h = h % 1.0 * 6
     i, f = int(h), h - int(h)
     q, t = int(255 * (1 - f)), int(255 * f)

@@ -328,8 +328,10 @@ class Orchestrator:
         """Spec §6 — a prioritás felülről lefelé: tiltás > mozgás > állapot."""
         if self.state is State.SAFE_MODE or self._mozgas_tiltott():
             return led_mod.SAFE
-        if getattr(self.motion, "heading", None) is not None:
-            return led_mod.Scene(led_mod.Pattern.CHASE, led_mod.WHITE)
+        if (heading := getattr(self.motion, "heading", None)) is not None:
+            # A futófény a HALADÁS irányába — hátramenetben visszafelé (PR #105 review).
+            hatra = getattr(heading, "value", heading) == "backward"
+            return led_mod.Scene(led_mod.Pattern.CHASE, led_mod.WHITE, direction=-1 if hatra else 1)
         if self.state is State.LISTENING:
             return led_mod.Scene(led_mod.Pattern.BREATHE,
                                  led_mod.ORANGE if self._akku_gyenge else led_mod.WHITE)
