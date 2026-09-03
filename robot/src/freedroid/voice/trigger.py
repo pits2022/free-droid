@@ -248,11 +248,11 @@ class FifoTrigger:
 # Elan "Wireless Present" (04f3:1812) hét gombján, evdev-ből: PageUp · PageDown ·
 # `b` · Meta+Enter · Ctrl+Shift · Meta+Alt+P · Shift+F5. A négy kombó módosító+billentyű,
 # ezek a fehérlistán NINCSENEK rajta (a forrás egyedi kódokat néz, a kombó tagjai
-# ismeretlenként naplózódnak). A nagy "következő dia" gomb a FIGYELJ; az ÁLLJ-nak KÉT
-# gomb, mert a stopból a több a biztonságos irány.
+# ismeretlenként naplózódnak). A Teremtő kiosztása (2026-09-03, gombonként lenyomva):
+# a nagy "következő dia" a FIGYELJ, az "elsötétítés" az ÁLLJ, a PageUp SZÁNDÉKOSAN
+# semmi — a stop egyetlen, félreérthetetlen gomb legyen.
 KATTINTO_GOMBOK: dict[int, Esemeny] = {
     109: Esemeny.FIGYELJ,   # KEY_PAGEDOWN — "következő dia"
-    104: Esemeny.ALLJ,      # KEY_PAGEUP   — "előző dia"
     48: Esemeny.ALLJ,       # KEY_B        — "elsötétítés"
 }
 

@@ -23,7 +23,8 @@ def test_lenyomas_leképezve_ismeretlen_es_felengedes_eldobva(tmp_path, monkeypa
         + _esemeny(109, 2)          # ismétlés -> semmi
         + _esemeny(30, 1)           # KEY_A: nincs a fehérlistán -> semmi
         + _esemeny(4, 1, tipus=4)   # EV_MSC scancode -> semmi
-        + _esemeny(104, 1)          # PageUp lenyomás -> ALLJ
+        + _esemeny(104, 1)          # PageUp: szándékosan NINCS leképezve -> semmi
+        + _esemeny(48, 1)           # b lenyomás -> ALLJ
     )
     sor: queue.Queue[Esemeny] = queue.Queue()
     forras = KattintoTrigger(minta=str(tmp_path / "*-event-kbd"))
