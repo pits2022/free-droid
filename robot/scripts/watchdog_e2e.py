@@ -174,7 +174,16 @@ def _kiir_kozelites(wd: MertWatchdog, t0: float, v_cm_s: float, db: int = 8) -> 
         lepes = "" if elozo is None or cm is None else f"   lépés {elozo - cm:+5.1f} cm"
         print(f"    {t - t0:5.2f} s  {szoveg}{lepes}")
         elozo = cm
-    print(f"    (egyenes közelítésnél a várható lépés ~{v_cm_s * 0.21:.1f} cm/kör)")
+    # A ciklusidőt a NYOMBÓL vesszük, nem konstansból: a 0,21 s-os beégetett érték még
+    # abból az időből maradt, amikor a watchdog menet közben MINDKÉT szenzort mérte. A
+    # "csak a haladási irány szenzora" javítás óta a kör ~130 ms, tehát a hint 1,6-szeresét
+    # mondta a valóságnak — egy ép közelítés úgy nézett ki tőle, mintha a szenzor
+    # elcsúszott volna, épp abban a kiírásban, ami ezt hivatott elárulni.
+    kozok = [b[0] - a[0] for a, b in zip(nyom, nyom[1:], strict=False)]
+    if kozok:
+        ciklus = statistics.median(kozok)
+        print(f"    (egyenes közelítésnél a várható lépés ~{v_cm_s * ciklus:.1f} cm/kör, "
+              f"a nyomból mért {ciklus * 1e3:.0f} ms-os ciklussal)")
 
 
 def _live(wd: MertWatchdog, motion: CytronMotionController, fek: Fek,

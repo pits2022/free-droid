@@ -77,6 +77,11 @@ class LLMEndpoints:
 
 @dataclass(frozen=True)
 class SafetySettings:
+    # ÉLESBEN IGAZOLVA 2026-09-07 (`watchdog_e2e.py --live-motion --speed fast`, akku
+    # ~12,4 V): a robot 19,4 cm-re állt meg az akadálytól (mérőszalag 20), azaz a küszöbön
+    # TÚL 10,6 cm-t futott — reakcióidő 193 ms 55 cm/s mellett. A becslés 23,4 cm-t mondott,
+    # tehát a modell a BIZTONSÁGOS irányban téved, és a 30 cm nem szűken tartja a `fast`-ot.
+    #
     # ⚠️ 25,0 -> 30,0 a 2026-09-07-i kalibráció miatt (`cm_per_s_at_full` 76,6 -> 84,3):
     # a FAST (0,65) fékútja ezzel 27,1 cm, ami a RÉGI 25-ös küszöbbe NEM fért bele — a
     # `test_a_leggyorsabb_fokozat_belefer_a_fekutba` pontosan ezt fogta meg. A küszöb
