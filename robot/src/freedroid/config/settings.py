@@ -77,7 +77,18 @@ class LLMEndpoints:
 
 @dataclass(frozen=True)
 class SafetySettings:
-    stop_threshold_cm: float = 25.0   # confirmed with Creator; a FAST duty (0,65) fékútja 24,6 cm
+    # ÉLESBEN IGAZOLVA 2026-09-07 (`watchdog_e2e.py --live-motion --speed fast`, akku
+    # ~12,4 V): a robot 19,4 cm-re állt meg az akadálytól (mérőszalag 20), azaz a küszöbön
+    # TÚL 10,6 cm-t futott — reakcióidő 193 ms 55 cm/s mellett. A becslés 23,4 cm-t mondott,
+    # tehát a modell a BIZTONSÁGOS irányban téved, és a 30 cm nem szűken tartja a `fast`-ot.
+    #
+    # ⚠️ 25,0 -> 30,0 a 2026-09-07-i kalibráció miatt (`cm_per_s_at_full` 76,6 -> 84,3):
+    # a FAST (0,65) fékútja ezzel 27,1 cm, ami a RÉGI 25-ös küszöbbe NEM fért bele — a
+    # `test_a_leggyorsabb_fokozat_belefer_a_fekutba` pontosan ezt fogta meg. A küszöb
+    # EMELÉSE a konzervatív irány (a robot korábban áll meg); a teszt a küszöb
+    # CSÖKKENTÉSÉT tiltja, nem az emelését. A másik ág — a FAST duty levitele — azért
+    # nem járható, mert 0,59-re kellene esnie, azaz a NORMAL (0,6) ALÁ.
+    stop_threshold_cm: float = 30.0
     poll_interval_s: float = 0.05     # watchdog thread cadence
     # Per-sensor overrides, e.g. {"front": 30.0}. Read-only (frozen settings).
     per_sensor_cm: Mapping[str, float] = field(default_factory=lambda: MappingProxyType({}))
@@ -134,7 +145,14 @@ class MotionSettings:
     #
     # A duty→sebesség viszonyt LINEÁRISnak vesszük, ami alacsony kitöltésnél nem igaz
     # (holtsáv) — ha a `move 0.5` rendre rövidebb lesz a kelleténél, ott kezdd.
-    cm_per_s_at_full: float = 76.6
+    # ÚJRAMÉRVE 2026-09-07 (`calibrate_motion.py --meters 2`, akku 12,40 -> 12,63 V,
+    # a lökés+rámpa profillal): 84,3. A 08-26-i 76,6 is TELI akkun készült, tehát ez NEM
+    # feszültség-különbség — a menetprofil (kick 0,85/0,15 s, rámpa a 0,5 padlóig) és a
+    # padló/trim együtt mozdította el. ⚠️ Ez a szám EGYSZERRE szolgál két urat: a
+    # menetidőt (ott a lökés hozzájárulása helyesen benne van) és a FÉKÚT-becslést (ott
+    # NEM volna szabad, mert akadályba nem lökéssel érkezünk). A fékút emiatt felfelé
+    # torzít, ami a biztonságos irány. A tiszta megoldás az UTAZÓ sebesség külön mérése.
+    cm_per_s_at_full: float = 84.3
     # ÚJRAMÉRVE 2026-08-26, teli akkun, a mai trimmel: 360 fokos parancsra 420 fok
     # (117%). A 2026-08-17-i 280.0 tehát ugyanabba az irányba tévedett, mint a
     # menetsebesség. (A 90.0-s eredeti BECSLÉS a valós érték harmadát mondta: helyben
@@ -144,7 +162,12 @@ class MotionSettings:
     # A mérés a MAI trimmel készült (jobb oldal 0,991) — ez nem mellékes: a fordulás
     # sebessége a két oldal kitöltésének ÖSSZEGÉN múlik, tehát egy trim-változás ezt
     # is elmozdítja. A 0,991 -> 0,997 lépés 0,6%, ami ezen a számon nem látszik.
-    deg_per_s_at_full: float = 326.7
+    # ÚJRAMÉRVE 2026-09-07 (akku 12,40 -> 12,63 V): 402,7 — a 08-26-i 326,7-hez képest
+    # +23%. A magyarázat a `turn_duty` (0,8) szétválasztása az utazó 0,6-tól: a duty->
+    # sebesség viszony alacsony kitöltésen NEM lineáris (holtsáv), így a 0,6-ról
+    # "teljesre" arányosított szám alábecsült. A 402,7-tel a parancsolt 360 fok MÉRVE
+    # 360 fok lett.
+    deg_per_s_at_full: float = 402.7
 
     # A LÁNCTALP KIFUTÁSA a `stop()` UTÁN — mért fizikai tulajdonság, mint a fenti
     # kettő, és ugyanúgy ide tartozik: a fékút-büdzsé enélkül a valóság ~60%-át
@@ -178,8 +201,8 @@ class MotionSettings:
     # KOMPROMISSZUM, nem abszolút igazság — a helyszínen érdemes ránézni, és a
     # demó-manővereket rövid szakaszokra tervezni, nem hosszú egyenesekre.
     # Felülírás újramérés nélkül: FREEDROID_MOTION_RIGHT_DUTY_TRIM.
-    left_duty_trim: float = 1.0
-    right_duty_trim: float = 0.997
+    left_duty_trim: float = 0.962
+    right_duty_trim: float = 1.000
 
     # A két lánctalp KÖZÉPVONALÁNAK távolsága. Csak a trim kiszámításához kell
     # (az oldalirányú elsodródásból ebből jön ki a szögelfordulás).

@@ -170,7 +170,7 @@ class TestTrimSzamitas:
 
     def _cfg(self, bal: float = 1.0, jobb: float = 1.0):
         # A trimet KIFEJEZETTEN megadjuk, nem a defaultot használjuk: a default a
-        # MÉRT érték (jobb=0.92), és akkor ezek a tesztek a következő kalibrációtól
+        # MINDENKORI MÉRT érték, és akkor ezek a tesztek a következő kalibrációtól
         # dőlnének el — miközben a geometriáról szólnak, nem a robot aktuális
         # állapotáról.
         return MotionSettings(track_width_cm=21.0,
@@ -327,7 +327,7 @@ def test_a_menet_lokessel_indul_es_rampaval_all_meg():
     lineáris rámpa 0-ra; az utolsó írás 0, és a rámpa minden lépése kisebb az előzőnél."""
     fake = FakeLgpio()
     m = _bare_motion(fake)
-    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.05, ramp_s=0.1, default_speed=0.6)
+    m._cfg = MotionSettings(left_duty_trim=1.0, kick_duty=0.85, kick_s=0.05, ramp_s=0.1, default_speed=0.6)
     m._run(1, 1, 0.6, 0.3, heading=None, turning=False)
     bal = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
     assert bal[0] == pytest.approx(85.0)                    # lökés
@@ -343,7 +343,7 @@ def test_a_rovid_fordulasnak_marad_utazo_szakasza():
     5° a 90 helyett. A rámpa legfeljebb a menet 30%-a, a padlóig, és a hiány az utazóé."""
     fake = FakeLgpio()
     m = _bare_motion(fake)
-    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.15, ramp_s=0.4, ramp_floor_duty=0.5,
+    m._cfg = MotionSettings(left_duty_trim=1.0, kick_duty=0.85, kick_s=0.15, ramp_s=0.4, ramp_floor_duty=0.5,
                             ramp_max_share=0.3, default_speed=0.6)
     kezd = time.perf_counter()
     m._run(1, 1, 0.8, 0.344, heading=None, turning=True)
@@ -364,7 +364,7 @@ def test_a_stop_a_rampa_kozben_NEM_indit_ujra():
     visszaindítaná a robotot — a watchdog ablakában."""
     fake = FakeLgpio()
     m = _bare_motion(fake)
-    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.0, ramp_s=0.3, default_speed=0.6)
+    m._cfg = MotionSettings(left_duty_trim=1.0, kick_duty=0.85, kick_s=0.0, ramp_s=0.3, default_speed=0.6)
 
     def allj():
         time.sleep(0.12)
@@ -382,14 +382,14 @@ def test_a_rovid_menet_NEM_hosszabb_a_kert_idonel():
     rámpa is külön `seconds`-ig futhatott). A három szakasz összege PONTOSAN `seconds`."""
     fake = FakeLgpio()
     m = _bare_motion(fake)
-    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.15, ramp_s=0.4, default_speed=0.6)
+    m._cfg = MotionSettings(left_duty_trim=1.0, kick_duty=0.85, kick_s=0.15, ramp_s=0.4, default_speed=0.6)
     kezd = time.perf_counter()
     m._run(1, 1, 0.6, 0.1, heading=None, turning=False)
     telt = time.perf_counter() - kezd
     assert 0.08 < telt < 0.16, telt
     # És egy 20 ms alatti rámpa sem marad ki: legalább egy lépés, ami 0-ra visz.
     fake.calls.clear()
-    m._cfg = MotionSettings(kick_duty=0.85, kick_s=0.0, ramp_s=0.01, default_speed=0.6)
+    m._cfg = MotionSettings(left_duty_trim=1.0, kick_duty=0.85, kick_s=0.0, ramp_s=0.01, default_speed=0.6)
     m._run(1, 1, 0.6, 0.05, heading=None, turning=False)
     pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
     assert pwm[0] == pytest.approx(60.0) and pwm[-1] == 0.0
@@ -402,7 +402,7 @@ def test_a_fordulas_a_turn_duty_val_megy_nem_a_fokozattal():
 
     fake = FakeLgpio()
     m = _bare_motion(fake)
-    m._cfg = MotionSettings(kick_s=0.0, ramp_s=0.0, turn_duty=0.8, default_speed=0.6)
+    m._cfg = MotionSettings(left_duty_trim=1.0, kick_s=0.0, ramp_s=0.0, turn_duty=0.8, default_speed=0.6)
     m._duty = 0.6
     m.turn(TurnDir.LEFT, degrees=5)
     pwm = [c[2] for c in fake.calls if c[0] == "pwm" and c[1] == G.LEFT_MOTOR_PWM]
