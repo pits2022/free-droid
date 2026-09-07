@@ -518,11 +518,11 @@ class PowerSettings:
 
 @dataclass(frozen=True)
 class LedSettings:
-    """WS2812 státusz-gyűrű (spec §6). A `count` MÉRENDŐ, amikor a gyűrű rákerül a
-    GPIO-ra (`FREEDROID_LED_COUNT`); a fényerő a konferencia-teremhez hangolandó."""
+    """WS2812 státusz-gyűrű (spec §6). A `count` a beépített gyűrűn MÉRVE 24
+    (`FREEDROID_LED_COUNT` másik gyűrűhöz); a fényerő a konferencia-teremhez hangolandó."""
 
     enabled: bool = True
-    count: int = 12
+    count: int = 24
     brightness: float = 0.3
     fps: float = 30.0
 
