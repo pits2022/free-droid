@@ -453,9 +453,10 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
 *   **Szoftver:** `robot/src/freedroid/power.py` — stdlib, `ioctl(I2C_SLAVE)`, nincs smbus.
 
 ### 6. LED ring
-*   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V. (Összeforrasztva 2026-09-03, a GPIO-ra még nincs rádugva; a LED-szám mérendő → `FREEDROID_LED_COUNT`.)
+*   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V. (Összeforrasztva 2026-09-03, a GPIO-ra még nincs rádugva; a LED-szám: 24 → `FREEDROID_LED_COUNT`.)
 *   **Vezérlés:** SPI módban (`/dev/spidev0.0`) – konfliktus-mentes az RPi 5-ön (elkerüli a PWM/DMA ütközést az audio és motorvezérlővel).
-*   **Táp:** RPi 5V pin (kis ringhez elegendő, sok LED esetén külső 5V vonal ajánlott).
+*   **Táp:** LM2596 5V (PCA9685-el közösen)
+* **Pi5**: DI - GPIO 10 (PIN 19)
 
 **Színkód — DÖNTÉS (a Teremtő, 2026-09-03).** Két elv: kevés állapot, és a MINTA legalább
 annyit mond, mint a szín (5 méterről, színtévesztőnek is); a piros EGYET jelent. A fő sor a
