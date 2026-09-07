@@ -25,10 +25,26 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 
-from freedroid.config.settings import MotionSettings, load_settings
+from freedroid.config.settings import MotionSettings, PowerSettings, load_settings
 from freedroid.motion import CytronMotionController
 from freedroid.motion.types import Direction, TurnDir
+from freedroid.power import read_battery_v
 from freedroid.safety import UltrasonicWatchdog
+
+
+def _akku(s: PowerSettings) -> float | None:
+    """Az akku feszültsége, vagy None, ha nincs mérő.
+
+    A menetidő-állandók a duty-n KERESZTÜL a feszültségtől függnek (ugyanaz a 0,6
+    kitöltés 12,3 V-on gyorsabb lánctalpat hajt, mint 10,8-on), ezért egy kalibráció
+    a feszültsége nélkül ÉRTELMEZHETETLEN: két menet két száma nem hasonlítható
+    össze, és nem tudni, melyiket kellene a settings.py-ba írni. Hiányzó mérő nem
+    hiba — a mérés attól még lefut, csak jelöletlen marad.
+    """
+    try:
+        return read_battery_v(s)
+    except OSError:
+        return None
 
 
 def _szam_bekeres(kerdes: str) -> float | None:
@@ -114,7 +130,8 @@ def main() -> int:
         # nullával — miután a robot már mozgott.
         ap.error("--meters (és --skip-turn nélkül --degrees is) nagyobb kell legyen nullánál")
 
-    cfg = load_settings().motion
+    beallitasok = load_settings()
+    cfg = beallitasok.motion
     if args.track_width is not None:
         cfg = replace(cfg, track_width_cm=args.track_width)
     else:
@@ -122,7 +139,10 @@ def main() -> int:
               f"(--track-width felülírja).")
     print(f"Jelenlegi (BECSÜLT) értékek: cm_per_s_at_full={cfg.cm_per_s_at_full}, "
           f"deg_per_s_at_full={cfg.deg_per_s_at_full}")
-    print(f"Menet-kitöltés: {cfg.default_speed:.0%}\n")
+    print(f"Menet-kitöltés: {cfg.default_speed:.0%}")
+    akku_elott = _akku(beallitasok.power)
+    print("Akku: " + (f"{akku_elott:.2f} V" if akku_elott is not None
+                      else "nincs mérő (ADS1115) — a mérés JELÖLETLEN marad") + "\n")
 
     motion = CytronMotionController()
     watchdog = None
@@ -230,7 +250,12 @@ def main() -> int:
         print("\nNem született használható érték.")
         return 1
 
+    akku_utan = _akku(beallitasok.power)
     print("\n" + "=" * 68)
+    if akku_elott is not None and akku_utan is not None:
+        print(f"MÉRVE {akku_elott:.2f} -> {akku_utan:.2f} V akkun. "
+              f"Írd a settings.py kommentjébe is — enélkül a szám nem hasonlítható "
+              f"egy másik feszültségen mért menethez.")
     print("Írd be ezeket a robot/src/freedroid/config/settings.py MotionSettings-be:")
     for kulcs, ertek in eredmenyek.items():
         # A trim századokon múlik (3% eltérés 2 m alatt fél métert visz) — ott több
