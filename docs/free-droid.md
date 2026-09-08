@@ -24,7 +24,7 @@
 | **Mozgás** | ✅ Kalibrálva teli és merült akkun; **feszültség-kompenzáció** a menetidőben. |
 | **Biztonság** | ✅ Stop-küszöb **30 cm**; a `fast` fokozat fékútja élesben **19,4 cm** hézagot hagyott. Akku-őr: 10,2 V figyelmeztetés (csipogó is), 9,6 V alatt mozgás-tiltás. |
 | **Felhő** | ⚙️ On-demand, `terraform apply` percek alatt. GPU-választás élő API-ból (`gpu_pick.py`) — nincs beégetett alapértelmezés. |
-| **Nyitva** | Red-team kör a v12-n; a kameraképpel mit kezdjen (VLM vagy semmi); az előadás. |
+| **Nyitva** | Red-team kör a v12-n · **aktív hűtés (§5.0)** · **akku-mérő kalibráció: a szoftver 0,2 V-tal magasabbat mond a csipogónál (2026-09-08)** · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
 
 **A három szám, ami az előadásban is elmondható:**
 * a robot a felhő nélkül is **teljes értékű** — csak kevésbé ékes: 3B az edge-en, 8B a felhőben;
@@ -544,7 +544,10 @@ függvény, hardver nélkül tesztelt). Bring-up: `uv run python scripts/led_tes
 ## 🖥️ Szoftver Stack & AI
 
 ### 1. Operációs rendszer
-*   **OS:** Raspberry Pi OS 64-bit Lite (**Debian Bookworm** alapú – nem Ubuntu).
+*   **OS:** Raspberry Pi OS 64-bit Lite — **MÉRVE a gépen: Debian 13 „trixie", kernel
+    6.12.47, Python 3.13** (nem Bookworm, és semmiképp nem Ubuntu). A Python-verzió nem
+    formaság: emiatt esett ki az openWakeWord (§4), mert a `tflite-runtime`-nak nincs
+    cp313 wheelje.
 *   **Telepítés:** RPi Imager (előre konfigurált Wi-Fi, SSH pubkey és user).
 *   **Hosztnév és elérés (a MŰKÖDŐ gépről, 2026-08-12):** a hosztnév **`free-droid-001`**
     (a home DNS `free-droid-001.home`-ként szolgálja ki), a user **`creator`** — *nem* a
@@ -1187,6 +1190,44 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] Biztonsági watchdog éles teszt: akadály a robot elé → azonnali megállás
 - [ ] Demó-forgatókönyv begyakorlása (a Teremtő kérdez magyarul, tolmácsol angolra)
 
+#### 5.0 Külső átnézés (2026-09-08) — mit fogadtunk el belőle
+
+Egy külső olvasó (Claude, a RÉGI, v7-korabeli doksikkal) átnézte a tervet. A hardver-
+kifogásai nagyrészt elavultak — mikrofon, hangszóró, kamera, ultrahang, PCA9685 mind
+benne van és MÉRVE, a 70B/ROS 2/Ubuntu állítások pedig már a mai specben sem
+szerepelnek. **Három pontja viszont áll, és kettő az előadásról szól:**
+
+1. 🔴 **AKTÍV HŰTÉS — VALÓS HIÁNY, a specben eddig NULLA említés.** A Pi 5 a színpadon
+   3B-t inferál, zárt vázban, reflektorfényben. Throttle esetén pont a **fallback** lassul
+   be, azaz akkor, amikor a felhő már elesett — a két hiba egymásra épül. **Teendő a
+   demó előtt: hűtés beszerzése ÉS egy 20 perces terhelt hőmérséklet-mérés**
+   (`vcgencmd measure_temp` az élő menet alatt), mert throttle nélkül nincs mit javítani,
+   throttle-lal viszont a demó közepén derülne ki.
+
+2. 🔴 **A NARRATÍVA CSAPDÁJA — a demó a HANGOT a felhőbe küldi.** A tézis „a multi a root,
+   és a robot mindent lát-hall", a lánc viszont a felvételt a felhős Whisperbe tölti fel
+   (`stt_cloud_url`, `10.0.0.1:8080`), a szöveget pedig a felhős 8B-hez. Ez **válaszolható**
+   (a Teremtő szervere, a Teremtő kulcsa, WireGuard, `terraform destroy` perc alatt, és
+   VAN teljes offline mód) — de **a Teremtő tegye fel a kérdést egy dián**, mert a Q&A-ben
+   úgyis felteszik, és akkor védekező helyzetből kell válaszolni.
+
+   **A helyes válasz nem is a fine-tune, hanem a KÓDRÉTEG**, és ez erősebb állítás:
+   a watchdog, ami az LLM-től függetlenül állít meg · a `scan_wifi`, ami sosem
+   csatlakozik · a `guard`, ami a kitalált tool-neveket eldobja · a `safe_mode`. A
+   szuverenitás garanciái **auditálható kódban** vannak, nem a súlyokban — és ez pont a
+   biztonságos közönség nyelve.
+
+3. ⚠️ **A HÁLÓZATI TERV a demó legnagyobb kockázata.** Hacker-konferencia wifijén a felhős
+   út bármikor elmehet, és a fallback a gyengébb 3B. Ez már részben kezelt (saját 4G
+   router `Wifi196`, a Pi a WireGuard-kezdeményező `PersistentKeepalive`-val), de a
+   **térerőt a HELYSZÍNEN, előre meg kell mérni**, és kell egy előre felvett videó a
+   teljes folyamról, egy gombnyomásra.
+
+> ⚠️ **DÁTUM-ELLENTMONDÁS, ELLENŐRIZENDŐ.** Ez a dokumentum **2026. okt. 15.**-öt ír, a
+> külső átnézés **okt. 21.**-ét (Lurdy, egynapos, 40 perces regular talk). A kettő nem
+> lehet egyszerre igaz, és egy rossz dátum minden ütemtervet elront. **A Teremtő
+> ellenőrizze a visszaigazoló levélből**, és a helyes dátum kerüljön a §"Ütemterv"-be.
+
 #### 5.1 Előadás elkészítése — 2026. szept. 1. → szept. 30. · **felelős: a Teremtő**
 
 Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se a specben, se a
@@ -1310,7 +1351,9 @@ csatlakozik"), tehát a kimondott SSID-knek IGAZNAK kell lenniük.
 
 *   **Kameraképpel mihez kezd Szabi? — NYITOTT, feltételes döntés (a Teremtő, 2026-08-28).**
     **Ha belefér az időbe: VLM a felhőben. Ha nem: nincs kód — dataset/prompt, és Szabinak
-    nincs szeme.** Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
+    nincs szeme.** 📌 **A Teremtő 2026-09-08: „a kamera használata szuper feature lenne és
+    szerintem lesz még rá időnk"** — a tétel tehát él, de továbbra is a terv VÉGÉN áll, és
+    semmi más nem függ tőle. Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
 
     **A mai állapot, mérve:** a kamera **csak aktuátor**. A `PanTiltCamera` `pan`/`tilt`/
     gesztust (`face_speaker`, `nod`, `scan`) tud, és **soha nem olvas képkockát**; a
