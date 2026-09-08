@@ -152,19 +152,34 @@ Kézi futtatás hibakereséshez:
 ```bash
 sudo systemctl stop freedroid
 cd /opt/free-droid/robot && uv run freedroid --debug
+
+# ugyanez fájlba is (a konzol semmit nem őriz meg magától):
+uv run freedroid --debug 2>&1 | tee -a /var/log/freedroid/szabi-$(date +%Y-%m-%d-%H%M).log
 ```
 
 `--debug` = **bőbeszédű napló ÉS az elhangzott mondatok rögzítése**
 (`/var/log/freedroid/transcript.jsonl`). Alapból KI. A hurok billentyűzetről:
 `ENTER` = figyelj, `s`+`ENTER` = ÁLLJ. A kattintó és a FIFO-trigger is él.
 
-> 🔴 **A demó előtt:** `sudo rm -f /var/log/freedroid/transcript.jsonl*` — ez az egyetlen
-> magánadat a kártyán.
+> 🔴 **A demó előtt:** `sudo find /var/log/freedroid/ -mindepth 1 -delete` — a KÖNYVTÁR
+> egésze, nem csak a
+> `transcript.jsonl*`. `find`, nem `rm -rf …/*`: a shell-glob a REJTETT fájlokat kihagyja,
+> és egy törlés, ami adatvédelmi lépés, ne függjön attól, hogy egy jövőbeli eszköz
+> ponttal kezdi-e a nevet (PR #122 review). A `-mindepth 1` a könyvtárat magát meghagyja,
+> jogaival együtt. A `--debug` KÉT helyre ír: a JSONL-be, és a konzolra, ahol az
+> `átirat:` sor szó szerint az elhangzott mondat. Amint a konzolt `tee`-vel fájlba mented
+> (`szabi-<dátum>.log`), az ugyanolyan magánadat — a szűkebb `transcript.jsonl*` mintát
+> viszont NEM érinti, és pont ez az a fajta rés, ami hónapokig észrevétlen marad.
+>
+> **`tee`, nem `sudo tee`** (PR #122 review): a könyvtárat az Ansible `creator`
+> tulajdonába adja (`owner/group: creator`, `mode: 0750`), tehát a `tee` privilégium
+> nélkül ír. A `sudo` itt RONTANA: root tulajdonú, `0644`-es fájlt hozna létre egy
+> `0750`-es, `creator`-é könyvtárban — szélesebb jogokkal, mint a köré.
 >
 > `rm`, nem `truncate`, és ez mérve van: a `transcript.log()` minden eseménynél ÚJRA
 > nyitja a fájlt (`with cel.open("a")`), tehát nem tart nyitott leírót — nincs az a
-> „törölt, de még írt inode" eset, ami futó szolgáltatásnál gond volna. A `*` viszont
-> lényeges: a **forgatott** példányokat (14 napos logrotate) csak így viszi el, azokat
+> „törölt, de még írt inode" eset, ami futó szolgáltatásnál gond volna. A KÖNYVTÁR-szintű
+> törlés viszont lényeges: a **forgatott** példányokat (14 napos logrotate) csak így viszi el, azokat
 > egy `truncate` ott hagyná. (PR #121 review.)
 
 Önteszt:
@@ -445,5 +460,5 @@ ssh creator@free-droid-001.home 'cd /opt/free-droid && git pull && sudo systemct
 # 4. önteszt
 ssh creator@free-droid-001.home 'cd /opt/free-droid/robot && uv run freedroid-health'
 # 5. 🔴 a magánadat törlése — a demó NEM debug posztúrában megy
-ssh creator@free-droid-001.home 'sudo rm -f /var/log/freedroid/transcript.jsonl*'
+ssh creator@free-droid-001.home 'sudo find /var/log/freedroid/ -mindepth 1 -delete'  # ld. 3.
 ```

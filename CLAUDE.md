@@ -143,7 +143,12 @@ What that actually costs, in order:
    stealable card. Default-off means "forgot" equals "no logging".
 
    The concrete pre-demo wipe list, by actual path (extend it as sinks are added):
-   `/var/log/freedroid/transcript.jsonl` + its rotated siblings · the `~/.ssh` key material
+   the WHOLE of `/var/log/freedroid/` (`sudo find /var/log/freedroid/ -mindepth 1 -delete`
+   — a shell glob would skip dotfiles, and a privacy wipe must not depend on a future
+   tool's naming) — `transcript.jsonl` + its rotated siblings **and
+   the `szabi-*.log` console captures (`freedroid --debug 2>&1 | tee …`, the practice
+   since 2026-09-08). `--debug` writes to TWO sinks, and the console one carries the same
+   spoken sentences: the narrower `transcript.jsonl*` glob does NOT remove it** · the `~/.ssh` key material
    audited per item 1 · `/etc/wireguard/*` if the cloud is rotated afterwards. The Space
    chat logs (`jabba77/szabi-chat-logs`) live off-device and are a separate decision.
 4. **The fine-tuned model and the system prompt are already public** — the model on HF
