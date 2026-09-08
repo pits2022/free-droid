@@ -273,3 +273,14 @@ def test_a_VALODI_hivas_is_visz_keep_alivet(monkeypatch):
     c.generate("Ki vagy?")
     (hivas,) = halo.peldanyok[0].hivasok
     assert hivas["keep_alive"] == "-1"
+
+
+def test_ismeretlen_hatterre_HANGOSAN_bukik_a_keep_alive(monkeypatch):
+    """PR #124 review: egy jövőbeli harmadik háttér az `if CLOUD else EDGE` alakban
+    NÉMÁN az edge értékét kapná. Ebben a modulban az ismeretlen eset hangosan bukik —
+    egy néma, rossz `keep_alive` úgy néz ki, mintha működne, és csak a következő HIDEG
+    fallbackkor derülne ki, azaz a legrosszabb pillanatban."""
+    halo = Halo({EDGE})
+    c = kliens(monkeypatch, halo)
+    with pytest.raises(KeyError):
+        c._keep_alive("nincs-ilyen-hatter")

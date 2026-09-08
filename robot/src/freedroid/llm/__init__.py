@@ -162,8 +162,13 @@ class FallbackLLMClient:
         raise LLMUnavailable("egyik LLM háttér sem felelt — " + "; ".join(nyom))
 
     def _keep_alive(self, backend: Backend) -> str:
-        return (self._cfg.cloud_keep_alive if backend is Backend.CLOUD
-                else self._cfg.edge_keep_alive)
+        # Kifejezett leképezés, nem `if CLOUD else EDGE`. Egy jövőbeli harmadik háttér
+        # az `else` ágon NÉMÁN az edge értékét kapná — ebben a modulban pont az a
+        # szabály, hogy az ismeretlen eset HANGOSAN bukjon (ld. `camera action`,
+        # `set_speed`): egy néma, rossz `keep_alive` úgy néz ki, mintha működne, és
+        # csak a következő hideg fallbackkor derülne ki. (PR #124 review.)
+        return {Backend.CLOUD: self._cfg.cloud_keep_alive,
+                Backend.EDGE: self._cfg.edge_keep_alive}[backend]
 
     def _generate_on(self, backend: Backend, prompt: str) -> str:
         url, model, timeout = self._params(backend)
