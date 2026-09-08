@@ -181,7 +181,8 @@ uv run python scripts/usb_devices.py                  # lsusb, arecord -l, aplay
 uv run python scripts/ultrasonic_test.py              # mindkét szenzor
 uv run python scripts/ultrasonic_test.py --sensor front --diag
 uv run python scripts/motor_test.py --duty 40 --seconds 1.5 --motor both
-uv run python scripts/servo_test.py --channel pan --centre-only
+uv run python scripts/servo_test.py --centre-only                 # ELŐSZÖR ez
+uv run python scripts/servo_test.py --channel pan --range 0.15    # aztán kis kitéréssel
 uv run python scripts/led_test.py                     # mind a 11 spec §6 jelenet (24 LED)
 uv run python scripts/mic_select.py --seconds 4
 uv run python scripts/stt_meres.py                    # felhő vs. edge STT, mért késleltetés
