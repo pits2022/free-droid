@@ -608,6 +608,14 @@ class Orchestrator:
             # A hatókör a kör, nem az idő — így megmarad, hogy egy közben felállt alagút
             # a KÖVETKEZŐ körben azonnal látszik. (Ld. `health/probe.py`.)
             probe_mod.uj_kor()
+            # A kamera is ismert helyzetből induljon: a `pan`/`tilt` relatív, tehát
+            # körök között halmozódna (mérve 2026-09-08: két `tilt up 30` után a kamera
+            # felfelé bámult). A gesztus a válasz idejére kint marad — ez a kör ELEJE.
+            if self.camera is not None:
+                try:
+                    self.camera.home()
+                except Exception:  # noqa: BLE001 — egy szervo-hiba nem vihet el egy kört
+                    log.warning("a kamera alaphelyzetbe állítása elhasalt", exc_info=True)
             self._csipog()                      # „hallottam a gombot, beszélhetsz"
             self.state = State.RECORDING
             hang = vad.record_until_silence()
