@@ -127,6 +127,14 @@ class TestFeszultsegKompenzacio:
         # validációja ott nem véd. (PR #113 review.)
         assert voltage_factor(12.0, 0.0, 0.8) == 1.0
 
+    @pytest.mark.parametrize("kal, slope", [
+        (float("nan"), 0.8), (12.52, float("nan")), (12.52, float("inf"))])
+    def test_a_NaN_bemenet_1_0_ra_esik_vissza_nem_a_klippre(self, kal, slope):
+        """A NaN a `min`/`max`-on át NEM 1,0-ként jönne ki, hanem FAKTOR_MIN-ként
+        (`nan > 0.7` hamis -> a `max` a 0,7-et adja), az pedig hosszabb menet, azaz
+        TÚLFUTÁS egy elrontott configtól. (PR #113 review, 2. kör.)"""
+        assert voltage_factor(12.0, kal, slope) == 1.0
+
     def test_alacsonyabb_feszultseg_HOSSZABB_menetet_ad(self):
         # A kompenzáció egész célja egy mondatban.
         cfg = MotionSettings()
@@ -162,6 +170,7 @@ def _bare_motion(fake: FakeLgpio) -> CytronMotionController:
     # A `_akku_v()` innen olvasna; a teszt-környezetben nincs I2C, tehát OSError ->
     # None -> faktor 1,0. Épp azt a fail-safe ágat járjuk, amit a robot mérő nélkül.
     m._power_cfg = PowerSettings()
+    m._akku_hiba_jelezve = False
     m._h = 0
     m._duty = 0.5
     m._heading = None

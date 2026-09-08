@@ -59,8 +59,16 @@ def voltage_factor(battery_v: float | None, calibrated_at_v: float,
     if (battery_v is None or not math.isfinite(battery_v) or battery_v <= 0
             or calibrated_at_v <= 0):
         return 1.0
-    return min(FAKTOR_MAX, max(FAKTOR_MIN,
-                               1.0 + slope * (battery_v / calibrated_at_v - 1.0)))
+    faktor = 1.0 + slope * (battery_v / calibrated_at_v - 1.0)
+    # AZ EREDMÉNYT ellenőrizzük, nem külön-külön a bemeneteket. Egy NaN `slope` vagy
+    # `calibrated_at_v` átcsúszik a fenti kapun (`nan <= 0` HAMIS), és a NaN a
+    # `min`/`max`-on át NEM 1,0-ként jönne ki, hanem `FAKTOR_MIN`-ként: a `nan > 0.7`
+    # hamis, tehát a `max` a 0,7-et adja vissza. Az pedig HOSSZABB menet, azaz TÚLFUTÁS
+    # — a rossz irányba tévedés egy elrontott configtól. Egy eredmény-ellenőrzés az
+    # ÖSSZES ilyen bemenetet lefedi, a jövőbelieket is. (PR #113 review, 2. kör.)
+    if not math.isfinite(faktor):
+        return 1.0
+    return min(FAKTOR_MAX, max(FAKTOR_MIN, faktor))
 
 
 def run_seconds(amount: float, per_second_at_full: float, duty: float) -> float:
@@ -121,6 +129,7 @@ class CytronMotionController:
         # menet előtti pillanaté. Egy ADS1115-olvasás ~10 ms, egy több másodperces menet
         # előtt elhanyagolható.
         self._power_cfg = beallitasok.power
+        self._akku_hiba_jelezve = False
         self._duty = self._cfg.default_speed
         self._heading: Direction | None = None
         self._turning = False
@@ -151,8 +160,15 @@ class CytronMotionController:
             # a menet KÖZVETLEN útjában áll: bármi más (a driver egy ValueErrorja, egy
             # elszállt konfig) itt a `move()`-ot vinné el, azaz a robot NEM MOZDULNA egy
             # kényelmi korrekció hibájától. (PR #113 review.) Nem néma: naplózzuk.
+            #
+            # A VEREM CSAK EGYSZER. Egy lehúzott ADS1115 minden `move()`-nál és
+            # `turn()`-nél újra kiírná — a demó naplója percek alatt olvashatatlan lenne,
+            # épp amikor a legjobban kell. Az első teljes, a többi egysoros; ugyanaz a
+            # minta, amit az orchestrator akku-őre már használ. (PR #113 review, 2. kör.)
+            eloszor = not self._akku_hiba_jelezve
+            self._akku_hiba_jelezve = True
             log.warning("az akku-olvasás elhasalt — a menet feszültség-korrekció "
-                        "NÉLKÜL megy", exc_info=True)
+                        "NÉLKÜL megy", exc_info=eloszor)
             return None
 
     # --- amit a safety/ olvas ---
