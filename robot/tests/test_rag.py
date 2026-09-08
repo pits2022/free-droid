@@ -425,3 +425,25 @@ def test_a_bun_szo_NEM_olvad_bele_a_Buunbe():
     from freedroid.rag.normalize import tokenize
 
     assert "buun" not in tokenize("Hogyan ítéli meg a Yotengrit a bűnt?")
+
+
+def test_a_MERT_felrehallas_is_megtalalja_a_szeletet():
+    """`nádszál` -> `nátszál` az STT-től, KÉTSZER egy menetben. A "három nádszál" a
+    persona sarokköve — ez a legdrágább egyetlen betű a korpuszban."""
+    from freedroid.rag.normalize import tokenize
+
+    assert set(tokenize("Mi a három nátszál?")) == set(tokenize("Mi a három nádszál?"))
+
+
+def test_a_lista_KEZZEL_gondozott_marad_nem_fuzzy():
+    """⛔ Őrzés egy csábító regresszió ellen. Mérve a 106 valódi tévesztésen: a
+    `difflib` alapú illesztés a legszigorúbb küszöbön is 9 KÁROS találatot ad 2 jó
+    mellett ('Gyere, ide.' -> "Szerinted hogy jött létre a világ?"), mert a korpuszból
+    hiányzó tokenek javarészt hétköznapi igék, nem elgépelt szakszavak. Ha ez a teszt
+    elbukik, valaki általános illesztést vezetett be — előbb mérje meg újra."""
+    from freedroid.rag import normalize
+
+    assert isinstance(normalize.SZINONIMAK, dict)
+    assert len(normalize.SZINONIMAK) < 40, "ez kézi lista; egy robbanás algoritmust sejtet"
+    for kulcs, ertek in normalize.SZINONIMAK.items():
+        assert isinstance(ertek, tuple) and all(isinstance(t, str) for t in ertek), kulcs

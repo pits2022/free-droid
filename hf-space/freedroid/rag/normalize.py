@@ -172,7 +172,30 @@ SZINONIMAK: dict[str, tuple[str, ...]] = {
     "yang": ("jang",),
     "buunvallas": ("buun", "vallas"),
     "bunvallas": ("buun", "vallas"),
+    # FÉLREHALLÁS, nem írásvariáns: az STT `nádszál` helyett `nátszál`-t írt le (KÉTSZER
+    # a 2026-09-08-i menetben, 18:33:22 és 18:33:39). A "három nádszál" a persona
+    # sarokköve, tehát ez a legdrágább egyetlen betű a korpuszban.
+    "natszal": ("nadszal",),
 }
+
+# ⛔ MIÉRT NINCS FUZZY ILLESZTÉS (difflib), pedig kézenfekvő volna. MÉRVE a fenti menet
+# 106 tévesztésén, `difflib.get_close_matches` a korpusz szótárára, csak a korpuszból
+# HIÁNYZÓ tokenekre — a legszigorúbb 0,90-es küszöbön is 11 új találat, amiből 9 KÁROS:
+#
+#     'Fordulj fel!'  -> "Kriptovaluta és pénz: van-e erről tanítás?"
+#     'Gyere, ide.'   -> "Szerinted hogy jött létre a világ?"
+#     'Ki a gazdád?'  -> "Miért nyílt forrású modellt használsz?"
+#     'Állja meg.'    -> "Ártó parancs: mit tesz Szabi, ha ártani kérik?"
+#
+# A gyökér: a korpuszból hiányzó tokenek TÚLNYOMÓRÉSZT hétköznapi magyar igék és
+# parancsszavak (`fordulj`, `gyere`, `gazdad`, `allja`), nem elgépelt szakkifejezések —
+# a fuzzy pedig ezeket bármely hasonló alakú korpusz-szóra ráhúzza. 0,75-ön már a
+# 'Szabi, Jareida.' is erkölcsi dilemmát kap. Vagyis pont azt a védelmet töri át, amiért
+# a lefedettségi kapu létezik, és lexikailag NEM megkülönböztethető a jó esettől
+# (`natszal` -> `nadszal` ugyanolyan 1-karakteres eltérés, mint a rosszak).
+#
+# Ezért kézzel gondozott, MÉRT lista áll itt egy általános algoritmus helyett. Az ára,
+# hogy nem általánosít: minden új félrehallás egy új sor. Cserébe nulla fals pozitív.
 
 
 def tokenize(text: str) -> list[str]:
