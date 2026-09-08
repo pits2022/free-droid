@@ -267,6 +267,25 @@ ARG_ERTEKEK: dict[str, dict[str, Any]] = {
 }
 
 
+# KÖTELEZŐ ARGUMENTUMOK — a `ARG_ERTEKEK` az ÉRTÉKEKET nézi, ez a MEGLÉTÜKET. A hívás
+# akkor végrehajtható, ha a halmazból legalább egy kulcs jelen van.
+#
+# Mérve 2026-09-08 a Pi-n: a modell `<tool>turn 180</tool>`-t adott ki (a `Fordulj bara!`
+# félrehallott átiratra „Körbe fordulok"-kal). A név ismert, az értékek rendben — a
+# hívás mégis a KEZELŐIG jutott, és ott `ValueError`-t dobott, azaz körönkénti
+# veremkiíratást ERROR szinten egy olyan hibára, amit a modell okozott. A `move 2`
+# (irány nélkül) ugyanígy. A `move forward` viszont ÉRVÉNYES: táv nélkül a `max_run_s`
+# szabja meg a menetet — a távolság tehát nem kötelező, az irány igen.
+#
+# A `mode` azért elégíti ki a feltételt, mert a nyelvtan megengedi a csak-módú alakot
+# (`move mode=approach_speaker`); az ma `NotImplementedError`-t dob a vezérlőben, és ez
+# SZÁNDÉKOS hangos hiba — nem ennek a kapunak a dolga elnyelni.
+KOTELEZO_EGYIK: dict[str, frozenset[str]] = {
+    "move": frozenset({"direction", "mode"}),
+    "turn": frozenset({"direction", "mode"}),
+}
+
+
 def ervenytelen_ok(tool: ParsedTool) -> str | None:
     """MIÉRT nem hajtható végre a hívás — vagy `None`, ha rendben van.
 
@@ -277,6 +296,10 @@ def ervenytelen_ok(tool: ParsedTool) -> str | None:
     varhato = ARG_ERTEKEK.get(tool.name)
     if varhato is None:
         return f"ismeretlen tool: {tool.name!r}"
+    kell = KOTELEZO_EGYIK.get(tool.name)
+    if kell is not None and not (kell & tool.args.keys()):
+        return (f"{tool.name}: hiányzik a kötelező argumentum "
+                f"({' vagy '.join(sorted(kell))})")
     for kulcs, ertek in tool.args.items():
         engedett = varhato.get(kulcs)
         if engedett is None:            # szabad szöveg vagy szám — a kezelő dolga

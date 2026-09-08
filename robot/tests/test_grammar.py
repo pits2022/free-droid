@@ -96,3 +96,33 @@ def test_parsedtool_construction():
     t = ParsedTool("set_mode", {"mode": "standby"})
     assert t.name == "set_mode"
     assert t.args == {"mode": "standby"}
+
+
+# ── kötelező argumentumok (mérve a Pi-n 2026-09-08) ─────────────────────────────
+
+def test_a_hianyzo_irany_a_GUARDBAN_esik_ki_nem_a_kezeloben():
+    """`<tool>turn 180</tool>` — a név ismert, az értékek rendben, mégis
+    végrehajthatatlan. Eddig a KEZELŐIG jutott és ott `ValueError`-t dobott: körönkénti
+    veremkiíratás ERROR szinten egy olyan hibára, amit a modell okozott."""
+    from freedroid.orchestrator.guard import guard
+
+    assert guard("Körbe fordulok. <tool>turn 180</tool>").toolok == ()
+    assert guard("Megyek. <tool>move 2</tool>").toolok == ()
+
+
+def test_a_tavolsag_NEM_kotelezo_az_irany_igen():
+    """`move forward` érvényes: táv nélkül a `max_run_s` szabja meg a menetet. A kapu
+    nem szigoríthat a nyelvtanon."""
+    from freedroid.orchestrator.guard import guard
+
+    assert [t.name for t in guard("Megyek. <tool>move forward</tool>").toolok] == ["move"]
+    assert [t.name for t in guard("Balra. <tool>turn left 90</tool>").toolok] == ["turn"]
+
+
+def test_az_indok_MEGMONDJA_mi_hianyzik():
+    from freedroid.tools.handlers import ervenytelen_ok
+    from freedroid.tools.parser import parse_tools
+
+    (t,) = parse_tools("<tool>turn 180</tool>")
+    ok = ervenytelen_ok(t)
+    assert ok is not None and "direction" in ok and "turn" in ok
