@@ -296,6 +296,13 @@ class Orchestrator:
             # napló akkor is megőrzi, MIT mondott a modell először. E nélkül pont a
             # legérdekesebb kör (idegen nyelvű válasz + eldőlt háttér) veszne el.
             esemeny.valasz = nyers
+            # A NYERS kimenet a naplóba is, ne csak a `transcript.jsonl`-be. Mérve
+            # 2026-09-08: a modell "Balra fordulok"-ot mondott és `turn right 90`-et
+            # adott ki — a naplóból ez NEM látszott, mert a `válasz:` sor már a
+            # leszedett beszédszöveg. A tool-markup nélkül a "mondta vagy csinálta?"
+            # kérdésre csak a jsonl-lel összevetve lehet válaszolni, élő menet közben
+            # pedig senki nem tesz ilyet. DEBUG szint: ez modell-kimenet, a demón nem kell.
+            log.debug("nyers modell-kimenet: %r", nyers)
             # A nyelvi őr a `generate()` és a kimondás KÖZÉ ékelődik — ugyanaz az elv,
             # mint a biztonsági watchdognál: a szabály a kódban áll, nem a súlyokban.
             valasz = enforce_hungarian(
