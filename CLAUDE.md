@@ -169,7 +169,7 @@ won't boot on stage, to protect data that is either public or revocable in minut
 - `docs/free-droid.md` — **the spec** (authoritative).
 - `infra/terraform/` — Hetzner provisioning (`main.tf` + S3 state backend; `cloud/` module).
 - `infra/ansible/` — `site.yml` + roles `wireguard_setup`, `ai_stack`, `edge_robot`.
-- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (976 ex.), `train.jsonl` (878), `val.jsonl` (98),
+- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (**1098 ex.**, measured 2026-09-08), `train.jsonl` (988), `val.jsonl` (110),
   `expansion_only.json` (92 new). Categories include `oracle_routing` (15) — so the dataset uses `set_oracle()` and the
   `<puska/>` hint (the grammar contract test guards this). `old/` is superseded per-category data. Also
   `persona_benchmark.json` (25 Q A/B test) + `ertekelo_sablon.md`, and the Unsloth scaffold (`finetune.py`, `config.py`,
