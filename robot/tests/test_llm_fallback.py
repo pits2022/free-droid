@@ -221,3 +221,15 @@ def test_safe_mode_eseten_is_van_nyom(monkeypatch):
     with pytest.raises(LLMUnavailable):
         c.generate("Ki vagy?")
     assert c.decision().endswith("safe mode")
+
+
+def test_a_host_kinyerese_IPv6_es_sema_nelkul_is_helyes():
+    """PR #117 review, mérve. A séma nélküli alak nem elméleti: az URL-ek env-ből
+    felülírhatók. Az ÜRES host a legrosszabb eset — két KÜLÖNBÖZŐ gép is ugyanarra a
+    kulcsra esne, azaz az egyik bukása a másikat is halottnak jelölné."""
+    from freedroid.health.probe import _host
+
+    assert _host("http://10.0.0.1:8080") == "10.0.0.1"
+    assert _host("http://[::1]:8080") == "::1"
+    assert _host("10.0.0.1:8080") == "10.0.0.1"
+    assert _host("http://10.0.0.1:8080") != _host("http://10.0.0.2:11434")

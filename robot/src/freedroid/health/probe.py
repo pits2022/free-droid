@@ -87,11 +87,28 @@ def run(cmd: list[str], timeout: float = 5.0) -> tuple[int, str, str]:
 #
 # Csak a KAPCSOLÓDÁSI hibát jegyezzük (code == 0). Egy HTTP-hibakód azt BIZONYÍTJA, hogy
 # a host felelt — abból a másik port halottságára következtetni hiba volna.
+# SZÁLBIZTONSÁG: nincs zár, és ez feltétel, nem feledékenység. Mind a három hívó az
+# orchestrator EGY körén belül fut (`_egy_kor` egyetlen `asyncio.to_thread`-ben), és a
+# kör-hurok minden lépést AWAITOL, tehát a hívások szigorúan egymás után jönnek.
+# ponytail: ha valaha `asyncio.gather`-rel párhuzamosítjuk az STT- és az LLM-próbát, ide
+# `threading.Lock` kell — a versenyhelyzet ára egy kör, amiben a robot feleslegesen
+# edge-re esik. (PR #117 review.)
 _elerhetetlen_hostok: set[str] = set()
 
 
 def _host(url: str) -> str:
-    return urllib.parse.urlsplit(url).netloc.split(":")[0]
+    """Az URL gépneve. `hostname`, nem `netloc.split(":")` — mérve (PR #117 review):
+
+        http://10.0.0.1:8080  -> '10.0.0.1'   '10.0.0.1'    (egyezik)
+        http://[::1]:8080     -> '['          '::1'
+        10.0.0.1:8080         -> ''           '10.0.0.1'
+
+    A séma nélküli alak nem elméleti: az URL-ek env-ből felülírhatók
+    (`FREEDROID_VOICE_STT_CLOUD_URL`). Az ÜRES host pedig rosszabb, mint a hibás: két
+    KÜLÖNBÖZŐ gépen futó szolgáltatás is ugyanarra a kulcsra esne, azaz az egyik bukása
+    a másikat is halottnak jelölné.
+    """
+    return urllib.parse.urlsplit(url if "//" in url else f"//{url}").hostname or ""
 
 
 def uj_kor() -> None:
