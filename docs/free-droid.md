@@ -24,7 +24,10 @@
 | **Mozgás** | ✅ Kalibrálva teli és merült akkun; **feszültség-kompenzáció** a menetidőben. |
 | **Biztonság** | ✅ Stop-küszöb **30 cm**; a `fast` fokozat fékútja élesben **19,4 cm** hézagot hagyott. Akku-őr: 10,2 V figyelmeztetés (csipogó is), 9,6 V alatt mozgás-tiltás. |
 | **Felhő** | ⚙️ On-demand, `terraform apply` percek alatt. GPU-választás élő API-ból (`gpu_pick.py`) — nincs beégetett alapértelmezés. |
-| **Nyitva** | Red-team kör a v12-n · **aktív hűtés (§5.0)** · **akku-mérő kalibráció: a szoftver 0,2 V-tal magasabbat mond a csipogónál (2026-09-08)** · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
+| **Nyitva** | Red-team kör a v12-n · **akku-mérő kalibráció: a szoftver 0,2 V-tal magasabbat mond a csipogónál (2026-09-08)** · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
+
+**Dátumok:** az előadás **2026. okt. 21.** (Hacktivity, Lurdy, 40 perc); a projekt belső
+határideje **okt. 15.** — egy hét szándékos ráhagyás. A doksik az okt. 15-höz mérnek.
 
 **A három szám, ami az előadásban is elmondható:**
 * a robot a felhő nélkül is **teljes értékű** — csak kevésbé ékes: 3B az edge-en, 8B a felhőben;
@@ -544,8 +547,8 @@ függvény, hardver nélkül tesztelt). Bring-up: `uv run python scripts/led_tes
 ## 🖥️ Szoftver Stack & AI
 
 ### 1. Operációs rendszer
-*   **OS:** Raspberry Pi OS 64-bit Lite — **MÉRVE a gépen: Debian 13 „trixie", kernel
-    6.12.47, Python 3.13** (nem Bookworm, és semmiképp nem Ubuntu). A Python-verzió nem
+*   **OS:** Raspberry Pi OS 64-bit Lite — **MÉRVE a gépen (`/etc/os-release`, 2026-09-08):
+    Debian GNU/Linux 13 „trixie", `DEBIAN_VERSION_FULL=13.2`, kernel 6.12.47, Python 3.13** (nem Bookworm, és semmiképp nem Ubuntu). A Python-verzió nem
     formaság: emiatt esett ki az openWakeWord (§4), mert a `tflite-runtime`-nak nincs
     cp313 wheelje.
 *   **Telepítés:** RPi Imager (előre konfigurált Wi-Fi, SSH pubkey és user).
@@ -965,6 +968,7 @@ free-droid/
 | USB omnidirektcionális mikrofon | ✅ Megvan — **tartalék**, a csíptethető a használt |
 | Csíptethető vezeték nélküli mikrofon (Jieli 4c4a:4155) | ✅ Megvan, bekötve, MÉRVE |
 | Prezenter-kattintó (Elan 04f3:1812) | ✅ Megvan, bekötve, MÉRVE — FIGYELJ + ÁLLJ |
+| Aktív hűtő a Pi 5-höz | ✅ Megvan, felszerelve — egy délelőttnyi edge-terhelés alatt sem throttle-olt (2026-09-08) |
 | A3369 Mini USB Stereo Speaker | ✅ Megvan |
 | Breadboard MB102 400+830 + Dupont kábelek | ✅ Megvan |
 | WS2812 5050 RGB LED ring | ✅ Megvan |
@@ -1195,14 +1199,16 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 Egy külső olvasó (Claude, a RÉGI, v7-korabeli doksikkal) átnézte a tervet. A hardver-
 kifogásai nagyrészt elavultak — mikrofon, hangszóró, kamera, ultrahang, PCA9685 mind
 benne van és MÉRVE, a 70B/ROS 2/Ubuntu állítások pedig már a mai specben sem
-szerepelnek. **Három pontja viszont áll, és kettő az előadásról szól:**
+szerepelnek. **Egy pontja téves volt, KETTŐ áll — és mindkettő az előadásról szól:**
 
-1. 🔴 **AKTÍV HŰTÉS — VALÓS HIÁNY, a specben eddig NULLA említés.** A Pi 5 a színpadon
-   3B-t inferál, zárt vázban, reflektorfényben. Throttle esetén pont a **fallback** lassul
-   be, azaz akkor, amikor a felhő már elesett — a két hiba egymásra épül. **Teendő a
-   demó előtt: hűtés beszerzése ÉS egy 20 perces terhelt hőmérséklet-mérés**
-   (`vcgencmd measure_temp` az élő menet alatt), mert throttle nélkül nincs mit javítani,
-   throttle-lal viszont a demó közepén derülne ki.
+1. ✅ **AKTÍV HŰTÉS — MEGVAN, a kifogás TÉVES volt** (a Teremtő, 2026-09-08). A Pi 5-ön
+   aktív hűtő van, és egy **egész délelőttnyi folyamatos edge-inferencia alatt sem lassult
+   be**. A spec eddig valóban nem említette — ez DOKUMENTÁCIÓS hiány volt, nem hardveres.
+   A kockázat maga viszont valós marad, ezért érdemes tudni, MIÉRT: throttle esetén nem
+   egyszerűen lassul a robot, hanem pont a **fallback 3B** lassul be, azaz akkor, amikor a
+   felhő már elesett — a két hiba egymásra épülne. Egy olcsó megerősítés a színpadi
+   körülményekre (zárt váz + reflektor): `vcgencmd get_throttled` az élő menet után —
+   `0x0` = soha nem throttle-olt, bármi más a naplóba való.
 
 2. 🔴 **A NARRATÍVA CSAPDÁJA — a demó a HANGOT a felhőbe küldi.** A tézis „a multi a root,
    és a robot mindent lát-hall", a lánc viszont a felvételt a felhős Whisperbe tölti fel
@@ -1223,10 +1229,11 @@ szerepelnek. **Három pontja viszont áll, és kettő az előadásról szól:**
    **térerőt a HELYSZÍNEN, előre meg kell mérni**, és kell egy előre felvett videó a
    teljes folyamról, egy gombnyomásra.
 
-> ⚠️ **DÁTUM-ELLENTMONDÁS, ELLENŐRIZENDŐ.** Ez a dokumentum **2026. okt. 15.**-öt ír, a
-> külső átnézés **okt. 21.**-ét (Lurdy, egynapos, 40 perces regular talk). A kettő nem
-> lehet egyszerre igaz, és egy rossz dátum minden ütemtervet elront. **A Teremtő
-> ellenőrizze a visszaigazoló levélből**, és a helyes dátum kerüljön a §"Ütemterv"-be.
+> ✅ **A KÉT DÁTUM MINDKETTŐ HELYES, és ez SZÁNDÉKOS** (a Teremtő, 2026-09-08). A
+> **Hacktivity 2026 okt. 21.** (Lurdy, egynapos, 40 perces regular talk) — ez a valódi
+> esemény. A projekt belső határideje **okt. 15.**, azaz **egy hét ráhagyás** csúszásra
+> vagy váratlan hibára. Nem ellentmondás, hanem puffer — és a doksikban azért áll a
+> korábbi dátum, hogy az ütemterv arra feszüljön. **A puffert ne éld fel előre.**
 
 #### 5.1 Előadás elkészítése — 2026. szept. 1. → szept. 30. · **felelős: a Teremtő**
 

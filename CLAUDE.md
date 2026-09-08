@@ -496,5 +496,8 @@ new one. Host-specific values do not belong in a version-controlled file.
   run-throughs** by sept. 30; ideally the rehearsals run *with* a live Szabi, which makes them
   integration tests too. Note the collision: this window fully overlaps the software crunch
   (also sept. 30), so a fallback script is required. See `docs/free-droid.md` §5.1.
-- Presentation: 2026. oct. 15.
+- **Presentation: 2026. oct. 21.** — Hacktivity, Lurdy, one day, 40-minute regular talk.
+  ⚠️ **The project's own deadline stays 2026. oct. 15., and that is DELIBERATE** (the
+  Creator, 2026-09-08): a one-week buffer for slippage or a late failure. Every other date
+  in this file is measured against oct. 15., not oct. 21. — do not spend the buffer early.
 
