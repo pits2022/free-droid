@@ -169,7 +169,7 @@ won't boot on stage, to protect data that is either public or revocable in minut
 - `docs/free-droid.md` — **the spec** (authoritative).
 - `infra/terraform/` — Hetzner provisioning (`main.tf` + S3 state backend; `cloud/` module).
 - `infra/ansible/` — `site.yml` + roles `wireguard_setup`, `ai_stack`, `edge_robot`.
-- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (976 ex.), `train.jsonl` (878), `val.jsonl` (98),
+- `training/` — fine-tuning. `dataset/` holds `freedroid_full.json` (**1098 ex.**, measured 2026-09-08), `train.jsonl` (988), `val.jsonl` (110),
   `expansion_only.json` (92 new). Categories include `oracle_routing` (15) — so the dataset uses `set_oracle()` and the
   `<puska/>` hint (the grammar contract test guards this). `old/` is superseded per-category data. Also
   `persona_benchmark.json` (25 Q A/B test) + `ertekelo_sablon.md`, and the Unsloth scaffold (`finetune.py`, `config.py`,
@@ -496,5 +496,8 @@ new one. Host-specific values do not belong in a version-controlled file.
   run-throughs** by sept. 30; ideally the rehearsals run *with* a live Szabi, which makes them
   integration tests too. Note the collision: this window fully overlaps the software crunch
   (also sept. 30), so a fallback script is required. See `docs/free-droid.md` §5.1.
-- Presentation: 2026. oct. 15.
+- **Presentation: 2026. oct. 21.** — Hacktivity, Lurdy, one day, 40-minute regular talk.
+  ⚠️ **The project's own deadline stays 2026. oct. 15., and that is DELIBERATE** (the
+  Creator, 2026-09-08): a one-week buffer for slippage or a late failure. Every other date
+  in this file is measured against oct. 15., not oct. 21. — do not spend the buffer early.
 

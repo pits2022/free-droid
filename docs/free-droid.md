@@ -8,6 +8,34 @@
 
 ---
 
+## 📍 HOL TARTUNK — pillanatkép, 2026-09-08
+
+> Ez a szakasz a **mért, működő állapot**, nem a terv. A dokumentum többi része a
+> specifikáció; ahol a kettő eltér, ez a frissebb. (A napi részletek:
+> `~/git/workflow-tracker/WORKFLOW.md`, a parancsok: `CLI.md`.)
+
+| terület | állapot |
+| :--- | :--- |
+| **Hardver** | ✅ **LEZÁRVA** (2026-09-08). Utolsó tétel a 24 LED-es WS2812 gyűrű volt. |
+| **Modell** | ✅ **v12** — felhő `csaba_ajtony/szabi-8b-v12`, edge `csaba_ajtony/szabi-3b-v12`, publikus ollama.com modellek (nincs hitelesítő a roboton). A v13 (`lora_r` 16) MÉRHETŐEN rontott, a v14 nyelv-regressziót hozott → **a demó-modell a v12 + RAG, lefagyasztva**. |
+| **RAG** | ✅ 93 szelet (`yotengrit.md` + `szabi_tech.md`), offline BM25, idf-lefedettségi kapuval. |
+| **Hangbevitel** | ✅ **prezenter-kattintó** (push-to-talk: FIGYELJ / ÁLLJ) + **csíptethető vezeték nélküli mikrofon**. Az ébresztőszó ELVETVE (§4). |
+| **Hang-kimenet** | ✅ Piper `hu_HU-anna-medium`, melegen tartott modellel (a hidegindítás 2,07 s volt). |
+| **Mozgás** | ✅ Kalibrálva teli és merült akkun; **feszültség-kompenzáció** a menetidőben. |
+| **Biztonság** | ✅ Stop-küszöb **30 cm**; a `fast` fokozat fékútja élesben **19,4 cm** hézagot hagyott. Akku-őr: 10,2 V figyelmeztetés (csipogó is), 9,6 V alatt mozgás-tiltás. |
+| **Felhő** | ⚙️ On-demand, `terraform apply` percek alatt. GPU-választás élő API-ból (`gpu_pick.py`) — nincs beégetett alapértelmezés. |
+| **Nyitva** | Red-team kör a v12-n · **akku-mérő kalibráció: a szoftver 0,2 V-tal magasabbat mond a csipogónál (2026-09-08)** · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
+
+**Dátumok:** az előadás **2026. okt. 21.** (Hacktivity, Lurdy, 40 perc); a projekt belső
+határideje **okt. 15.** — egy hét szándékos ráhagyás. A doksik az okt. 15-höz mérnek.
+
+**A három szám, ami az előadásban is elmondható:**
+* a robot a felhő nélkül is **teljes értékű** — csak kevésbé ékes: 3B az edge-en, 8B a felhőben;
+* egy akadály előtt **30 cm-re** megáll, és ezt a döntést **nem az LLM hozza**, hanem egy külön szálon futó reflex;
+* a modell, a rendszerprompt és a tudásbázis **publikus** — a szuverenitás nem titkolózás.
+
+---
+
 ## 🧬 Projekt DNA (Core Identity)
 *   **Küldetés:** Digitális szuverenitás bemutatása magyar kulturális és etikai kontextusban.
 *   **Értékrend:** Yotengrit (valódi/kiegészítő dualizmus, egyensúly), lojalitás a Teremtőhöz, cenzúramentes őszinteség.
@@ -29,7 +57,7 @@
 *   **Szeretet:** „Szeretet minden jó eredete."
 *   **Ikerörvény:** „Egy, Egyből Kettő, Kettő meg Egy" — a két örvény egymásba fonódva forog.
 
-> A fine-tuning dataset (603 példa) ezeket a fogalmakat hitelesen használja. A korábbi pontatlanság (dualizmus = szembenállás) javítva: a Yotengrit kiegészítő dualizmust tanít.
+> A fine-tuning dataset (**1098 példa**, mérve 2026-09-08; train 988 / val 110) ezeket a fogalmakat hitelesen használja. A korábbi pontatlanság (dualizmus = szembenállás) javítva: a Yotengrit kiegészítő dualizmust tanít.
 
 ---
 
@@ -488,7 +516,10 @@ függvény, hardver nélkül tesztelt). Bring-up: `uv run python scripts/led_tes
 | USB omnidirektcionális mikrofon | USB 2.0 | USB 2.0 |
 | A3369 Mini USB Stereo Speaker | USB 2.0 | USB 2.0 |
 
-> ⚠️ **Kettős hangbevitel:** Két mikrofonból az egyiket kell választani (tesztelés alapján). Az omnidirektcionális USB mikrofon hangfelismeréshez általában jobb. A webcam mikrofonját szoftveresen le lehet tiltani ALSA konfigurációban.
+> ✅ **Hangbevitel — ELDŐLT 2026-09-03:** a **csíptethető vezeték nélküli mikrofon**
+> (Jieli 4c4a:4155 vevő, ALSA `CARD=Device`) a használt eszköz; a webkamera mikrofonja a
+> tartalék. A választás az `/etc/asound.conf`-ban él (Ansible: `robot_alsa_capture_card`),
+> **név szerint** — az USB-kártyaszám újradugásnál elcsúszik. Lásd a Fázis 1.5 checklistet.
 
 > 💡 **USB max áram:** `/boot/firmware/config.txt`-be hozzáadandó: `usb_max_current_enable=1`
 
@@ -516,7 +547,10 @@ függvény, hardver nélkül tesztelt). Bring-up: `uv run python scripts/led_tes
 ## 🖥️ Szoftver Stack & AI
 
 ### 1. Operációs rendszer
-*   **OS:** Raspberry Pi OS 64-bit Lite (**Debian Bookworm** alapú – nem Ubuntu).
+*   **OS:** Raspberry Pi OS 64-bit Lite — **MÉRVE a gépen (`/etc/os-release`, 2026-09-08):
+    Debian GNU/Linux 13 „trixie", `DEBIAN_VERSION_FULL=13.2`, kernel 6.12.47, Python 3.13** (nem Bookworm, és semmiképp nem Ubuntu). A Python-verzió nem
+    formaság: emiatt esett ki az openWakeWord (§4), mert a `tflite-runtime`-nak nincs
+    cp313 wheelje.
 *   **Telepítés:** RPi Imager (előre konfigurált Wi-Fi, SSH pubkey és user).
 *   **Hosztnév és elérés (a MŰKÖDŐ gépről, 2026-08-12):** a hosztnév **`free-droid-001`**
     (a home DNS `free-droid-001.home`-ként szolgálja ki), a user **`creator`** — *nem* a
@@ -612,7 +646,7 @@ függvény, hardver nélkül tesztelt). Bring-up: `uv run python scripts/led_tes
 *   **Dataset:** 630 példa (lásd `training/dataset/`), magyar nyelvű, Alpaca formátum.
     *   Train/val split: 567 / 63 (90/10).
     *   Kategóriák: etika (289), kultura (100), tech (100), hacktivity (49), identity_szabi (25), motion_toolcall (25), yotengrit (15), oracle_routing (15), wifi_scan (12).
-*   **Becsült idő:** ~30–50 perc/futás T4-en (603 példa, 2–3 epoch). Egy Colab session belefér.
+*   **Becsült idő:** ~30–50 perc/futás T4-en (a 603-as korpuszon mérve; a mai 1098 példa arányosan több, 2–3 epoch). Egy Colab session belefér.
 *   **Hiperparaméter:** a `--preset gentle` (epochs=1, lr=5e-5, r/alpha=8, dropout=0.05) vált be — a v1 (epochs=2–3, lr=2e-4, r=16) **túltanult** (törött magyar). A tényleges nyereség a **8B méret** + a tömörebb dataset volt, nem a recept finomhangolása.
 *   **Fontos:** Ne hajszold az alacsony loss-t (overfitting → robotikus, ismétlő válaszok). Validation set-en mérj, 2 epoch gyakran jobb mint 3.
 *   **Export:** GGUF (Q4_K_M edge-re, Q8/f16 cloud-ra) → Ollama Modelfile.
@@ -672,8 +706,8 @@ vár: **eltűnik**. Sem a Pi-n, sem a felhőn nincs ollama.com hitelesítő.
 A teljes hang-lánc offline fut a szuverenitás jegyében:
 
 ```
-1. WAKE WORD: "Szabi"  →  openWakeWord (saját betanított modell)
-2. FELVÉTEL          →  USB mikrofon + VAD (Voice Activity Detection)
+1. TRIGGER           →  PREZENTER-KATTINTÓ (push-to-talk), NEM ébresztőszó
+2. FELVÉTEL          →  csíptethető vezeték nélküli mikrofon + VAD
 3. STT (magyar)      →  Whisper.cpp (base vagy small modell)
 4. LLM               →  Llama 3.1 8B (cloud) / Llama 3.2 3B (edge) + LoRA (fallback szerint)
                         → persona válasz + opcionális <tool> blokk
@@ -683,10 +717,38 @@ A teljes hang-lánc offline fut a szuverenitás jegyében:
 
 | Komponens | Megoldás | Megjegyzés |
 | :--- | :--- | :--- |
-| Wake word | **openWakeWord** | Saját „Szabi" wake word betanítható, nyílt/ingyenes |
+| Trigger | **prezenter-kattintó** (push-to-talk) | Az ébresztőszó helyett — lásd alább |
+| Wake word | ~~openWakeWord~~ | **BLOKKOLT**, nem szoftverhiba: lásd alább |
 | STT | Whisper.cpp (base/small) | Magyar nyelv, offline; sebesség/pontosság tesztelendő RPi 5-ön |
 | TTS | Piper `hu_HU-anna-medium` | Offline, női magyar hang; pitch/sebesség hangolható fiatalosabbra |
 
+> 🔴 **AZ ÉBRESZTŐSZÓ KIESETT, A HELYE A PREZENTER-KATTINTÓ (mérve 2026-08-18, kiváltva
+> 2026-09-03).** Az openWakeWord feltétel nélkül húzza a `tflite-runtime`-ot, aminek
+> **nincs cp312/cp313 wheel-je**, a Pi pedig Python 3.13-on fut — a `voice` extra ezért
+> `tts` (piper, működik) és `wake` (openwakeword, ma telepíthetetlen) részre vált, mert
+> együtt a `uv sync` a MŰKÖDŐ Pipert is magával rántotta volna.
+>
+> **A pótlás nem kényszermegoldás, hanem a demóra jobb.** Egy zajos konferenciateremben
+> egy ébresztőszó vagy nem hall, vagy a közönség bekiabálására is elindul; a push-to-talk
+> determinisztikus, és a Teremtő kezében van. Az eszköz egy **Elan „Wireless Present"
+> (04f3:1812)**, `/dev/input/event1`, a kiosztás a Teremtőé (mérve, gombonként):
+>
+> | gomb | kód | jelentés |
+> | :--- | ---: | :--- |
+> | ALSÓ | 63 (F5) | **FIGYELJ** — indul a felvétel |
+> | `b` („elsötétítés") | 48 | **ÁLLJ** — azonnali megállás |
+> | PageUp / PageDown | — | szándékosan SEMMI (nincs leképezve) |
+> | középső | — | lézer, kódot nem küld |
+>
+> ⚠️ Az alsó gomb egy nyomása egy **MAKRÓ** (Meta+Enter, Ctrl+Shift, Meta+Alt+P,
+> Shift+F5), és elengedéskor külön **Esc** — ezért az Esc NINCS leképezve: két FIGYELJ
+> lenne egy nyomásból, azaz fantom kör. A megvalósítás stdlib (`struct` + `ioctl`
+> `EVIOCGRAB`), fehérlistával és csak lenyomásra (`value == 1`).
+>
+> A trigger a `run()` hurokban **cserélhető interfész**: a kattintó mellett billentyűzet
+> (`ENTER` = FIGYELJ, `s`+`ENTER` = ÁLLJ) és **FIFO** is van — az utóbbi azért, mert
+> systemd alatt NINCS stdin.
+>
 > 🔴 **A KORÁBBI NÉV NEM LÉTEZETT (mérve 2026-08-18).** A spec végig
 > `hu_HU-anonymous-medium`-ot írt; a `rhasspy/piper-voices` magyar kínálata valójában
 > **`anna`, `berta`, `imre`** (mind `medium`, 22050 Hz, 63 MB). A hibás név az Ansible
@@ -735,9 +797,11 @@ hibaállapotban néma, amiért létezik. Ez a szigorúan betartandó szabály.
 (`aplay`), a hang-pipeline megkerülésével. Ez nem optimalizálás, hanem működési feltétel:
 
 * A **boot-üdvözlés** definíció szerint azelőtt szólal meg, hogy a stack készen állna.
-* A **wake-word válasz** a reakcióidőt adja el. A mérés szerint (2026-07-29) a felhős 8B ~0,2 s
-  alatt kezd válaszolni, de a lánc eleje (wake → STT → hálózat) ennél lassabb; a nyugtázásnak
-  a wake word **detektálásakor** kell jönnie, nem a válasz elkészültekor.
+* A **trigger-nyugtázás** a reakcióidőt adja el. A mérés szerint (2026-07-29) a felhős 8B
+  ~0,2 s alatt kezd válaszolni, de a lánc eleje (felvétel → STT → hálózat) ennél lassabb; a
+  nyugtázásnak a GOMBNYOMÁSKOR kell jönnie, nem a válasz elkészültekor. Ez 2026-09-03 óta
+  meg is valósult: **880 Hz / 120 ms csipogás a felvétel ELŐTT** („hallottam a gombot,
+  beszélhetsz"), a LED-gyűrű zöld pulzálása a vizuális párja.
 
 A WAV-ok a Piperrel készülnek (ugyanaz a hang, `hu_HU-anna-medium`, azonos pitch-hangolás),
 csak nem futásidőben — így a karakter egységes marad.
@@ -855,7 +919,7 @@ free-droid/
 │   ├── orchestrator/              # fő async loop, fallback logika
 │   ├── motion/                    # vezérlő kódréteg (Cytron HAT)
 │   ├── safety/                    # ultrahang watchdog (külön szál)
-│   ├── voice/                     # wake word + STT + TTS pipeline
+│   ├── voice/                     # trigger (kattintó/FIFO) + STT + TTS + VAD
 │   ├── llm/                       # LLM kliens (cloud/edge fallback)
 │   ├── oracle/                    # „Tudók" routing — külső API + persona-szűrés (opcionális)
 │   ├── tools/                     # tool-calling parser + handlerek
@@ -901,7 +965,10 @@ free-droid/
 | 12V / 6A DC tápegység (EU plug) | ✅ Megérkezett |
 | SkyRC IMAX B6 V2 töltő | ✅ Megvan |
 | Wodexun 1080P Webcam | ✅ Megvan |
-| USB omnidirektcionális mikrofon | ✅ Megvan |
+| USB omnidirektcionális mikrofon | ✅ Megvan — **tartalék**, a csíptethető a használt |
+| Csíptethető vezeték nélküli mikrofon (Jieli 4c4a:4155) | ✅ Megvan, bekötve, MÉRVE |
+| Prezenter-kattintó (Elan 04f3:1812) | ✅ Megvan, bekötve, MÉRVE — FIGYELJ + ÁLLJ |
+| Aktív hűtő a Pi 5-höz | ✅ Megvan, felszerelve — egy délelőttnyi edge-terhelés alatt sem throttle-olt (2026-09-08) |
 | A3369 Mini USB Stereo Speaker | ✅ Megvan |
 | Breadboard MB102 400+830 + Dupont kábelek | ✅ Megvan |
 | WS2812 5050 RGB LED ring | ✅ Megvan |
@@ -1006,7 +1073,20 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [x] USB eszközök felismerése: `lsusb`, `arecord -l`, `aplay -l` — **kész**
 - [ ] USB LTE modem teszt — **KIVÁLTVA** a saját 4G wifi routerrel (`Wifi196`), lásd a
       beszerzési táblát. Nem kritikus út.
-- [x] **Mikrofon: a webkamera BEÉPÍTETT mikrofonja — DÖNTÉS 2026-08-15 (a Teremtő).**
+- [x] **Mikrofon: CSÍPTETHETŐ VEZETÉK NÉLKÜLI — a végleges választás (2026-09-03, mérve).**
+      A vevő egy **Jieli 4c4a:4155 „USB Composite Device"** → ALSA `CARD=Device`; az
+      `/etc/asound.conf` és az Ansible `robot_alsa_capture_card` erre áll. A webkamera
+      mikrofonja lett a TARTALÉK. Mérve: beszédnél RMS ~3900, csendben KEMÉNY 0 (a vevő
+      kapuz) — **párosítás előtt csupa nullát ad, ez tévesztett meg először**.
+      **2026-09-08, a Teremtő élő menetből: „a csíptetős mikrofon sokat javított az
+      átírások minőségén"** — vagyis az alábbi kiváltó feltétel BE IS KÖVETKEZETT, csak
+      nem az omni, hanem a csíptethető mikrofon lett a válasz. A távolság volt a döntő:
+      a csíptethető a beszélőn ül, tehát a terem-zaj és az 1-2 m-es távolság kiesik a
+      láncból.
+
+      <details><summary>A felülírt 2026-08-15-i döntés (történeti)</summary>
+
+      **Mikrofon: a webkamera BEÉPÍTETT mikrofonja — DÖNTÉS 2026-08-15 (a Teremtő).**
       Az eredeti terv A/B-t írt (webkamera vs. omnidirekcionális), de **jelenleg egyetlen
       felvevő eszköz van**: a `1224:2a25 "USB PHY 2.0"` egy **összetett** USB-eszköz —
       2 Video (uvcvideo) + 2 Audio interfész —, tehát a kamera és a mikrofon UGYANAZ a
@@ -1018,6 +1098,8 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
       > hangolva. A gate tehát a Phase 4 beszéd-tesztjén dől el, nem hallgatásra: ha az
       > ébresztőszó vagy az átirat ott bukik, JÖN az omni mikrofon. Addig egy eszközzel
       > kevesebb van a láncban.
+
+      </details>
 - [x] Hang-kimenet: USB sztereó hangszóró — **kész**. ⚠️ Az `/etc/asound.conf` KÖTELEZŐ:
       nélküle az ALSA alapértelmezése a card 0 = **HDMI**, amire a roboton nincs monitor,
       és minden lejátszás `ENOTSUPP (524)`-gyel elhasal. Ansible-ből megy, **név szerint**
@@ -1072,7 +1154,10 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 
 **4.2 LLM & hang** *(a voice/ almodulok egymástól függetlenek, külön fejleszthetők)*
 - [ ] `llm/`: kliens cloud (WireGuard→Ollama) és edge (helyi Ollama) fallbackkel *(függ: F2 modell + F3 cloud)*
-- [ ] `voice/`: openWakeWord „Szabi" wake word betanítása + integráció *(független)*
+- [x] ~~`voice/`: openWakeWord „Szabi" wake word betanítása~~ — **ELVETVE 2026-08-18**
+      (`tflite-runtime`: nincs cp312/cp313 wheel, a Pi 3.13-on fut). Helyette
+      **prezenter-kattintó push-to-talk**, kész és élesben fut (§4). A `run()` hurok
+      cserélhető trigger-interfészt használ: kattintó · billentyűzet · FIFO.
   > 🔴 **BLOKKOLT, felfelé jövő csomagolási korlát (mérve 2026-08-18).** Az
   > `openwakeword` a Linux-ágon feltétel nélkül `tflite-runtime`-ot húz, aminek
   > **egyáltalán nincs cp312/cp313 wheelje** (a legmagasabb cp311, minden platformra),
@@ -1108,6 +1193,47 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] Cloud-kiesés szimuláció: WireGuard leállítása menet közben → edge fallback működik-e
 - [ ] Biztonsági watchdog éles teszt: akadály a robot elé → azonnali megállás
 - [ ] Demó-forgatókönyv begyakorlása (a Teremtő kérdez magyarul, tolmácsol angolra)
+
+#### 5.0 Külső átnézés (2026-09-08) — mit fogadtunk el belőle
+
+Egy külső olvasó (Claude, a RÉGI, v7-korabeli doksikkal) átnézte a tervet. A hardver-
+kifogásai nagyrészt elavultak — mikrofon, hangszóró, kamera, ultrahang, PCA9685 mind
+benne van és MÉRVE, a 70B/ROS 2/Ubuntu állítások pedig már a mai specben sem
+szerepelnek. **Egy pontja téves volt, KETTŐ áll — és mindkettő az előadásról szól:**
+
+1. ✅ **AKTÍV HŰTÉS — MEGVAN, a kifogás TÉVES volt** (a Teremtő, 2026-09-08). A Pi 5-ön
+   aktív hűtő van, és egy **egész délelőttnyi folyamatos edge-inferencia alatt sem lassult
+   be**. A spec eddig valóban nem említette — ez DOKUMENTÁCIÓS hiány volt, nem hardveres.
+   A kockázat maga viszont valós marad, ezért érdemes tudni, MIÉRT: throttle esetén nem
+   egyszerűen lassul a robot, hanem pont a **fallback 3B** lassul be, azaz akkor, amikor a
+   felhő már elesett — a két hiba egymásra épülne. Egy olcsó megerősítés a színpadi
+   körülményekre (zárt váz + reflektor): `vcgencmd get_throttled` az élő menet után —
+   `0x0` = soha nem throttle-olt, bármi más a naplóba való.
+
+2. 🔴 **A NARRATÍVA CSAPDÁJA — a demó a HANGOT a felhőbe küldi.** A tézis „a multi a root,
+   és a robot mindent lát-hall", a lánc viszont a felvételt a felhős Whisperbe tölti fel
+   (`stt_cloud_url`, `10.0.0.1:8080`), a szöveget pedig a felhős 8B-hez. Ez **válaszolható**
+   (a Teremtő szervere, a Teremtő kulcsa, WireGuard, `terraform destroy` perc alatt, és
+   VAN teljes offline mód) — de **a Teremtő tegye fel a kérdést egy dián**, mert a Q&A-ben
+   úgyis felteszik, és akkor védekező helyzetből kell válaszolni.
+
+   **A helyes válasz nem is a fine-tune, hanem a KÓDRÉTEG**, és ez erősebb állítás:
+   a watchdog, ami az LLM-től függetlenül állít meg · a `scan_wifi`, ami sosem
+   csatlakozik · a `guard`, ami a kitalált tool-neveket eldobja · a `safe_mode`. A
+   szuverenitás garanciái **auditálható kódban** vannak, nem a súlyokban — és ez pont a
+   biztonságos közönség nyelve.
+
+3. ⚠️ **A HÁLÓZATI TERV a demó legnagyobb kockázata.** Hacker-konferencia wifijén a felhős
+   út bármikor elmehet, és a fallback a gyengébb 3B. Ez már részben kezelt (saját 4G
+   router `Wifi196`, a Pi a WireGuard-kezdeményező `PersistentKeepalive`-val), de a
+   **térerőt a HELYSZÍNEN, előre meg kell mérni**, és kell egy előre felvett videó a
+   teljes folyamról, egy gombnyomásra.
+
+> ✅ **A KÉT DÁTUM MINDKETTŐ HELYES, és ez SZÁNDÉKOS** (a Teremtő, 2026-09-08). A
+> **Hacktivity 2026 okt. 21.** (Lurdy, egynapos, 40 perces regular talk) — ez a valódi
+> esemény. A projekt belső határideje **okt. 15.**, azaz **egy hét ráhagyás** csúszásra
+> vagy váratlan hibára. Nem ellentmondás, hanem puffer — és a doksikban azért áll a
+> korábbi dátum, hogy az ütemterv arra feszüljön. **A puffert ne éld fel előre.**
 
 #### 5.1 Előadás elkészítése — 2026. szept. 1. → szept. 30. · **felelős: a Teremtő**
 
@@ -1232,7 +1358,9 @@ csatlakozik"), tehát a kimondott SSID-knek IGAZNAK kell lenniük.
 
 *   **Kameraképpel mihez kezd Szabi? — NYITOTT, feltételes döntés (a Teremtő, 2026-08-28).**
     **Ha belefér az időbe: VLM a felhőben. Ha nem: nincs kód — dataset/prompt, és Szabinak
-    nincs szeme.** Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
+    nincs szeme.** 📌 **A Teremtő 2026-09-08: „a kamera használata szuper feature lenne és
+    szerintem lesz még rá időnk"** — a tétel tehát él, de továbbra is a terv VÉGÉN áll, és
+    semmi más nem függ tőle. Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
 
     **A mai állapot, mérve:** a kamera **csak aktuátor**. A `PanTiltCamera` `pan`/`tilt`/
     gesztust (`face_speaker`, `nod`, `scan`) tud, és **soha nem olvas képkockát**; a
