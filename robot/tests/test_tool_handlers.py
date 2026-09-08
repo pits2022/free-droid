@@ -268,7 +268,9 @@ def test_a_hibauzenet_maga_nem_szall_el_nem_str_enumon(monkeypatch):
 
     monkeypatch.setitem(ARG_ERTEKEK["move"], "_teszt_szint", Szint)
 
-    ok = ervenytelen_ok(ParsedTool("move", {"_teszt_szint": 9}))
+    # Az `direction` azért kell, mert a KÖTELEZŐ-argumentum kapu előbb fut (2026-09-08),
+    # és enélkül a teszt már ott elakadna — miközben a tárgya az ÉRTÉK-formázás.
+    ok = ervenytelen_ok(ParsedTool("move", {"direction": "forward", "_teszt_szint": 9}))
 
     assert ok is not None and "1, 2" in ok, ok
 
