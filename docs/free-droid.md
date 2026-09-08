@@ -1183,6 +1183,33 @@ A 2026-08-28-i élő menetek hibái nagyrészt NEM modell-hibák. A sorrend:
 > nyelvtanban van és a modell hívja is — csak az argumentum-értékeket találja ki, azt
 > pedig az 1. pont fogja meg.
 
+### 🟡 „Mondja az egyiket, csinálja a másikat" — MÉRVE 2026-09-08, szándékosan NYITVA
+
+A 3B a `Fordulj balra.` kérésre **„Balra fordulok, Teremtőm."**-öt mondott, és
+`<tool>turn right 90</tool>`-t adott ki. A robot az ellenkező irányba fordult, mint amit
+kimondott.
+
+**A leképezés NEM hibás — ez mérve van:** `turn left 90` -> left, `turn right 90` ->
+right, a magyar `turn balra 90` pedig hangosan eldobásra kerül. A `right`-ot a modell
+adta ki.
+
+**Miért ez a legrosszabb fajta hiba a színpadon:** a közönség KÖZVETLENÜL látja. Hallja,
+hogy „balra", és jobbra fordul. Egy néma hiba (kimaradt tool) elmegy; ez nem.
+
+**Determinisztikusan elkapható volna** a `guard`-ban (a kimondott „balra" + `right` tool
+ellentmondás), és a fenti sorrend szerint ez a guard dolga volna, nem a fine-tune-é.
+**A Teremtő döntése 2026-09-08 mégis (c): EGYELŐRE MARAD, a naplókból derüljön ki, mi és
+hol hibázik.** Az érv a sorrend 2. pontja: előbb a mérés, aztán a javítás — egy guard-
+szabály, amit egyetlen esetből írunk, könnyen rosszat fog meg. Ehhez a méréshez kellett
+a nyers modell-kimenet naplózása (`log.debug("nyers modell-kimenet: %r")`), ami korábban
+csak a `transcript.jsonl`-be került.
+
+A három elvetett/halasztott ág, ha visszatérünk rá:
+(a) a KIMONDOTT szó nyer — a guard átírja a toolt; konzisztens a nézőnek, de a guard
+    „javítja" a modellt;
+(b) a tool ESIK KI — a robot mondja, hogy fordul, és nem mozdul: őszintébb, bénább;
+(c) semmi — ez a mai állás.
+
 ### 🔴 `scan_wifi`: a tool eredménye SEHOVÁ nem megy (mérve 2026-08-28)
 
 Külön tétel, mert **szerkezeti, és fine-tune-nal nem javítható.** A `scan_wifi()`
