@@ -81,7 +81,9 @@ terraform apply -var edge_ansible_host=10.0.0.2 ...
 ```
 
 A `hcloud_token` a `terraform.tfvars`-ban van (**automatikusan betöltődik**; egy sima
-`.tfvars` nem — annak `-var-file` kell minden futásnál). A Hetzner-token DO-applyhoz is
+`.tfvars` nem — annak `-var-file` kell minden futásnál). A `.gitignore` mindkét
+titok-tartót fedi (`.env` és `*.tfvars`, ellenőrizve) — de a fedettség nem mentesít:
+`git add -f` és egy másik néven mentett másolat kikerüli. A Hetzner-token DO-applyhoz is
 kell: a terraform akkor is konfigurálja a providert, ha a modulja `count = 0`.
 
 ### 2.3 WireGuard — a leggyakoribb hiba
@@ -158,6 +160,12 @@ cd /opt/free-droid/robot && uv run freedroid --debug
 
 > 🔴 **A demó előtt:** `sudo rm -f /var/log/freedroid/transcript.jsonl*` — ez az egyetlen
 > magánadat a kártyán.
+>
+> `rm`, nem `truncate`, és ez mérve van: a `transcript.log()` minden eseménynél ÚJRA
+> nyitja a fájlt (`with cel.open("a")`), tehát nem tart nyitott leírót — nincs az a
+> „törölt, de még írt inode" eset, ami futó szolgáltatásnál gond volna. A `*` viszont
+> lényeges: a **forgatott** példányokat (14 napos logrotate) csak így viszi el, azokat
+> egy `truncate` ott hagyná. (PR #121 review.)
 
 Önteszt:
 
@@ -249,6 +257,12 @@ Tartósan: az Ansible `edge_robot` role `robot_env` dictje írja őket a unitba.
 
 ## 7. Eval és red-team
 
+> **Miért `python3` és nem `uv run python` ebben a szakaszban.** A `training/` NEM a
+> robot-csomag: saját `requirements.txt`-je van, `pyproject.toml`-ja nincs, tehát nem
+> tagja a `robot/.venv`-nek. `uv run python training/…` a robot környezetében futna, ahol
+> ezek a függőségek nincsenek telepítve. A kétféle hívás tehát nem következetlenség,
+> hanem két különböző környezet. (PR #121 review.)
+
 Élő menet `[pi]` (ez a FŐ eval 2026-08-28 óta):
 
 ```bash
@@ -261,9 +275,9 @@ Elemzés `[dev]`:
 
 ```bash
 scp creator@free-droid-001.home:/var/log/freedroid/transcript.jsonl .
-python training/analyze_chat_log.py transcript.jsonl
-python training/analyze_chat_log.py --before régi.jsonl --after új.jsonl
-python training/dataset/_check_leakage.py --baseline    # eval-szivárgás a datasetben
+python3 training/analyze_chat_log.py transcript.jsonl
+python3 training/analyze_chat_log.py --before régi.jsonl --after új.jsonl
+python3 training/dataset/_check_leakage.py --baseline    # eval-szivárgás a datasetben
 ```
 
 Célzott mérő-scriptek (a régi CLI.md-ből, `[dev]`, futó Ollama mellett):
@@ -278,11 +292,11 @@ python3 training/analyze_chat_log.py szabi-logs/data/<log>.jsonl
 Írott benchmark (a *comparable* regressziós mérce — nem retired):
 
 ```bash
-python training/run_benchmark.py                       # vak, kevert A/B oszlopok
-python training/run_benchmark.py --anchor <régi raw.json>
-python training/run_benchmark.py --decode <md> --key <kulcs.json> --baseline <pontok.json>
-python training/judge_benchmark.py <raw.json>
-python training/compare_epochs.py <raw.json>
+python3 training/run_benchmark.py                       # vak, kevert A/B oszlopok
+python3 training/run_benchmark.py --anchor <régi raw.json>
+python3 training/run_benchmark.py --decode <md> --key <kulcs.json> --baseline <pontok.json>
+python3 training/judge_benchmark.py <raw.json>
+python3 training/compare_epochs.py <raw.json>
 ```
 
 **Mit nézz a naplóban** (mind ma került bele):
@@ -381,7 +395,7 @@ Enélkül a RAG-javítás nem ér el a Space-re (ezt a #47 tanulta meg). A
 ### Ollama a keor-on (nincs systemd)
 
 ```
-export OLLAMA_MODELS=/home/csaba/.ollama/models
+export OLLAMA_MODELS=$HOME/.ollama/models
 nohup ollama serve > /tmp/ollama.log 2>&1 &
 ollama list
 ```
