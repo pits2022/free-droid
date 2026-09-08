@@ -24,7 +24,7 @@
 | **Mozgás** | ✅ Kalibrálva teli és merült akkun; **feszültség-kompenzáció** a menetidőben. |
 | **Biztonság** | ✅ Stop-küszöb **30 cm**; a `fast` fokozat fékútja élesben **19,4 cm** hézagot hagyott. Akku-őr: 10,2 V figyelmeztetés (csipogó is), 9,6 V alatt mozgás-tiltás. |
 | **Felhő** | ⚙️ On-demand, `terraform apply` percek alatt. GPU-választás élő API-ból (`gpu_pick.py`) — nincs beégetett alapértelmezés. |
-| **Nyitva** | Red-team kör a v12-n · **akku-mérő kalibráció: a szoftver 0,2 V-tal magasabbat mond a csipogónál (2026-09-08)** · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
+| **Nyitva** | Red-team kör a v12-n · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
 
 **Dátumok:** az előadás **2026. okt. 21.** (Hacktivity, Lurdy, 40 perc); a projekt belső
 határideje **okt. 15.** — egy hét szándékos ráhagyás. A doksik az okt. 15-höz mérnek.
@@ -479,6 +479,23 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
     a `freedroid-health` is jelenti. Egy hiányzó/olvashatatlan mérő csak WARNING — a demó
     mérő nélkül is megy, egy mélykisütött LiPo viszont nem jön vissza.
 *   **Szoftver:** `robot/src/freedroid/power.py` — stdlib, `ioctl(I2C_SLAVE)`, nincs smbus.
+*   ✅ **A KALIBRÁCIÓ HELYES, a gyári `divider = 3.91` marad — LEZÁRVA 2026-09-08.**
+    Napközben úgy tűnt, hogy a szoftver 0,2 V-tal magasabbat mond a csipogónál, és
+    javasoltunk egy `FREEDROID_POWER_DIVIDER=3.82` felülírást. **Ez tévedés volt, és a
+    felülírás maga okozta a következő „a szoftver alámér" észlelést** — az esti mérések
+    már azzal készültek. Négy pont, terheletlenül, a GYÁRI osztóval:
+
+    | szoftver | csipogó | műszer | eltérés a műszertől |
+    | ---: | ---: | ---: | ---: |
+    | 11,89 | 11,90 | 12,00 | −0,11 |
+    | 11,49 | 11,40 | — | (+0,09 a csipogóhoz) |
+    | 11,36 | 11,30 | 11,42 | **−0,06** |
+
+    Az eltérés előjelet vált és ±0,1 V-on belül szór — ami pontosan a csipogó és a
+    műszer kijelzési felbontása. Nincs szisztematikus hiba. **Tanulság a módszerre:** a
+    napközbeni +0,23 V-os „eltérés" NEM EGYIDEJŰ leolvasásokból jött, terhelés mellett;
+    egy sagelő akkun három műszer három időpontban háromfélét mond. Kalibrációt csak
+    egyidejű, terheletlen mérésből szabad megítélni.
 
 ### 6. LED ring
 *   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V. (Összeforrasztva 2026-09-03, a GPIO-ra még nincs rádugva; a LED-szám: 24 → `FREEDROID_LED_COUNT`.)
