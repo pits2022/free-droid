@@ -10,6 +10,8 @@ A vezérlő KÉT dolgot ad a biztonsági rétegnek, és csak ezt a kettőt: `hea
 
 from __future__ import annotations
 
+import logging
+import math
 import threading
 from typing import TYPE_CHECKING, Protocol
 
@@ -17,6 +19,8 @@ from freedroid.config import gpio as G
 from freedroid.config.settings import load_settings
 from freedroid.hw import open_gpiochip
 from freedroid.motion.types import SPEED_DUTY, Direction, Mode, Speed, StopCond, TurnDir
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from freedroid.config.settings import MotionSettings, Settings
@@ -29,6 +33,42 @@ def _pct(duty: float, trim: float) -> float:
     robot ugyanúgy húzna, miközben a config szerint "kalibrálva" van.
     """
     return min(100.0, max(0.0, duty * trim * 100.0))
+
+
+# A kompenzációs faktor épeszű határai. NEM a normál üzem korlátai (a kritikus 9,6 V
+# is 0,81-et ad, ami bőven belül van) — ez a HIBÁS MÉRÉS elleni védelem. A 0 V-ot
+# visszaadó szenzor faktora 0,20 lenne, azaz ÖTSZÖR hosszabb menet; egy ilyen olvasat
+# nem lassabb robotot jelent, hanem elromlott mérőt. Az alsó korlát a fontos: a túl
+# KICSI faktor hosszabb menetet, azaz TÚLFUTÁST okoz.
+FAKTOR_MIN = 0.7
+FAKTOR_MAX = 1.1
+
+
+def voltage_factor(battery_v: float | None, calibrated_at_v: float,
+                   slope: float) -> float:
+    """Mennyivel skálázza a MÉRT akkufeszültség a kalibrált sebesség-állandót.
+
+    A két mért ponton átmenő egyenes (lásd `MotionSettings.speed_v_slope`). Ismeretlen
+    vagy értelmetlen feszültségnél 1,0 — azaz pontosan a kompenzáció ELŐTTI viselkedés.
+    Ez a fail-safe irány: mérő nélkül a robot a teli akku állandójával számol, tehát
+    RÖVIDEBBET megy a kelleténél, nem hosszabbat.
+    """
+    # A `calibrated_at_v` a `MotionSettings`-ben validált, DE ez a függvény önállóan is
+    # hívható (teszt, script, jövőbeli hívó) — egy 0-s referencia ott ZeroDivisionErrort
+    # dobna a menet közepén. (PR #113 review.)
+    if (battery_v is None or not math.isfinite(battery_v) or battery_v <= 0
+            or calibrated_at_v <= 0):
+        return 1.0
+    faktor = 1.0 + slope * (battery_v / calibrated_at_v - 1.0)
+    # AZ EREDMÉNYT ellenőrizzük, nem külön-külön a bemeneteket. Egy NaN `slope` vagy
+    # `calibrated_at_v` átcsúszik a fenti kapun (`nan <= 0` HAMIS), és a NaN a
+    # `min`/`max`-on át NEM 1,0-ként jönne ki, hanem `FAKTOR_MIN`-ként: a `nan > 0.7`
+    # hamis, tehát a `max` a 0,7-et adja vissza. Az pedig HOSSZABB menet, azaz TÚLFUTÁS
+    # — a rossz irányba tévedés egy elrontott configtól. Egy eredmény-ellenőrzés az
+    # ÖSSZES ilyen bemenetet lefedi, a jövőbelieket is. (PR #113 review, 2. kör.)
+    if not math.isfinite(faktor):
+        return 1.0
+    return min(FAKTOR_MAX, max(FAKTOR_MIN, faktor))
 
 
 def run_seconds(amount: float, per_second_at_full: float, duty: float) -> float:
@@ -82,7 +122,14 @@ class CytronMotionController:
         import lgpio  # Pi-only, ezért lusta import: a csomag off-Pi is importálható
 
         self._lgpio = lgpio
-        self._cfg: MotionSettings = (settings or load_settings()).motion
+        beallitasok = settings or load_settings()
+        self._cfg: MotionSettings = beallitasok.motion
+        # A feszültség-kompenzációhoz. A vezérlő MAGA olvassa, nem az orchestrator tolja
+        # be: így a `MotionController` protokoll változatlan marad, és a szám mindig a
+        # menet előtti pillanaté. Egy ADS1115-olvasás ~10 ms, egy több másodperces menet
+        # előtt elhanyagolható.
+        self._power_cfg = beallitasok.power
+        self._akku_hiba_jelezve = False
         self._duty = self._cfg.default_speed
         self._heading: Direction | None = None
         self._turning = False
@@ -100,6 +147,29 @@ class CytronMotionController:
         self._h = open_gpiochip()
         for pin in (G.LEFT_MOTOR_PWM, G.LEFT_MOTOR_DIR, G.RIGHT_MOTOR_PWM, G.RIGHT_MOTOR_DIR):
             lgpio.gpio_claim_output(self._h, pin, 0)
+
+    def _akku_v(self) -> float | None:
+        """Az akku feszültsége, vagy None. A hiba SOHA nem viheti el a menetet: mérő
+        nélkül a kompenzáció 1,0, azaz a kompenzáció előtti viselkedés."""
+        from freedroid.power import read_battery_v  # noqa: PLC0415 — Pi-only I2C
+
+        try:
+            return read_battery_v(self._power_cfg)
+        except Exception:  # noqa: BLE001 — lásd a docstringet: a menet fontosabb
+            # SZÁNDÉKOSAN tág. Az `OSError` az I2C-olvasás ismert hibája, de ez a hívás
+            # a menet KÖZVETLEN útjában áll: bármi más (a driver egy ValueErrorja, egy
+            # elszállt konfig) itt a `move()`-ot vinné el, azaz a robot NEM MOZDULNA egy
+            # kényelmi korrekció hibájától. (PR #113 review.) Nem néma: naplózzuk.
+            #
+            # A VEREM CSAK EGYSZER. Egy lehúzott ADS1115 minden `move()`-nál és
+            # `turn()`-nél újra kiírná — a demó naplója percek alatt olvashatatlan lenne,
+            # épp amikor a legjobban kell. Az első teljes, a többi egysoros; ugyanaz a
+            # minta, amit az orchestrator akku-őre már használ. (PR #113 review, 2. kör.)
+            eloszor = not self._akku_hiba_jelezve
+            self._akku_hiba_jelezve = True
+            log.warning("az akku-olvasás elhasalt — a menet feszültség-korrekció "
+                        "NÉLKÜL megy", exc_info=eloszor)
+            return None
 
     # --- amit a safety/ olvas ---
 
@@ -130,8 +200,13 @@ class CytronMotionController:
         right = G.RIGHT_FORWARD_LEVEL if forward else G.RIGHT_FORWARD_LEVEL ^ 1
 
         # A távolság MÉTERBEN jön a nyelvtanból (`move forward 2`); a kalibráció cm/s.
-        seconds = (run_seconds(distance * 100.0, self._cfg.cm_per_s_at_full, duty)
-                   if distance is not None else self._cfg.max_run_s)
+        # A `max_run_s` ág KIMARAD a kompenzációból: az időkorlát, nem megtett út.
+        if distance is not None:
+            cm_s = self._cfg.cm_per_s_at_full * voltage_factor(
+                self._akku_v(), self._cfg.calibrated_at_v, self._cfg.speed_v_slope)
+            seconds = run_seconds(distance * 100.0, cm_s, duty)
+        else:
+            seconds = self._cfg.max_run_s
         self._run(left, right, duty, seconds, heading=direction, turning=False)
 
     def turn(self, direction: TurnDir | None = None, degrees: float | None = None,
@@ -151,8 +226,12 @@ class CytronMotionController:
         # súrlódása többszörös (mérve: 0,6-on megfeszül). A menetidő ugyanúgy a
         # dutyval skálázódik, tehát a fok fok marad.
         duty = self._cfg.turn_duty
-        seconds = (run_seconds(degrees, self._cfg.deg_per_s_at_full, duty)
-                   if degrees is not None else self._cfg.max_run_s)
+        if degrees is not None:
+            fok_s = self._cfg.deg_per_s_at_full * voltage_factor(
+                self._akku_v(), self._cfg.calibrated_at_v, self._cfg.turn_v_slope)
+            seconds = run_seconds(degrees, fok_s, duty)
+        else:
+            seconds = self._cfg.max_run_s
         self._run(left, right, duty, seconds, heading=None, turning=True)
 
     def stop(self) -> None:
