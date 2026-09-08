@@ -152,14 +152,20 @@ Kézi futtatás hibakereséshez:
 ```bash
 sudo systemctl stop freedroid
 cd /opt/free-droid/robot && uv run freedroid --debug
+
+# ugyanez fájlba is (a konzol semmit nem őriz meg magától):
+uv run freedroid --debug 2>&1 | tee -a /var/log/freedroid/szabi-$(date +%Y-%m-%d-%H%M).log
 ```
 
 `--debug` = **bőbeszédű napló ÉS az elhangzott mondatok rögzítése**
 (`/var/log/freedroid/transcript.jsonl`). Alapból KI. A hurok billentyűzetről:
 `ENTER` = figyelj, `s`+`ENTER` = ÁLLJ. A kattintó és a FIFO-trigger is él.
 
-> 🔴 **A demó előtt:** `sudo rm -f /var/log/freedroid/transcript.jsonl*` — ez az egyetlen
-> magánadat a kártyán.
+> 🔴 **A demó előtt:** `sudo rm -rf /var/log/freedroid/*` — a KÖNYVTÁR egésze, nem csak a
+> `transcript.jsonl*`. A `--debug` KÉT helyre ír: a JSONL-be, és a konzolra, ahol az
+> `átirat:` sor szó szerint az elhangzott mondat. Amint a konzolt `tee`-vel fájlba mented
+> (`szabi-<dátum>.log`), az ugyanolyan magánadat — a szűkebb `transcript.jsonl*` mintát
+> viszont NEM érinti, és pont ez az a fajta rés, ami hónapokig észrevétlen marad.
 >
 > `rm`, nem `truncate`, és ez mérve van: a `transcript.log()` minden eseménynél ÚJRA
 > nyitja a fájlt (`with cel.open("a")`), tehát nem tart nyitott leírót — nincs az a
@@ -445,5 +451,5 @@ ssh creator@free-droid-001.home 'cd /opt/free-droid && git pull && sudo systemct
 # 4. önteszt
 ssh creator@free-droid-001.home 'cd /opt/free-droid/robot && uv run freedroid-health'
 # 5. 🔴 a magánadat törlése — a demó NEM debug posztúrában megy
-ssh creator@free-droid-001.home 'sudo rm -f /var/log/freedroid/transcript.jsonl*'
+ssh creator@free-droid-001.home 'sudo rm -rf /var/log/freedroid/*'   # a KÖNYVTÁR, ld. 3.
 ```
