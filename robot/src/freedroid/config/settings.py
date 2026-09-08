@@ -71,6 +71,20 @@ class LLMEndpoints:
     # az `stt_cloud_probe_timeout_s` ugyanennyi, tehát körönként KÉTSZER ment el. Amit
     # cserébe kockáztatunk: egy pillanatnyi hálózati akadás hamarabb dob edge-re. Ez a jó
     # irány (az edge válaszol, csak kevésbé ékesen), és a döntési nyom naplózva van.
+    # MEDDIG maradjon a modell a memóriában (Ollama `keep_alive`). A KETTŐ KÜLÖN, és a
+    # különbség a lényeg — mérve 2026-09-08, 148 körös élő menetben:
+    #
+    # A felhő 50 percen át válaszolt, tehát az edge modellje SOSEM töltődött be; amikor
+    # a `terraform destroy` 19:18-kor elvitte a felhőt, az első edge-hívás hidegen indult
+    # és 90 s-nál időtúllépéssel elhasalt -> SAFE MODE. A robot azt mondta, "nem tudok
+    # gondolkodni", majd 80 másodperccel később hibátlanul működött. A fallback tehát
+    # pont abban a pillanatban mondott csődöt, amiért létezik.
+    #
+    # Az edge a TARTALÉK: annak MINDIG bent kell lennie, különben az első hívása a
+    # leglassabb, és az mindig a legrosszabb pillanatra esik. "-1" = amíg a folyamat él
+    # (~2 GB a 8-ból). A felhő az aktív háttér, azt a használat tartja bent.
+    cloud_keep_alive: str = "30m"
+    edge_keep_alive: str = "-1"
     probe_timeout_s: float = 0.5
     cloud_timeout_s: float = 60.0
     edge_timeout_s: float = 90.0

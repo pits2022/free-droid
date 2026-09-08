@@ -237,3 +237,39 @@ def test_a_host_kinyerese_IPv6_es_sema_nelkul_is_helyes():
     assert _host("http://[::1]:8080") == "::1"
     assert _host("10.0.0.1:8080") == "10.0.0.1"
     assert _host("http://10.0.0.1:8080") != _host("http://10.0.0.2:11434")
+
+
+# ── a tartalék SOSEM lehet hideg (mérve 2026-09-08, élő menet) ──────────────────
+
+def test_MINDKET_hattert_bemelegiti_nem_csak_az_elsot(monkeypatch):
+    """🔴 A 148 körös menet leggyorsabban demót ölő hibája. A warmup az első sikernél
+    visszatért, tehát élő felhő mellett az EDGE modellje soha nem töltődött be. Amikor a
+    `terraform destroy` 50 perc után elvitte a felhőt, az első edge-hívás HIDEGEN indult,
+    90 s-nál időtúllépéssel elhasalt -> safe mode; 80 másodperccel később ugyanaz az edge
+    hibátlanul válaszolt."""
+    halo = Halo({CLOUD, EDGE})
+    c = kliens(monkeypatch, halo)
+    assert c.warmup() is Backend.CLOUD          # a visszatérési érték az ELSŐ
+    hostok = [p.host for p in halo.peldanyok]
+    assert CLOUD in hostok and EDGE in hostok, hostok
+
+
+def test_az_EDGE_modell_bent_marad_a_memoriaban(monkeypatch):
+    """A tartalék első hívása a leglassabb, és az mindig a legrosszabb pillanatra esik."""
+    halo = Halo({CLOUD, EDGE})
+    c = kliens(monkeypatch, halo)
+    c.warmup()
+    keep = {p.host: p.hivasok[0]["keep_alive"] for p in halo.peldanyok if p.hivasok}
+    assert keep[EDGE] == "-1", keep
+    assert keep[CLOUD] == "30m", keep
+
+
+def test_a_VALODI_hivas_is_visz_keep_alivet(monkeypatch):
+    """Enélkül a bemelegítés egyetlen körig tart: egy `keep_alive` nélküli kérés
+    visszaállítja a TTL-t az Ollama 5 perces alapértékére, tehát egy fallback-kör UTÁN
+    az edge megint kiürülne, és a következő fallback megint hidegen indulna."""
+    halo = Halo({EDGE})
+    c = kliens(monkeypatch, halo)
+    c.generate("Ki vagy?")
+    (hivas,) = halo.peldanyok[0].hivasok
+    assert hivas["keep_alive"] == "-1"
