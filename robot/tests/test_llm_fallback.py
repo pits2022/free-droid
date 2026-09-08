@@ -113,7 +113,11 @@ def test_a_probaja_ROVID_a_generalasa_HOSSZU(monkeypatch):
     c = kliens(monkeypatch, halo)
     c.generate("Ki vagy?")
     assert halo.peldanyok[0].timeout == 60.0  # generálás: bőven a hidegindítás fölött
-    assert c._cfg.probe_timeout_s == 2.0      # döntés: gyors
+    # A VISZONYT kötjük meg, nem a konkrét számot: a próba hangolható (2,0 -> 0,5 a
+    # 2026-09-08-i körben), a tétel viszont nem — a döntés próbája nagyságrenddel
+    # rövidebb, mint a generálás korlátja. Egy beégetett érték minden hangoláskor
+    # elbukna, anélkül hogy bármi valódi elromlott volna.
+    assert c._cfg.probe_timeout_s <= c._cfg.cloud_timeout_s / 10
 
 
 def test_kéresenkent_ujra_dont_a_hatterrol(monkeypatch):
