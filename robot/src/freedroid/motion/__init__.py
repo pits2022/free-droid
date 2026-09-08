@@ -10,6 +10,7 @@ A vezérlő KÉT dolgot ad a biztonsági rétegnek, és csak ezt a kettőt: `hea
 
 from __future__ import annotations
 
+import logging
 import math
 import threading
 from typing import TYPE_CHECKING, Protocol
@@ -18,6 +19,8 @@ from freedroid.config import gpio as G
 from freedroid.config.settings import load_settings
 from freedroid.hw import open_gpiochip
 from freedroid.motion.types import SPEED_DUTY, Direction, Mode, Speed, StopCond, TurnDir
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from freedroid.config.settings import MotionSettings, Settings
@@ -50,7 +53,11 @@ def voltage_factor(battery_v: float | None, calibrated_at_v: float,
     Ez a fail-safe irány: mérő nélkül a robot a teli akku állandójával számol, tehát
     RÖVIDEBBET megy a kelleténél, nem hosszabbat.
     """
-    if battery_v is None or not math.isfinite(battery_v) or battery_v <= 0:
+    # A `calibrated_at_v` a `MotionSettings`-ben validált, DE ez a függvény önállóan is
+    # hívható (teszt, script, jövőbeli hívó) — egy 0-s referencia ott ZeroDivisionErrort
+    # dobna a menet közepén. (PR #113 review.)
+    if (battery_v is None or not math.isfinite(battery_v) or battery_v <= 0
+            or calibrated_at_v <= 0):
         return 1.0
     return min(FAKTOR_MAX, max(FAKTOR_MIN,
                                1.0 + slope * (battery_v / calibrated_at_v - 1.0)))
@@ -139,7 +146,13 @@ class CytronMotionController:
 
         try:
             return read_battery_v(self._power_cfg)
-        except OSError:
+        except Exception:  # noqa: BLE001 — lásd a docstringet: a menet fontosabb
+            # SZÁNDÉKOSAN tág. Az `OSError` az I2C-olvasás ismert hibája, de ez a hívás
+            # a menet KÖZVETLEN útjában áll: bármi más (a driver egy ValueErrorja, egy
+            # elszállt konfig) itt a `move()`-ot vinné el, azaz a robot NEM MOZDULNA egy
+            # kényelmi korrekció hibájától. (PR #113 review.) Nem néma: naplózzuk.
+            log.warning("az akku-olvasás elhasalt — a menet feszültség-korrekció "
+                        "NÉLKÜL megy", exc_info=True)
             return None
 
     # --- amit a safety/ olvas ---

@@ -122,6 +122,11 @@ class TestFeszultsegKompenzacio:
 
         assert voltage_factor(0.001, 12.52, 0.8) == FAKTOR_MIN
 
+    def test_nulla_referencia_feszultsegen_sem_oszt_nullaval(self):
+        # A függvény önállóan is hívható (teszt, script) — a `MotionSettings`
+        # validációja ott nem véd. (PR #113 review.)
+        assert voltage_factor(12.0, 0.0, 0.8) == 1.0
+
     def test_alacsonyabb_feszultseg_HOSSZABB_menetet_ad(self):
         # A kompenzáció egész célja egy mondatban.
         cfg = MotionSettings()
