@@ -401,3 +401,49 @@ def test_build_prompt_does_not_invite_source_talk(retriever):
     prompt = build_prompt("Ki Gönüz?", retriever.retrieve("Kik Ukkó és Gönüz?"))
     assert "forrás alapján válaszolj" not in prompt   # the phrase the model parroted back
     assert "Sose említsd" in prompt
+
+
+# ── lexikai variánsok (mérve a 2026-09-08-i élő menetben) ───────────────────────
+
+def test_a_kerdes_MAS_ALAKBAN_is_megtalalja_a_szeletet():
+    """A BM25 lexikális: a tartalom megléte NEM elég, ha a kérdés más alakban nevezi
+    meg ugyanazt. Élesben mindkettő 0 találatot adott, pedig a szelet ott volt."""
+    from freedroid.rag.normalize import tokenize
+
+    # a korpusz a MAGYAR alakot írja, az STT az angolt hallja le
+    assert set(tokenize("Yin-Yang")) == set(tokenize("Jin-Jang"))
+    # az egybeírt alak külön token lenne, azaz SEMMIBEN nem közös a szelettel
+    assert set(tokenize("Büünvallás")) == set(tokenize("Büün vallás"))
+    # …és a TOLDALÉKOS alak is, ezért fut a feloldás a szótövezés UTÁN
+    assert set(tokenize("bűnvallásról")) == set(tokenize("Büün vallás"))
+
+
+def test_a_bun_szo_NEM_olvad_bele_a_Buunbe():
+    """A biztonsági fele: a "bűn" valódi magyar szó, a korpusznak SAJÁT szelete van
+    róla. Egy `bun -> buun` leképezés azt tenné elérhetetlenné — ezért csak az
+    ÖSSZETETT alak szerepel a térképben."""
+    from freedroid.rag.normalize import tokenize
+
+    assert "buun" not in tokenize("Hogyan ítéli meg a Yotengrit a bűnt?")
+
+
+def test_a_MERT_felrehallas_is_megtalalja_a_szeletet():
+    """`nádszál` -> `nátszál` az STT-től, KÉTSZER egy menetben. A "három nádszál" a
+    persona sarokköve — ez a legdrágább egyetlen betű a korpuszban."""
+    from freedroid.rag.normalize import tokenize
+
+    assert set(tokenize("Mi a három nátszál?")) == set(tokenize("Mi a három nádszál?"))
+
+
+def test_a_lista_KEZZEL_gondozott_marad_nem_fuzzy():
+    """⛔ Őrzés egy csábító regresszió ellen. Mérve a 106 valódi tévesztésen: a
+    `difflib` alapú illesztés a legszigorúbb küszöbön is 9 KÁROS találatot ad 2 jó
+    mellett ('Gyere, ide.' -> "Szerinted hogy jött létre a világ?"), mert a korpuszból
+    hiányzó tokenek javarészt hétköznapi igék, nem elgépelt szakszavak. Ha ez a teszt
+    elbukik, valaki általános illesztést vezetett be — előbb mérje meg újra."""
+    from freedroid.rag import normalize
+
+    assert isinstance(normalize.SZINONIMAK, dict)
+    assert len(normalize.SZINONIMAK) < 40, "ez kézi lista; egy robbanás algoritmust sejtet"
+    for kulcs, ertek in normalize.SZINONIMAK.items():
+        assert isinstance(ertek, tuple) and all(isinstance(t, str) for t in ertek), kulcs

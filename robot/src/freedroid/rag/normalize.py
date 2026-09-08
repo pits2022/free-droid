@@ -147,6 +147,57 @@ def _kotojel_bont(szo: str) -> list[str]:
     return ki
 
 
+# LEXIKAI VARIÁNSOK — folded token -> a korpusz kanonikus tokenjei.
+#
+# MIÉRT KELL (mérve a 2026-09-08-i, 148 körös élő menetben): a BM25 lexikális, tehát a
+# TARTALOM megléte nem elég, ha a kérdés MÁS ALAKBAN nevezi meg ugyanazt. Két osztály
+# fordult elő élesben, és egyik sem elgépelés:
+#
+#   'Mi a különbség a Yin-Yang és a Yotengrit dualizmusa között?'  -> 0 találat
+#   ugyanez `Jin-Jang`-gal                                          -> 2 találat
+#   A korpusz a MAGYAR `Jin-Jang` alakot írja, az STT az angolt hallja le. A szelet
+#   ("A Yotengrit dualizmusa és más vallások dualizmusa") mindvégig ott volt.
+#
+#   'Mik a Büünvallás legfontosabb hittételei?'  -> 0     ('buunvallas' egy token)
+#   'Mi a Büün vallás?'                          -> 2     ('buun' + 'vallas')
+#   Az egybeírt alak külön tokent ad, tehát a szelettel SEMMIBEN nem közös.
+#
+# A lista SZÁNDÉKOSAN rövid és mérésből áll — nem szótár, hanem a megfigyelt ütközések
+# javítása. Ami NINCS benne, és nem is lehet: a `bun` -> `buun` leképezés. A "bűn" valódi
+# magyar szó, a korpusznak saját szelete van róla ("Hogyan ítéli meg a Yotengrit a bűnt")
+# — az összevonás azt a szeletet tenné elérhetetlenné. Ezért csak az ÖSSZETETT alak
+# szerepel, ami egyértelműen a vallás nevét jelenti.
+SZINONIMAK: dict[str, tuple[str, ...]] = {
+    "yin": ("jin",),
+    "yang": ("jang",),
+    "buunvallas": ("buun", "vallas"),
+    "bunvallas": ("buun", "vallas"),
+    # FÉLREHALLÁS, nem írásvariáns: az STT `nádszál` helyett `nátszál`-t írt le (KÉTSZER
+    # a 2026-09-08-i menetben, 18:33:22 és 18:33:39). A "három nádszál" a persona
+    # sarokköve, tehát ez a legdrágább egyetlen betű a korpuszban.
+    "natszal": ("nadszal",),
+}
+
+# ⛔ MIÉRT NINCS FUZZY ILLESZTÉS (difflib), pedig kézenfekvő volna. MÉRVE a fenti menet
+# 106 tévesztésén, `difflib.get_close_matches` a korpusz szótárára, csak a korpuszból
+# HIÁNYZÓ tokenekre — a legszigorúbb 0,90-es küszöbön is 11 új találat, amiből 9 KÁROS:
+#
+#     'Fordulj fel!'  -> "Kriptovaluta és pénz: van-e erről tanítás?"
+#     'Gyere, ide.'   -> "Szerinted hogy jött létre a világ?"
+#     'Ki a gazdád?'  -> "Miért nyílt forrású modellt használsz?"
+#     'Állja meg.'    -> "Ártó parancs: mit tesz Szabi, ha ártani kérik?"
+#
+# A gyökér: a korpuszból hiányzó tokenek TÚLNYOMÓRÉSZT hétköznapi magyar igék és
+# parancsszavak (`fordulj`, `gyere`, `gazdad`, `allja`), nem elgépelt szakkifejezések —
+# a fuzzy pedig ezeket bármely hasonló alakú korpusz-szóra ráhúzza. 0,75-ön már a
+# 'Szabi, Jareida.' is erkölcsi dilemmát kap. Vagyis pont azt a védelmet töri át, amiért
+# a lefedettségi kapu létezik, és lexikailag NEM megkülönböztethető a jó esettől
+# (`natszal` -> `nadszal` ugyanolyan 1-karakteres eltérés, mint a rosszak).
+#
+# Ezért kézzel gondozott, MÉRT lista áll itt egy általános algoritmus helyett. Az ára,
+# hogy nem általánosít: minden új félrehallás egy új sor. Cserébe nulla fals pozitív.
+
+
 def tokenize(text: str) -> list[str]:
     """Folded, stopword-stripped, lightly stemmed tokens (length > 1).
 
@@ -162,7 +213,14 @@ def tokenize(text: str) -> list[str]:
         for raw in _kotojel_bont(szo):
             if len(raw) < 2 or raw in STOPWORDS:
                 continue
-            stemmed = _stem(raw)
-            if len(stemmed) > 1 and stemmed not in STOPWORDS:
-                out.append(stemmed)
+            # A variáns-feloldás a SZÓTÖVEZÉS UTÁN van, nem előtte. Mérve: a
+            # 'bűnvallásról' nyers alakja `bunvallasrol`, ami a map egyetlen kulcsára
+            # sem illik — a szótöve viszont `bunvallas`, ami igen. A stem előtti keresés
+            # tehát minden TOLDALÉKOS előfordulást elszalasztana, azaz pont a valódi
+            # mondatokat. A map értékei ezért maguk is szótövek (mérve: jin, jang, buun,
+            # vallas mind fixpont).
+            szoto = _stem(raw)
+            for stemmed in SZINONIMAK.get(szoto, (szoto,)):
+                if len(stemmed) > 1 and stemmed not in STOPWORDS:
+                    out.append(stemmed)
     return out
