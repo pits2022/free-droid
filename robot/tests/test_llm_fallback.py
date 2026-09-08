@@ -120,15 +120,43 @@ def test_a_probaja_ROVID_a_generalasa_HOSSZU(monkeypatch):
     assert c._cfg.probe_timeout_s <= c._cfg.cloud_timeout_s / 10
 
 
-def test_kéresenkent_ujra_dont_a_hatterrol(monkeypatch):
-    """Egy „egyszer edge, mindig edge" kliens a felállt alagutat sosem venné észre."""
+def test_koronkent_ujra_dont_a_hatterrol(monkeypatch):
+    """Egy „egyszer edge, mindig edge" kliens a felállt alagutat sosem venné észre.
+
+    A hatókör 2026-09-08 óta a KÖR, nem a kérés: az elérhetetlen host egy körön belül
+    megjegyződik (`health/probe.py` — hogy az STT és az LLM ne várja ki KÉTSZER
+    ugyanazt az időkorlátot), és a kör elején törlődik. A `uj_kor()` itt tehát nem
+    teszt-kozmetika: ez a kör-határ, amit élesben az orchestrator húz meg.
+    """
+    from freedroid.health.probe import uj_kor
+
     halo = Halo({EDGE})
     c = kliens(monkeypatch, halo)
     c.generate("első")
     assert c.active_backend() is Backend.EDGE
     halo.elerheto.add(CLOUD)          # az alagút közben felállt
+    uj_kor()                          # ÚJ KÖR: a robot újra megkérdezi
     c.generate("második")
     assert c.active_backend() is Backend.CLOUD
+
+
+def test_egy_KORBEN_csak_egyszer_var_a_halott_felhora(monkeypatch):
+    """A Teremtő kérése (2026-09-08): egy körben EGY 0,5 s-os várakozás.
+
+    Az STT (`:8080`) és az LLM (`:11434`) ugyanazt a hostot próbálja. Halott alagútnál
+    korábban mindkettő kivárta a saját időkorlátját; most a másodiknak nem kell.
+    """
+    from freedroid.health.probe import jelold_elerhetetlennek
+
+    halo = Halo({EDGE})
+    c = kliens(monkeypatch, halo)
+    jelold_elerhetetlennek("http://10.0.0.1:8080")   # az STT már megjárta ezt a hostot
+    c.generate("kérdés")
+
+    assert c.active_backend() is Backend.EDGE
+    assert CLOUD + "/api/tags" not in halo.probak, \
+        "a felhőt MÉGEGYSZER megpróbálta ugyanabban a körben"
+    assert "a kör korábbi próbája szerint" in c.decision()
 
 
 def test_warmup_betolteti_a_modellt_es_bent_tartja(monkeypatch):
@@ -197,3 +225,15 @@ def test_safe_mode_eseten_is_van_nyom(monkeypatch):
     with pytest.raises(LLMUnavailable):
         c.generate("Ki vagy?")
     assert c.decision().endswith("safe mode")
+
+
+def test_a_host_kinyerese_IPv6_es_sema_nelkul_is_helyes():
+    """PR #117 review, mérve. A séma nélküli alak nem elméleti: az URL-ek env-ből
+    felülírhatók. Az ÜRES host a legrosszabb eset — két KÜLÖNBÖZŐ gép is ugyanarra a
+    kulcsra esne, azaz az egyik bukása a másikat is halottnak jelölné."""
+    from freedroid.health.probe import _host
+
+    assert _host("http://10.0.0.1:8080") == "10.0.0.1"
+    assert _host("http://[::1]:8080") == "::1"
+    assert _host("10.0.0.1:8080") == "10.0.0.1"
+    assert _host("http://10.0.0.1:8080") != _host("http://10.0.0.2:11434")

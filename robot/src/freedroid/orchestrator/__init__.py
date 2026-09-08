@@ -30,6 +30,7 @@ from freedroid.led import LedController
 from freedroid.llm import FallbackLLMClient, LLMUnavailable
 from freedroid.llm.language_guard import enforce_hungarian
 from freedroid.motion import CytronMotionController
+from freedroid.health import probe as probe_mod
 from freedroid.orchestrator import transcript
 from freedroid.orchestrator.guard import (GuardResult, guard,
                                           idegen_szoveg_tisztit)
@@ -602,6 +603,11 @@ class Orchestrator:
             # pár másodperc kárba vész, aztán a jelző eldobja a kört. Ha kell:
             # egy threading.Event az EnergyVAD olvasó ciklusában, ~3 sor.
             log.info("figyelek…")
+            # A felhő-elérhetőség KÖRÖNKÉNT dől el: az STT és az LLM ugyanazt a hostot
+            # próbálja két porton, és halott alagútnál mindkettő kivárná az időkorlátot.
+            # A hatókör a kör, nem az idő — így megmarad, hogy egy közben felállt alagút
+            # a KÖVETKEZŐ körben azonnal látszik. (Ld. `health/probe.py`.)
+            probe_mod.uj_kor()
             self._csipog()                      # „hallottam a gombot, beszélhetsz"
             self.state = State.RECORDING
             hang = vad.record_until_silence()
