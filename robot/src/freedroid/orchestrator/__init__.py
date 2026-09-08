@@ -368,9 +368,32 @@ class Orchestrator:
                 log.error("a Yotengrit-korpusz nem tölthető be (%s) — RAG nélkül megyek", e)
                 return []
             self._retriever = Retriever(chunks, title_boost=cfg.title_boost)
-        return self._retriever.retrieve(kerdes, top_k=cfg.top_k,
+            log.info("RAG korpusz betöltve: %d szelet (%s)", len(chunks),
+                     cfg.corpus_path or "beépített alapértelmezés")
+        hits = self._retriever.retrieve(kerdes, top_k=cfg.top_k,
                                         min_score=cfg.min_score,
                                         min_coverage=cfg.min_coverage)
+        # 🔴 AZ ÜRES TALÁLAT AZ ÉRDEKES ESET, ÉS EDDIG NÉMA VOLT. A "RAG ki van
+        # kapcsolva" és a "RAG futott, de nem talált" a naplóban egyformán nézett ki:
+        # egyik sem írt semmit. Mérve 2026-09-08 a Pi-n: az STT `Yotengrid`-et hallott
+        # `Yotengrit` helyett, a BM25 pedig LEXIKÁLIS -> 0 találat, a modell pedig
+        # konfabulált. A hibát nem a hiányzó tudás okozta, hanem az, hogy senki nem
+        # látta, hogy nincs kontextus. Ezért INFO, nem debug: enélkül a `--debug`
+        # nélkül futó demón sem derülne ki, hogy a válasz alaptalan.
+        if hits:
+            log.info("RAG: %d találat — %s", len(hits),
+                     "; ".join(f"{h.chunk.title!r} ({h.score:.2f})" for h in hits))
+        else:
+            # A KÉRDÉST csak debug posztúrában írjuk ide. A javaslat (PR #114 review)
+            # helyes — az elgépelt nevet a saját sorában látni gyorsabb diagnózis —, de
+            # a `kerdes` MAGA AZ STT-ÁTIRAT, azaz az elhangzott mondat. Egy sorral
+            # feljebb pont ezért DEBUG (`log.debug("átirat: %r", ...)`): a demón a
+            # journal nem tartalmazhat elhangzott tartalmat. Kapuzva mindkettő megvan:
+            # hibakereséskor ott a kérdés, a demón csak a tény, hogy nincs kontextus.
+            log.info("RAG: NINCS TALÁLAT a kérdésre%s — a válasz alaptalan lesz "
+                     "(elgépelt/félrehallott név? a BM25 lexikális)",
+                     f": {kerdes!r}" if debug_mode() else "")
+        return hits
 
     def execute(self, valasz: str) -> str:
         """A modell nyers válaszából: végrehajtjuk a tool-okat, visszaadjuk a KIMONDANDÓT.
