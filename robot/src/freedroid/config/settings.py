@@ -151,6 +151,30 @@ class MotionSettings:
     #
     # A duty→sebesség viszonyt LINEÁRISnak vesszük, ami alacsony kitöltésnél nem igaz
     # (holtsáv) — ha a `move 0.5` rendre rövidebb lesz a kelleténél, ott kezdd.
+    # ⚡ A FESZÜLTSÉG-PÁR LEMÉRVE 2026-09-08 — a régóta nyitott kérdés lezárva. Ugyanaz a
+    # mérés két akku-állapotban, minden más változatlanul:
+    #
+    #     akku 12,52 V  ->  menet 84,3 cm/s   fordulás 402,7 °/s
+    #     akku 10,96 V  ->  menet 75,9 cm/s   fordulás 369,1 °/s
+    #     ---------------------------------------------------------
+    #     -12,4 %           -10,0 %           -8,3 %
+    #
+    # Vagyis a sebesség a feszültséggel majdnem arányosan esik (0,80 %/%), a fordulás
+    # kevésbé (0,67 %/%). HÁROM következtetés, és a harmadik a fontos:
+    #
+    # 1. A TRIM NEM FESZÜLTSÉGFÜGGŐ: 0,962/1,000 jött ki MINDKÉT feszültségen, egymástól
+    #    független menetből. Geometriai tulajdonság, nem elektromos — tehát egy jövőbeli
+    #    kalibráció trim-változása valódi mechanikai elmozdulás, nem az akku állapota.
+    # 2. ITT A TELI AKKU SZÁMA ÁLL, SZÁNDÉKOSAN. A hiba iránya így a merüléssel RÖVIDÜL
+    #    (2 m parancs 10,95 V-on 1,80 m-t, 90° 82,5°-ot ad) — ez a biztonságos irány. A
+    #    fordítottja (alacsony feszültségen kalibrálni) TÚLFUTÁST okozna teli akkun.
+    # 3. A FÉKÚT-BÜDZSÉNEK IS EZ KELL: az a legrosszabb esetet, azaz a LEGGYORSABB
+    #    robotot köti, az pedig a teli akku. Egy futásidejű feszültség-kompenzáció (a
+    #    menetidő skálázása a mért V-vel; percenként úgyis olvassuk) a MENETPONTOSSÁGOT
+    #    javítaná, a fékutat NEM érintené — a fizikai sebesség attól még a feszültséggel
+    #    változik. Ma nincs megírva: a demó ~15 percében a tartomány jóval szűkebb, mint
+    #    e két pont között, és a hiba iránya ártalmatlan.
+    #
     # ÚJRAMÉRVE 2026-09-07 (`calibrate_motion.py --meters 2`, akku 12,40 -> 12,63 V,
     # a lökés+rámpa profillal): 84,3. A 08-26-i 76,6 is TELI akkun készült, tehát ez NEM
     # feszültség-különbség — a menetprofil (kick 0,85/0,15 s, rámpa a 0,5 padlóig) és a
