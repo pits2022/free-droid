@@ -65,7 +65,13 @@ class LLMEndpoints:
     # HÁROM külön időkorlát, és a szétválasztás a lényeg (lásd `llm/__init__.py`):
     # a `probe` dönti el, MELYIK háttér válaszol, a generálási korlátok pedig csak
     # a végső határt adják. Egy közös, rövid korlát a hideg felhőt kizárná.
-    probe_timeout_s: float = 2.0
+    # 2,0 -> 0,5 (a Teremtő, 2026-09-08). A próba egy `/api/tags` GET a WireGuardon át:
+    # az RTT Magyarországról ams3-ba ~45 ms, tor1-be ~139 ms, tehát a 0,5 s bőven fedi.
+    # A 2,0 a felhő NÉLKÜLI körökben MINDEN kérdésre néma várakozás volt — és nem egyszer:
+    # az `stt_cloud_probe_timeout_s` ugyanennyi, tehát körönként KÉTSZER ment el. Amit
+    # cserébe kockáztatunk: egy pillanatnyi hálózati akadás hamarabb dob edge-re. Ez a jó
+    # irány (az edge válaszol, csak kevésbé ékesen), és a döntési nyom naplózva van.
+    probe_timeout_s: float = 0.5
     cloud_timeout_s: float = 60.0
     edge_timeout_s: float = 90.0
 
@@ -348,7 +354,7 @@ class VoiceSettings:
     stt_cloud_timeout_s: float = 20.0
     # A DÖNTÉS próbája, nem a munkáé. Rövid, mert minden mondatnál lefut, és a lényege,
     # hogy egy HALOTT alagútnál ne 160 KB hang feltöltése után derüljön ki a baj.
-    stt_cloud_probe_timeout_s: float = 2.0
+    stt_cloud_probe_timeout_s: float = 0.5   # ld. `probe_timeout_s` — ugyanaz az érv
 
     stt_language: str = "hu"
     stt_threads: int = 4
