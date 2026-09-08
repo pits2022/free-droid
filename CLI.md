@@ -178,8 +178,8 @@ uv run freedroid --debug 2>&1 | tee -a /var/log/freedroid/szabi-$(date +%Y-%m-%d
 >
 > `rm`, nem `truncate`, és ez mérve van: a `transcript.log()` minden eseménynél ÚJRA
 > nyitja a fájlt (`with cel.open("a")`), tehát nem tart nyitott leírót — nincs az a
-> „törölt, de még írt inode" eset, ami futó szolgáltatásnál gond volna. A `*` viszont
-> lényeges: a **forgatott** példányokat (14 napos logrotate) csak így viszi el, azokat
+> „törölt, de még írt inode" eset, ami futó szolgáltatásnál gond volna. A KÖNYVTÁR-szintű
+> törlés viszont lényeges: a **forgatott** példányokat (14 napos logrotate) csak így viszi el, azokat
 > egy `truncate` ott hagyná. (PR #121 review.)
 
 Önteszt:
