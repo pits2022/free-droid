@@ -79,3 +79,21 @@ def test_watchdog_measures_both_sensors(watchdog):
     watchdog.poll_once()
     assert all(cm is not None for cm in watchdog.distances_cm().values()), \
         f"néma szenzor: {watchdog.distances_cm()}"
+
+
+# ── a kamera nem halmozódhat körök között (mérve 2026-09-08) ────────────────────
+
+@requires_pi
+def test_a_home_visszaviszi_a_kamerat_nullara():
+    """`pan`/`tilt` RELATÍV: két `tilt up 30` után a kamera felfelé bámult egy egész
+    órán át (élő menet, 18:37 és 19:01). A `home()` a kör elején ezt zárja ki."""
+    from freedroid.camera import PanTiltCamera
+
+    cam = PanTiltCamera()
+    try:
+        cam.tilt("up", 20)
+        assert cam._szog["tilt"] != 0.0
+        cam.home()
+        assert cam._szog == {"pan": 0.0, "tilt": 0.0}
+    finally:
+        cam.close()

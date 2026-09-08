@@ -33,6 +33,7 @@ class CameraController(Protocol):
     def pan(self, direction: str, degrees: float) -> None: ...
     def tilt(self, direction: str, degrees: float) -> None: ...
     def action(self, action: CameraAction) -> None: ...
+    def home(self) -> None: ...
 
 
 # --- geometria: tiszta függvények, hardver nélkül is mérhetők -----------------------
@@ -195,6 +196,22 @@ class PanTiltCamera:
         elojel = self._elojel(direction,
                               {"up": G.TILT_UP_SIGN, "down": -G.TILT_UP_SIGN}, "tilt")
         self._mozgat(self._tilt_t, elojel * degrees)
+
+    def home(self) -> None:
+        """Vissza az alaphelyzetbe (0/0). A KÖR elején hívjuk, nem a tool után.
+
+        MIÉRT KELL (mérve 2026-09-08, élő menet): a `pan`/`tilt` RELATÍV elmozdulás és
+        soha nem tér vissza, tehát HALMOZÓDIK — `camera tilt up 30` 18:37-kor, majd
+        ugyanaz 19:01-kor, és a kamera onnantól felfelé bámult. (A `nod`/`scan`
+        gesztusok NEM érintettek: azok `finally`-ben visszaállnak a kiindulóra.)
+
+        MIÉRT A KÖR ELEJÉN, és nem a tool UTÁN: az azonnali visszaugrás láthatatlanná
+        tenné a mozdulatot — a robot azt mondaná, „Felnézek, Teremtőm", és közben egy
+        rándulás látszana. Így a gesztus a válasz idejére kint marad (azt látja a
+        közönség), és minden kör ISMERT helyzetből indul.
+        """
+        for t in (self._pan_t, self._tilt_t):
+            self._beall_holtjatek_nelkul(t, 0.0)
 
     def action(self, action: CameraAction) -> None:
         if action is CameraAction.FACE_SPEAKER:

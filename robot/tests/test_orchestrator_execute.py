@@ -71,6 +71,9 @@ class FakeCamera:
     def action(self, action) -> None:
         self.calls.append("action")
 
+    def home(self) -> None:
+        self.calls.append("home")
+
     def close(self) -> None:
         pass
 
@@ -470,3 +473,14 @@ def test_debug_posztaban_VISZONT_ott_a_kerdes(caplog, monkeypatch):
     with caplog.at_level("INFO"):
         o._talalatok("Ki az a Yotengrid?")
     assert "Yotengrid" in caplog.text
+
+
+def test_a_kor_eleje_hazakuldi_a_kamerat():
+    """A `home()` hiánya volt a 2026-09-08-i „felfelé bámuló kamera". A protokollba is
+    bekerült, tehát egy jövőbeli kamera-implementáció nem felejtheti el."""
+    from freedroid.camera import CameraController
+
+    assert hasattr(CameraController, "home")
+    c = FakeCamera()
+    c.home()
+    assert "home" in c.calls

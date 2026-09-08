@@ -51,6 +51,9 @@ class FakeCamera:
     def action(self, action) -> None:
         self.calls.append(("action", action))
 
+    def home(self) -> None:
+        self.calls.append(("home",))
+
 
 def dispatch_szoveg(reg: ToolRegistry, szoveg: str):
     (tool,) = parse_tools(szoveg)

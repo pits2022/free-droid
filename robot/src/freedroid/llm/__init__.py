@@ -161,10 +161,20 @@ class FallbackLLMClient:
         # "nem válaszolt" önmagában nem diagnózis.
         raise LLMUnavailable("egyik LLM háttér sem felelt — " + "; ".join(nyom))
 
+    def _keep_alive(self, backend: Backend) -> str:
+        return (self._cfg.cloud_keep_alive if backend is Backend.CLOUD
+                else self._cfg.edge_keep_alive)
+
     def _generate_on(self, backend: Backend, prompt: str) -> str:
         url, model, timeout = self._params(backend)
         kliens = self._factory(url, timeout)
-        valasz = kliens.generate(model=model, prompt=prompt, stream=False)
+        # `keep_alive` a VALÓDI híváson is, nem csak a bemelegítésen. Enélkül a
+        # bemelegítés hatása egyetlen körig tart: minden `keep_alive` nélküli kérés
+        # visszaállítja a modell TTL-jét az Ollama alapértékére (5 perc), tehát egy
+        # fallback-kör UTÁN az edge megint kiürülne — és a KÖVETKEZŐ fallback megint
+        # hidegen indulna. Pont az a hiba, amit a bemelegítés javítani hivatott.
+        valasz = kliens.generate(model=model, prompt=prompt, stream=False,
+                                 keep_alive=self._keep_alive(backend))
         # A rendszerprompt a Modelfile-ban van beégetve (lásd training/Modelfile), tehát
         # itt CSAK a kérdés (vagy RAG módban a groundolt prompt) megy.
         return (self._szoveg(valasz) or "").strip()
@@ -195,24 +205,36 @@ class FallbackLLMClient:
         kérdésre esne, és a robot halottnak látszana. Egy egytokenes kérés kifizeti
         ezt a költséget indulásnál. Sosem dob: ha nem sikerül, a `generate()` úgyis
         dönt — a bemelegítés kényelem, nem előfeltétel.
+
+        🔴 MINDEN elérhető hátteret bemelegít, nem csak az elsőt (mérve 2026-09-08).
+        Korábban az első sikernél visszatért, tehát élő felhő mellett az EDGE modellje
+        soha nem töltődött be. A 148 körös menetben a felhő 50 percig felelt, majd a
+        `terraform destroy` elvitte — és az első edge-hívás HIDEGEN indult, 90 s-nál
+        időtúllépéssel elhasalt, a robot safe módba esett. 80 másodperccel később
+        ugyanaz az edge hibátlanul válaszolt. A tartalék első hívása a leglassabb, és
+        pont a legrosszabb pillanatra esik: ezért kell MINDKETTŐ, és ezért marad az edge
+        bent (`edge_keep_alive`).
+
+        A visszatérési érték az ELSŐ sikeresen bemelegített háttér (a hívók ezt várják);
+        a többi akkor is bemelegszik.
         """
+        elso: Backend | None = None
         for backend in (Backend.CLOUD, Backend.EDGE):
             if not self.reachable(backend):
                 continue
             url, model, timeout = self._params(backend)
+            keep = self._keep_alive(backend)
             try:
                 kliens = self._factory(url, timeout)
-                # `keep_alive`: a modell maradjon a memóriában a demó alatt. Enélkül az
-                # Ollama 5 perc tétlenség után kiüríti, és a hidegindítás visszatér —
-                # egy közönség-kérdések közti szünet pont ennyi.
                 kliens.generate(model=model, prompt="szia", stream=False,
-                                options={"num_predict": 1}, keep_alive="30m")
+                                options={"num_predict": 1}, keep_alive=keep)
             except Exception as e:  # noqa: BLE001 — a bemelegítés sosem buktathat indulást
                 log.warning("%s bemelegítés sikertelen: %s", backend.value, e)
                 continue
-            log.info("%s bemelegítve (%s)", backend.value, model)
-            return backend
-        return None
+            log.info("%s bemelegítve (%s, keep_alive=%s)", backend.value, model, keep)
+            if elso is None:
+                elso = backend
+        return elso
 
 
 __all__ = ["Backend", "FallbackLLMClient", "LLMClient", "LLMUnavailable"]
