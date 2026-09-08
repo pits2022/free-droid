@@ -384,8 +384,15 @@ class Orchestrator:
             log.info("RAG: %d találat — %s", len(hits),
                      "; ".join(f"{h.chunk.title!r} ({h.score:.2f})" for h in hits))
         else:
-            log.info("RAG: NINCS TALÁLAT a kérdésre — a válasz alaptalan lesz "
-                     "(elgépelt/félrehallott név? a BM25 lexikális)")
+            # A KÉRDÉST csak debug posztúrában írjuk ide. A javaslat (PR #114 review)
+            # helyes — az elgépelt nevet a saját sorában látni gyorsabb diagnózis —, de
+            # a `kerdes` MAGA AZ STT-ÁTIRAT, azaz az elhangzott mondat. Egy sorral
+            # feljebb pont ezért DEBUG (`log.debug("átirat: %r", ...)`): a demón a
+            # journal nem tartalmazhat elhangzott tartalmat. Kapuzva mindkettő megvan:
+            # hibakereséskor ott a kérdés, a demón csak a tény, hogy nincs kontextus.
+            log.info("RAG: NINCS TALÁLAT a kérdésre%s — a válasz alaptalan lesz "
+                     "(elgépelt/félrehallott név? a BM25 lexikális)",
+                     f": {kerdes!r}" if debug_mode() else "")
         return hits
 
     def execute(self, valasz: str) -> str:

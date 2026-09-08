@@ -441,10 +441,32 @@ def test_a_talalatok_naplozva_vannak(caplog):
     assert "RAG:" in caplog.text and "találat" in caplog.text
 
 
-def test_az_URES_talalat_kimondva_kerul_a_naploba(caplog):
+def test_az_URES_talalat_kimondva_kerul_a_naploba(caplog, monkeypatch):
     """Ez a teszt lényege: a néma eset legyen a HANGOS eset."""
+    monkeypatch.delenv("FREEDROID_DEBUG", raising=False)
     o, _ = orch()
     with caplog.at_level("INFO"):
         hits = o._talalatok("Ki az a Yotengrid?")     # elgépelt/félrehallott név
     assert hits == []
     assert "NINCS TALÁLAT" in caplog.text
+
+
+def test_az_URES_talalat_NEM_irja_ki_a_kerdest_debug_nelkul(caplog, monkeypatch):
+    """🔴 ADATVÉDELMI ŐR, nem stílus-kérdés. A `kerdes` MAGA AZ STT-ÁTIRAT — az
+    elhangzott mondat —, és a demó posztúrájában a journalba sem kerülhet. Egy
+    "legyen benne a kérdés is" javítás (PR #114 review) enélkül csendben kinyitná
+    azt, amit a `--debug` alapból zárva tart."""
+    monkeypatch.delenv("FREEDROID_DEBUG", raising=False)
+    o, _ = orch()
+    with caplog.at_level("INFO"):
+        o._talalatok("Ki az a Yotengrid?")
+    assert "NINCS TALÁLAT" in caplog.text
+    assert "Yotengrid" not in caplog.text
+
+
+def test_debug_posztaban_VISZONT_ott_a_kerdes(caplog, monkeypatch):
+    monkeypatch.setenv("FREEDROID_DEBUG", "1")
+    o, _ = orch()
+    with caplog.at_level("INFO"):
+        o._talalatok("Ki az a Yotengrid?")
+    assert "Yotengrid" in caplog.text
