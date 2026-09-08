@@ -425,3 +425,26 @@ def test_az_ELLENSEGES_SSID_nem_jut_el_a_hangszoroig():
     # tisztítás nem is TALÁL KI egy nemlétező szót.
     assert "Bruha ha" in beszed, beszed
     assert "nyílt" in beszed, "a lényegi információ (a NYÍLT hálózat) nem veszhet el"
+
+
+# ── RAG-naplózás ────────────────────────────────────────────────────────────────
+# Mérve 2026-09-08 a Pi-n: az STT `Yotengrid`-et hallott `Yotengrit` helyett, a BM25
+# lexikális -> 0 találat -> a modell konfabulált. A naplóban SEMMI nem jelezte: a
+# "RAG kikapcsolva" és a "RAG futott, de üres" pontosan egyformán nézett ki.
+
+
+def test_a_talalatok_naplozva_vannak(caplog):
+    o, _ = orch()
+    with caplog.at_level("INFO"):
+        hits = o._talalatok("Mi az a Yotengrit?")
+    assert hits, "a helyes írásmódra kell hogy találjon"
+    assert "RAG:" in caplog.text and "találat" in caplog.text
+
+
+def test_az_URES_talalat_kimondva_kerul_a_naploba(caplog):
+    """Ez a teszt lényege: a néma eset legyen a HANGOS eset."""
+    o, _ = orch()
+    with caplog.at_level("INFO"):
+        hits = o._talalatok("Ki az a Yotengrid?")     # elgépelt/félrehallott név
+    assert hits == []
+    assert "NINCS TALÁLAT" in caplog.text
