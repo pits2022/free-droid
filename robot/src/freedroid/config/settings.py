@@ -168,6 +168,15 @@ class MotionSettings:
     # 2. ITT A TELI AKKU SZÁMA ÁLL, SZÁNDÉKOSAN. A hiba iránya így a merüléssel RÖVIDÜL
     #    (2 m parancs 10,95 V-on 1,80 m-t, 90° 82,5°-ot ad) — ez a biztonságos irány. A
     #    fordítottja (alacsony feszültségen kalibrálni) TÚLFUTÁST okozna teli akkun.
+    # 3b. ✅ A KOMPENZÁCIÓ ÉLESBEN IGAZOLVA, a MÁSIK végponton (2026-09-08 12:26). A
+    #     `calibrate_motion.py` 10,83 V-on ismét **84,3 / 402,7**-et adott vissza —
+    #     pontosan a teli akkus referenciát —, azaz a robot merült akkun is megtette a
+    #     parancsolt 2 métert és 360 fokot. Kompenzáció NÉLKÜL ugyanez a mérés 75,9 /
+    #     369,1 volt. A két mért pontból felírt egyenes tehát nem csak a saját
+    #     végpontjait reprodukálja, hanem MŰKÖDIK is. (A trim ugyanitt 0,957 lett a
+    #     0,962 helyett — 0,5%, futás-szórás; a küszöb, ami fölött mechanikát jelent:
+    #     0,94 alatt vagy 0,98 fölött.)
+    #
     # 3. A FÉKÚT-BÜDZSÉNEK IS EZ KELL: az a legrosszabb esetet, azaz a LEGGYORSABB
     #    robotot köti, az pedig a teli akku. Egy futásidejű feszültség-kompenzáció (a
     #    menetidő skálázása a mért V-vel; percenként úgyis olvassuk) a MENETPONTOSSÁGOT
