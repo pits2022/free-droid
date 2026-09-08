@@ -14,8 +14,8 @@ import time
 import pytest
 
 from freedroid.config import gpio as G
-from freedroid.config.settings import MotionSettings, SafetySettings
-from freedroid.motion import CytronMotionController, run_seconds
+from freedroid.config.settings import MotionSettings, PowerSettings, SafetySettings
+from freedroid.motion import CytronMotionController, run_seconds, voltage_factor
 from freedroid.motion.types import Direction
 from freedroid.safety import FRONT, REAR, UltrasonicWatchdog, relevant_sensors
 from freedroid.safety.ranging import MIN_SAMPLES, combine
@@ -76,6 +76,62 @@ class TestMenetido:
             run_seconds(100, 30.0, 0.0)
 
 
+class TestFeszultsegKompenzacio:
+    """A két mért ponton átmenő egyenes (2026-09-08).
+
+    A döntő teszt a MÉRT ALACSONY PONT reprodukciója: a modellnek nem "valami
+    csökkenést" kell adnia, hanem pont azt, amit a roboton mértünk — különben a
+    kompenzáció csak egy másik hibát tesz a régi helyére.
+    """
+
+    KAL_V, ALACSONY_V = 12.52, 10.965
+
+    def test_a_kalibracios_feszultsegen_nem_valtoztat(self):
+        cfg = MotionSettings()
+        assert voltage_factor(cfg.calibrated_at_v, cfg.calibrated_at_v,
+                              cfg.speed_v_slope) == pytest.approx(1.0)
+
+    def test_a_mert_alacsony_ponton_a_MERT_sebesseget_adja(self):
+        cfg = MotionSettings()
+        f = voltage_factor(self.ALACSONY_V, cfg.calibrated_at_v, cfg.speed_v_slope)
+        assert cfg.cm_per_s_at_full * f == pytest.approx(75.9, rel=0.005)
+
+    def test_a_mert_alacsony_ponton_a_MERT_szogsebesseget_adja(self):
+        cfg = MotionSettings()
+        f = voltage_factor(self.ALACSONY_V, cfg.calibrated_at_v, cfg.turn_v_slope)
+        assert cfg.deg_per_s_at_full * f == pytest.approx(369.1, rel=0.005)
+
+    def test_az_egyszeru_aranyossag_TULKORRIGALNA(self):
+        """Miért nem `V/V_kal` a faktor: az alábecsülné a sebességet, abból pedig
+        HOSSZABB menet, azaz TÚLFUTÁS lesz — a rossz irányba tévedés."""
+        cfg = MotionSettings()
+        aranyos = cfg.cm_per_s_at_full * (self.ALACSONY_V / cfg.calibrated_at_v)
+        assert aranyos < 75.9 * 0.99, aranyos      # érdemben a mért érték ALATT
+
+    @pytest.mark.parametrize("rossz", [None, 0.0, -1.0, float("nan"), float("inf")])
+    def test_hianyzo_vagy_ertelmetlen_meres_eseten_1_0(self, rossz):
+        # Mérő nélkül a kompenzáció ELŐTTI viselkedés: a teli akku állandójával
+        # számol, azaz RÖVIDEBBET megy — ez a fail-safe irány.
+        assert voltage_factor(rossz, 12.52, 0.8) == 1.0
+
+    def test_a_szemet_olvasat_nem_nyujtja_meg_a_menetet(self):
+        # Egy 0,001 V-os olvasat klipp nélkül 0,20-as faktort adna: ÖTSZÖR hosszabb
+        # menet egy elromlott mérő miatt. Ez a legveszélyesebb eset, mert a robot
+        # ilyenkor MEGY, nem áll.
+        from freedroid.motion import FAKTOR_MIN
+
+        assert voltage_factor(0.001, 12.52, 0.8) == FAKTOR_MIN
+
+    def test_alacsonyabb_feszultseg_HOSSZABB_menetet_ad(self):
+        # A kompenzáció egész célja egy mondatban.
+        cfg = MotionSettings()
+        teli = run_seconds(200, cfg.cm_per_s_at_full * voltage_factor(
+            cfg.calibrated_at_v, cfg.calibrated_at_v, cfg.speed_v_slope), 0.6)
+        merult = run_seconds(200, cfg.cm_per_s_at_full * voltage_factor(
+            self.ALACSONY_V, cfg.calibrated_at_v, cfg.speed_v_slope), 0.6)
+        assert merult > teli
+
+
 class FakeLgpio:
     """A GPIO-hívások naplója. Nem hardver-emuláció — csak azt rögzíti, MI történt."""
 
@@ -98,6 +154,9 @@ def _bare_motion(fake: FakeLgpio) -> CytronMotionController:
     m = object.__new__(CytronMotionController)
     m._lgpio = fake
     m._cfg = MotionSettings()
+    # A `_akku_v()` innen olvasna; a teszt-környezetben nincs I2C, tehát OSError ->
+    # None -> faktor 1,0. Épp azt a fail-safe ágat járjuk, amit a robot mérő nélkül.
+    m._power_cfg = PowerSettings()
     m._h = 0
     m._duty = 0.5
     m._heading = None

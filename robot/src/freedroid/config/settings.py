@@ -201,6 +201,29 @@ class MotionSettings:
     # KOMPROMISSZUM, nem abszolút igazság — a helyszínen érdemes ránézni, és a
     # demó-manővereket rövid szakaszokra tervezni, nem hosszú egyenesekre.
     # Felülírás újramérés nélkül: FREEDROID_MOTION_RIGHT_DUTY_TRIM.
+    # FESZÜLTSÉG-KOMPENZÁCIÓ (mérve 2026-09-08, két akku-állapotban — lásd a
+    # `cm_per_s_at_full` fölötti táblát). A fenti két állandó a TELI akkué; merülő
+    # akkun a robot lassabb, tehát a parancsolt utat csak akkor teszi meg, ha a
+    # menetidőt a MÉRT feszültséghez igazítjuk.
+    #
+    # A modell a két mért ponton átmenő egyenes: a relatív sebesség-változás a relatív
+    # feszültség-változás `slope`-szorosa. NEM egyszerű arányosság — az mérhetően
+    # TÚLKORRIGÁLNA (10,96 V-on 73,9 cm/s-ot jósolna a valódi 75,9 helyett), és épp a
+    # rossz irányba: alábecsült sebesség = hosszabb menet = TÚLFUTÁS.
+    #
+    #     menet:    -12,4 % feszültség ->  -10,0 % sebesség  ->  slope 0,80
+    #     fordulás: -12,4 % feszültség ->   -8,3 % szögseb.  ->  slope 0,67
+    #
+    # A fordulás azért kevésbé érzékeny, mert a `turn_duty` (0,8) messzebb van a
+    # holtsávtól, mint az utazó 0,6.
+    #
+    # ⚠️ A FÉKÚT-BÜDZSÉT EZ NEM ÉRINTI, és nem is szabad, hogy érintse: az a
+    # LEGGYORSABB robotot köti, azaz a teli akkut — a `test_a_leggyorsabb_fokozat_
+    # belefer_a_fekutba` ezért a nyers `cm_per_s_at_full`-t olvassa, kompenzáció nélkül.
+    calibrated_at_v: float = 12.52   # ezen a feszültségen mértük a fenti két állandót
+    speed_v_slope: float = 0.80
+    turn_v_slope: float = 0.67
+
     left_duty_trim: float = 0.962
     right_duty_trim: float = 1.000
 
@@ -235,6 +258,14 @@ class MotionSettings:
             raise ValueError("kick_duty (0,1], kick_s >= 0, ramp_s >= 0 kell legyen")
         if not 0.0 < self.turn_duty <= 1.0:
             raise ValueError("turn_duty (0,1] kell legyen")
+        if self.calibrated_at_v <= 0:
+            raise ValueError("calibrated_at_v > 0 kell legyen")
+        # A meredekség NEM lehet negatív (az azt állítaná, hogy merülő akkun gyorsul a
+        # robot), és a 2,0 fölötti érték már nem fizika, hanem elgépelés — egy 20-as
+        # slope egy fél voltos esésre is a menetidő sokszorosát adná.
+        for nev in ("speed_v_slope", "turn_v_slope"):
+            if not 0.0 <= getattr(self, nev) <= 2.0:
+                raise ValueError(f"{nev} [0,2] kell legyen")
         if not 0.0 <= self.ramp_floor_duty < 1.0 or not 0.0 < self.ramp_max_share <= 1.0:
             raise ValueError("ramp_floor_duty [0,1), ramp_max_share (0,1] kell legyen")
 
