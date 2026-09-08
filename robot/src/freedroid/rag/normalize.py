@@ -219,7 +219,8 @@ def tokenize(text: str) -> list[str]:
             # tehát minden TOLDALÉKOS előfordulást elszalasztana, azaz pont a valódi
             # mondatokat. A map értékei ezért maguk is szótövek (mérve: jin, jang, buun,
             # vallas mind fixpont).
-            for stemmed in SZINONIMAK.get(_stem(raw), (_stem(raw),)):
+            szoto = _stem(raw)
+            for stemmed in SZINONIMAK.get(szoto, (szoto,)):
                 if len(stemmed) > 1 and stemmed not in STOPWORDS:
                     out.append(stemmed)
     return out
