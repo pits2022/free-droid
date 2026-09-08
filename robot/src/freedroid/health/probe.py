@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import urllib.error
+import urllib.parse
 import urllib.request
 
 
@@ -69,6 +70,42 @@ def run(cmd: list[str], timeout: float = 5.0) -> tuple[int, str, str]:
         return 124, "", f"timeout: {' '.join(cmd)}"
     except OSError as e:  # pragma: no cover - defensive
         return 1, "", str(e)
+
+
+# ── EGY KÖRBEN EGY VÁRAKOZÁS (a Teremtő, 2026-09-08) ────────────────────────────
+#
+# Az STT (`:8080`) és az LLM (`:11434`) KÜLÖN próbálja a felhőt, ugyanazon a hoston. Ha
+# az alagút halott, mindkettő ugyanazt a `probe_timeout_s`-t várja ki — mérve: körönként
+# 2 x 0,5 s néma várakozás UGYANARRA a tényre.
+#
+# Miért NEM idő alapú gyorsítótár: a két próba egy körön belül 13 MÁSODPERCRE van
+# egymástól (a köztes edge-átirat ideje, mérve a Pi-n), tehát a TTL-nek ennél hosszabbnak
+# kellene lennie — az viszont már KÉT KÖRT is átfogna, és megsértené a modul kimondott
+# invariánsát, hogy a háttérről KÉRÉSENKÉNT újra dönt (`test_kéresenkent_ujra_dont_a_
+# hatterrol`: „egy »egyszer edge, mindig edge« kliens a felállt alagutat sosem venné
+# észre"). A hatókör ezért a KÖR, nem az idő: az orchestrator minden kör elején törli.
+#
+# Csak a KAPCSOLÓDÁSI hibát jegyezzük (code == 0). Egy HTTP-hibakód azt BIZONYÍTJA, hogy
+# a host felelt — abból a másik port halottságára következtetni hiba volna.
+_elerhetetlen_hostok: set[str] = set()
+
+
+def _host(url: str) -> str:
+    return urllib.parse.urlsplit(url).netloc.split(":")[0]
+
+
+def uj_kor() -> None:
+    """Új interakciós kör: a felhő-elérhetőségről mindent elfelejtünk."""
+    _elerhetetlen_hostok.clear()
+
+
+def korben_elerhetetlen(url: str) -> bool:
+    """Megbukott-e MÁR EBBEN A KÖRBEN egy próba ugyanerre a hostra."""
+    return _host(url) in _elerhetetlen_hostok
+
+
+def jelold_elerhetetlennek(url: str) -> None:
+    _elerhetetlen_hostok.add(_host(url))
 
 
 def http_get(url: str, timeout: float = 4.0) -> tuple[int, str]:

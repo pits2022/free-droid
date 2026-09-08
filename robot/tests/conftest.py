@@ -62,3 +62,19 @@ def nincs_valodi_kamera(monkeypatch):
     from freedroid.orchestrator import Orchestrator
 
     monkeypatch.setattr(Orchestrator, "_kamera", staticmethod(lambda settings: None))
+
+
+@pytest.fixture(autouse=True)
+def _friss_kor():
+    """Minden teszt FRISS körrel induljon — ugyanaz az előfeltétel, mint élesben.
+
+    A felhő-elérhetőség memója modul-szintű (`health/probe.py`), és élesben az
+    orchestrator törli minden kör elején. Teszt-környezetben nincs orchestrator, tehát
+    egy elbukó próba átszivárogna a KÖVETKEZŐ tesztbe, és ott „a felhő már halott"-ként
+    viselkedne — mérve: 8 teszt bukott így el, mind hamis okból.
+    """
+    from freedroid.health.probe import uj_kor
+
+    uj_kor()
+    yield
+    uj_kor()

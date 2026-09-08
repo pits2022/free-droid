@@ -163,11 +163,22 @@ class CloudWhisperSTT:
         """(él-e a szerver, INDOK). Az indok azért kell, mert a naplóban a "miért az
         edge felelt?" kérdés csak így válaszolható meg utólag — ugyanaz az elv, mint a
         `FallbackLLMClient._probe`-nál."""
+        from freedroid.health.probe import (  # noqa: PLC0415 — körkörös import ellen
+            jelold_elerhetetlennek, korben_elerhetetlen)
+
         url = self._cfg.stt_cloud_url
+        # Ld. `health/probe.py`: egy körben egy várakozás. Ha az LLM próbája már
+        # megbukott ugyanezen a hoston, itt nem várunk ki még egy időkorlátot.
+        if korben_elerhetetlen(url):
+            return False, f"nem elérhető ({url}: a kör korábbi próbája szerint)"
         try:
             self._opener(urllib.request.Request(url, method="GET"),
                          self._cfg.stt_cloud_probe_timeout_s)
         except Exception as e:  # noqa: BLE001 — bármilyen hiba = nem elérhető
+            # A HTTPError azt BIZONYÍTJA, hogy a host felelt — abból a másik port
+            # halottságára következtetni hiba volna, tehát azt nem jelöljük.
+            if not isinstance(e, urllib.error.HTTPError):
+                jelold_elerhetetlennek(url)
             return False, f"nem elérhető ({url}: {type(e).__name__})"
         return True, "elérhető"
 

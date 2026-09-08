@@ -28,7 +28,7 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING, Callable, Protocol
 
-from freedroid.health.probe import http_get
+from freedroid.health.probe import http_get, jelold_elerhetetlennek, korben_elerhetetlen
 
 if TYPE_CHECKING:
     from freedroid.config.settings import LLMEndpoints, Settings
@@ -87,11 +87,17 @@ class FallbackLLMClient:
         """(elérhető-e, INDOK). Az indok azért jön vissza, mert a naplóban a
         „miért az edge felelt?" kérdés csak így válaszolható meg utólag."""
         url, _, _ = self._params(backend)
+        # Ha EBBEN A KÖRBEN már megbukott egy próba ugyanerre a hostra (tipikusan az
+        # STT-é, ugyanazon az alagúton, másik porton), nem várjuk ki még egyszer.
+        if korben_elerhetetlen(url):
+            return False, f"nem elérhető ({url}, a kör korábbi próbája szerint)"
         code, _ = http_get(f"{url}/api/tags", timeout=self._cfg.probe_timeout_s)
         if code == 200:
             return True, "elérhető"
         if code == 0:
+            jelold_elerhetetlennek(url)
             return False, f"nem elérhető ({url}, {self._cfg.probe_timeout_s:g} s alatt)"
+        # HTTP-hibakód: a host FELELT, csak rosszul. A hostot NEM jelöljük halottnak.
         return False, f"nem elérhető (HTTP {code}, {url})"
 
     def reachable(self, backend: Backend) -> bool:
