@@ -401,3 +401,27 @@ def test_build_prompt_does_not_invite_source_talk(retriever):
     prompt = build_prompt("Ki Gönüz?", retriever.retrieve("Kik Ukkó és Gönüz?"))
     assert "forrás alapján válaszolj" not in prompt   # the phrase the model parroted back
     assert "Sose említsd" in prompt
+
+
+# ── lexikai variánsok (mérve a 2026-09-08-i élő menetben) ───────────────────────
+
+def test_a_kerdes_MAS_ALAKBAN_is_megtalalja_a_szeletet():
+    """A BM25 lexikális: a tartalom megléte NEM elég, ha a kérdés más alakban nevezi
+    meg ugyanazt. Élesben mindkettő 0 találatot adott, pedig a szelet ott volt."""
+    from freedroid.rag.normalize import tokenize
+
+    # a korpusz a MAGYAR alakot írja, az STT az angolt hallja le
+    assert set(tokenize("Yin-Yang")) == set(tokenize("Jin-Jang"))
+    # az egybeírt alak külön token lenne, azaz SEMMIBEN nem közös a szelettel
+    assert set(tokenize("Büünvallás")) == set(tokenize("Büün vallás"))
+    # …és a TOLDALÉKOS alak is, ezért fut a feloldás a szótövezés UTÁN
+    assert set(tokenize("bűnvallásról")) == set(tokenize("Büün vallás"))
+
+
+def test_a_bun_szo_NEM_olvad_bele_a_Buunbe():
+    """A biztonsági fele: a "bűn" valódi magyar szó, a korpusznak SAJÁT szelete van
+    róla. Egy `bun -> buun` leképezés azt tenné elérhetetlenné — ezért csak az
+    ÖSSZETETT alak szerepel a térképben."""
+    from freedroid.rag.normalize import tokenize
+
+    assert "buun" not in tokenize("Hogyan ítéli meg a Yotengrit a bűnt?")
