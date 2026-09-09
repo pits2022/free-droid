@@ -114,6 +114,10 @@ def test_az_ertelmezhetetlen_keep_alive_INDULASKOR_bukik():
         keep_alive_ertek("tegnap")
     with pytest.raises(ValueError, match="edge_keep_alive"):
         LLMEndpoints(edge_keep_alive="egy perc")
+    # A rossz TÍPUS is ValueError, nem TypeError (PR #128 review): a dataclass nem
+    # kényszeríti a `str`-t, és egy mező-név nélküli TypeError nem diagnózis.
+    with pytest.raises(ValueError, match="edge_keep_alive"):
+        LLMEndpoints(edge_keep_alive=None)          # type: ignore[arg-type]
     # ...a `"30"` viszont pont NEM bukik: az érvényes szám (30 másodperc). A csapda
     # nem a hiányzó mértékegység volt, hanem hogy a szám SZTRINGKÉNT ment ki.
     assert LLMEndpoints(cloud_keep_alive="30").cloud_keep_alive == "30"

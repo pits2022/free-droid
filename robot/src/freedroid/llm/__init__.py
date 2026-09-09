@@ -28,6 +28,7 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING, Callable, Protocol
 
+from freedroid.config.settings import keep_alive_ertek
 from freedroid.health.probe import http_get, jelold_elerhetetlennek, korben_elerhetetlen
 
 if TYPE_CHECKING:
@@ -173,8 +174,6 @@ class FallbackLLMClient:
         # mode-nak látszik. Mérve 2026-09-09 — ld. `settings.keep_alive_ertek`.
         # Itt van, és nem a hívási helyeken, mert a `warmup()` és a `_generate_on()`
         # is ezen megy át: egy szűkület, két hívó.
-        from freedroid.config.settings import keep_alive_ertek
-
         return keep_alive_ertek({Backend.CLOUD: self._cfg.cloud_keep_alive,
                                  Backend.EDGE: self._cfg.edge_keep_alive}[backend])
 

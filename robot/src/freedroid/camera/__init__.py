@@ -185,7 +185,10 @@ class PanTiltCamera:
         # Ez az EGYETLEN kompenzált pozicionáló, tehát a nyilvántartás is itt él.
         # A gesztusok `finally`-ága is ide fut be, így egy `nod` UTÁN sem kell
         # fölösleges `home()`: ha a gesztus 0-ból indult, 0-ba is tér vissza tisztán.
-        (self._tiszta.add if szog == 0.0 else self._tiszta.discard)(t.nev)
+        if szog == 0.0:
+            self._tiszta.add(t.nev)
+        else:
+            self._tiszta.discard(t.nev)
 
     @staticmethod
     def _elojel(irany: str, parok: dict[str, int], tengely: str) -> int:

@@ -44,7 +44,7 @@ from freedroid.rag.retriever import DEFAULT_MIN_COVERAGE
 _DURATION = re.compile(r"^-?(\d+(\.\d+)?(ns|us|\u00b5s|ms|s|m|h))+$")
 
 
-def keep_alive_ertek(nyers: str) -> int | str:
+def keep_alive_ertek(nyers: str | int) -> int | str:
     """Az Ollama `keep_alive` mezője SZÁM (másodperc, -1 = amíg a folyamat él) VAGY
     mértékegységes duration ("30m"). A `"-1"` SZTRING egyik sem.
 
@@ -59,11 +59,15 @@ def keep_alive_ertek(nyers: str) -> int | str:
     Ezért van itt konverzió ÉS validáció: a szám számként megy ki, a rossz érték pedig
     INDULÁSKOR bukik, nem az első fallback pillanatában.
     """
+    # A `TypeError` is ide tartozik (PR #128 review): a mező `str`-nek van jelölve, de a
+    # dataclass nem kényszeríti — egy `None` az `int()`-en TypeError-t dobna, a regexen
+    # pedig „expected string or bytes-like object"-et, azaz a `__post_init__`
+    # ValueError-kapuja MELLETT szállna el, mező-név nélkül. A hibaüzenet a diagnózis.
     try:
         return int(nyers)
-    except ValueError:
+    except (ValueError, TypeError):
         pass
-    if not _DURATION.match(nyers):
+    if not isinstance(nyers, str) or not _DURATION.match(nyers):
         raise ValueError(
             f"keep_alive: {nyers!r} se nem szám, se nem mértékegységes duration "
             f'(pl. "-1", "30m", "1h30m") — az Ollama HTTP 400-at adna rá')
