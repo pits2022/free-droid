@@ -96,6 +96,7 @@ class Orchestrator:
     def __init__(self, settings: Settings | None = None,
                  motion: MotionController | None = None,
                  camera: CameraController | None = None,
+                 vlm: object | None = None,
                  watchdog: Watchdog | None = None,
                  llm: LLMClient | None = None,
                  stt: STT | None = None,
@@ -117,6 +118,9 @@ class Orchestrator:
         self.utolso_talalatok: list[Hit] = []
         self.motion = motion or CytronMotionController(settings)
         self.camera = camera if camera is not None else self._kamera(settings)
+        # A látás HIBATŰRŐEN épül, mint a kamera: egy hiányzó VLM nem akadályozhatja meg,
+        # hogy a robot beszéljen és mozogjon.
+        self.vlm = vlm if vlm is not None else self._vlm(settings)
         # A watchdog a `motion`-től olvassa a haladási irányt — EGYETLEN forrás, nem
         # vezet saját nyilvántartást (spec 5. szakasz).
         self.watchdog = watchdog or UltrasonicWatchdog(
@@ -194,6 +198,16 @@ class Orchestrator:
             log.warning("a pan/tilt kamera nem épült meg (%s: %s) — a `camera` "
                         "tool-hívások elmaradnak, a robot egyébként működik",
                         type(e).__name__, e)
+            return None
+
+    @staticmethod
+    def _vlm(settings: Settings | None):
+        """A felhős VLM — hibatűrően. `None`, ha a látás ki van kapcsolva vagy nem épül."""
+        try:
+            from freedroid.vision import CloudVLM  # noqa: PLC0415
+            return CloudVLM(settings)
+        except Exception as e:  # noqa: BLE001 — a robot látás nélkül is működik
+            log.warning("a VLM nem épült meg (%s: %s) — Szabi nem lát", type(e).__name__, e)
             return None
 
     def _csipog(self) -> None:
@@ -276,9 +290,10 @@ class Orchestrator:
         hiányzik belőle, az kizárólag a `voice/` (ébresztőszó, STT, TTS).
         """
         hits = self.utolso_talalatok = self._talalatok(kerdes)
-        prompt = build_prompt(kerdes, hits)
+        latvany = self._latvany(kerdes)
+        prompt = build_prompt(kerdes, hits, latvany=latvany)
         esemeny = transcript.Interakcio(
-            hallott=kerdes, prompt=prompt,
+            hallott=kerdes, prompt=prompt, latvany=latvany or "",
             rag_cimek=[h.chunk.title for h in hits])
         # MINDKÉT generálás a try-on BELÜL. A nyelvi őr ugyanis MÁSODSZOR is hívhatja a
         # modellt (ha az első válasz nem magyar), és a háttér a két hívás között is
@@ -402,6 +417,34 @@ class Orchestrator:
                      "(elgépelt/félrehallott név? a BM25 lexikális)",
                      f": {kerdes!r}" if debug_mode() else "")
         return hits
+
+    def _latvany(self, kerdes: str) -> str | None:
+        """A látvány leírása, `LATVANY_NINCS`, vagy `None` (nem látás-kérdés).
+
+        🔴 A HÁROM KIMENET KÜLÖNBSÉGE A LÉNYEG. A `None` azt jelenti, hogy a kérdéshez
+        nem kell kép — a prompt egy karakterrel sem nő. A `LATVANY_NINCS` azt, hogy KELL
+        volna, de nincs — és ezt KI KELL MONDANI: a néma kihagyás pontosan az az állapot,
+        amiben a modell 2026-08-28-án kitalált egy képleírást.
+
+        SOSEM dob: egy látás-hiba nem viheti el a kört.
+        """
+        from freedroid.rag.context import LATVANY_NINCS  # noqa: PLC0415
+        from freedroid.vision.router import kell_e_kep  # noqa: PLC0415
+
+        if self.vlm is None or not kell_e_kep(kerdes):
+            return None
+        try:
+            from freedroid.camera.frame import grab_jpeg  # noqa: PLC0415
+            from freedroid.config.settings import load_settings  # noqa: PLC0415
+
+            minoseg = (self._settings or load_settings()).vision.jpeg_quality
+            jpeg = grab_jpeg(minoseg=minoseg)
+            if jpeg is None:
+                return LATVANY_NINCS
+            return self.vlm.describe(jpeg) or LATVANY_NINCS
+        except Exception:  # noqa: BLE001 — a látás bukása nem némíthatja el a robotot
+            log.warning("a látás elhasalt — Szabi most nem lát", exc_info=True)
+            return LATVANY_NINCS
 
     def execute(self, valasz: str) -> str:
         """A modell nyers válaszából: végrehajtjuk a tool-okat, visszaadjuk a KIMONDANDÓT.

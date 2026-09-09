@@ -226,7 +226,7 @@ def test_ask_elteszi_a_HASZNALT_talalatokat(monkeypatch):
     sajat = [types.SimpleNamespace(
         chunk=types.SimpleNamespace(id="yot-000", title="ÁL-TALÁLAT"), score=1.0)]
     monkeypatch.setattr(o, "_talalatok", lambda k: sajat)
-    monkeypatch.setattr("freedroid.orchestrator.build_prompt", lambda k, h: k)
+    monkeypatch.setattr("freedroid.orchestrator.build_prompt", lambda k, h, latvany=None: k)
     o.ask("Mi az a Yotengrit?")
     assert o.utolso_talalatok is sajat
 
