@@ -86,12 +86,23 @@ class CloudVLM:
                       else getattr(valasz, "response", "")) or ""
             szoveg = szoveg.strip()
         except Exception as e:  # noqa: BLE001 — hálózat/HTTP/időtúllépés/rossz válasz, mind ugyanaz
-            # A KAPCSOLÓDÁSI hibát (OSError — ide tartozik a `TimeoutError` is) a
-            # `korben_elerhetetlen` cache-be is beírjuk: eddig a `describe()` MEGTUDTA,
-            # hogy a host halott, de nem szólt senkinek — a kör hátralévő része (egy
-            # esetleges edge-STT/LLM próba) ugyanazt az időkorlátot várta volna ki
-            # újra. Egy rossz VÁLASZALAK (pl. `AttributeError` a `.strip()`-en) NEM
-            # kapcsolódási hiba — a host felelt, csak rosszul —, ezért az NEM jelöl.
+            # Ez az `isinstance(e, OSError)` ág a KAPCSOLÓDÁS megtagadását fogja meg:
+            # az `ollama` kliens a `httpx.ConnectError`-t a beépített `ConnectionError`-ra
+            # képezi le (mérve — PR #129 review), ami `OSError`. Egy olyan host, ami
+            # FELELT, csak elakadt vagy hibázott (pl. `httpx.RemoteProtocolError`,
+            # `httpx.ReadTimeout`), NEM `OSError`-t dob — ezt SZÁNDÉKOSAN nem jelöljük
+            # halottnak, mert a `jelold_elerhetetlennek` cache-e OSZTOTT az STT/LLM
+            # próbákkal a kör hátralévő részére: egy felelt-de-elakadt hostot halottnak
+            # jelölni a gyengébb, on-device 3B-re tolná a kört, pedig a felhő 8B élt
+            # volna — ugyanaz a házirend, mint `llm/__init__.py`-ban (`_probe`, csak
+            # `code == 0`-n jelöl) és `voice/__init__.py`-ban (`CloudWhisperSTT.elerheto`,
+            # csak `HTTPError`-on NEM jelöl).
+            # ⚠️ FIGYELEM, ha a `client_factory` valaha urllib-alapúra vált (ahogy a
+            # `voice/` modul már ma is használ ilyet): a `socket.timeout` (== beépített
+            # `TimeoutError`) SZINTÉN `OSError`, tehát egy élő-de-lassú VLM olvasási
+            # időtúllépése ezen az ágon halottnak jelölné a hostot — ezt a guardot
+            # akkor újra kell gondolni. Az `ollama`/`httpx` kliens ma nem dob beépített
+            # `TimeoutError`-t, úgyhogy ez ma nem fordulhat elő.
             if isinstance(e, OSError):
                 jelold_elerhetetlennek(self._cfg.url)
             log.warning("a felhős VLM nem válaszolt (%s: %s) — Szabi most nem lát",

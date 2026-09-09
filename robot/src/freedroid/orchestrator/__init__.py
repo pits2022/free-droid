@@ -438,10 +438,24 @@ class Orchestrator:
 
         🔴 A SORREND SZÁNDÉKOS (C1, végső review): ELŐBB a "kell-e kép" döntés, UTÁNA a
         "van-e vlm" ellenőrzés — fordítva a két különböző állapot ("nem látás-kérdés" és
-        "a látás EL VAN TÖRVE") egyetlen néma `None`-ba folyt volna össze. A `self.vlm is
-        None` egy realisztikus eset: a `_vlm()` hibatűrő, tehát egy shadow deploy, ahol a
-        `vision/` modul nem szinkronizálódott, pont ezt adja — és egy "Mit látsz?" ekkor
-        némán, kép nélkül futott volna a modellhez, szabadon konfabulálva újra.
+        "a látás EL VAN TÖRVE") egyetlen néma `None`-ba folyt volna össze.
+
+        🔴 PR #129 review, JAVÍTVA: a `self.vlm is None` esetet korábban egy shadow
+        deploy-ra fogtuk, ahol a `vision/` modul nem szinkronizálódott — mérve, ez
+        TÉVES. Egy valóban HIÁNYZÓ `freedroid.vision` csomag a lenti KÉT lusta importon
+        (`LATVANY_NINCS`, `kell_e_kep`) bukna el `ModuleNotFoundError`-ral, amik a
+        try-on KÍVÜL állnak — tehát ez a hiba SOHA nem éri el a `self.vlm is None`
+        ágat, ezt a metódust magát vinné el, hangosan (a hívó `ask()` felöli
+        blanket except adja ki a safe-mode mondatot — hangos, de SZÉLESEBB, mint ez a
+        `LATVANY_NINCS` őr). A `self.vlm is None` a valódi, szűkebb eset: a `vision/`
+        csomag rendben importálódott, de a `CloudVLM` PÉLDÁNYOSÍTÁSA hasalt el
+        (`_vlm()` saját try-ja fogja meg, pl. hibás beállítás) — ekkor jön a
+        `LATVANY_NINCS` KIMONDOTT válasz, nem néma kihagyás.
+
+        Nyitott kérdés, SZÁNDÉKOSAN nem eldöntve itt: a két importot a try-on BELÜLRE
+        tenni lefedné a hiányzó-csomag esetet is — de ez valódi tervezési kérdés
+        (egy modulszintű import már a program INDULÁSAKOR elbukna, ami egy shadow
+        deploy-t egyáltalán el sem indítana), nem itt dől el.
 
         SOSEM dob: egy látás-hiba nem viheti el a kört.
         """

@@ -127,6 +127,8 @@
   until: ollama_vision_pull.rc == 0
   retries: 5
   delay: 10
+  # `changed_when: true` szándékosan egyezik a fenti "Pull base model" taszkkal —
+  # PR #129 review: nem egyedi hanyagság, a két pull-taszk konzisztensen viselkedik.
   changed_when: true
 
 # A felhő inferencia-végpontnak SOHA nem szabad a publikus interfészen lógnia.

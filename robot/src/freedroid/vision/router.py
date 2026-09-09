@@ -64,8 +64,15 @@ from freedroid.rag.normalize import tokenize
 # csapdától — "milyen" stopszó (`normalize.py`), tehát a kifejezés a tokenizáláson
 # ténylegesen EGYETLEN tokenre (`szinu`) esik össze, nem kettőre.
 #
-# "hányan" — a spec listájának cheap, egyértelmű tagja: nem ütközik parancs- vagy
-# alkotás-kérdéssel (nincs olyan mozgás/alkotás mintázat, ami "hányan"-t tartalmazna).
+# A csupasz "hányan" KIVÉVE (I-review, mérve 2026-09-09): egyetlen token, tehát
+# BÁRMELY számláló lore-kérdésre tüzel, nem csak a jelenlévőkre — mérve:
+#   "Hányan laknak Magyarországon?"      -> True (lore, HAMIS pozitív)
+#   "Hányan képviselik a törzset?"       -> True (lore, HAMIS pozitív)
+# Ez adatvédelmi kérdés, nem csak elvesztegetett idő: egy közönség-képkocka megy
+# fel a felhőbe egy olyan kérdésre, aminek semmi köze a jelenlévőkhöz. A csere:
+# páros kifejezések, hogy a többszavas illesztés védje őket — egyik társtoken
+# (`vagytok`/`vannak`/`vagyunk`) sem stopszó, tehát mindkét token megmarad
+# tövezés után.
 #
 # 🔴 A SPEC LISTÁJÁBÓL KÉT TAGOT SZÁNDÉKOSAN KIHAGYTUNK (I5, végső review) — ne
 # vedd fel őket "a spec szerint":
@@ -87,7 +94,9 @@ _LATAS_KIFEJEZESEK = (
     "láttál",
     "nézz körül",
     "milyen színű",
-    "hányan",
+    "hányan vagytok",
+    "hányan vannak",
+    "hányan vagyunk",
 )
 
 # Tuple of token-tuples: EGY elem = EGY kifejezés tokenjei EGYÜTT kellenek.

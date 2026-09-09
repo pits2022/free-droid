@@ -22,6 +22,7 @@ LATAS = [
     "Mit lát a kamerád?",                      # javítás — MIN_STEM=6 miatt nem tövezhető
     "Mit láttál eddig?",                       # javítás — ua.
     "Hányan vagytok itt?",                     # I5, végső review — a spec listájának tagja
+    "Hányan vannak a teremben?",               # PR #129 review — páros kifejezés
 ]
 
 NEM_LATAS = [
@@ -37,6 +38,8 @@ NEM_LATAS = [
     "Nézz utána, mikor van a következő szünet!",  # javítás — idiomatikus "nézz utána"
     "Kit ismersz még a Teremtőn kívül?",       # javítás — "kit" önmagában nem elég
     "Fordulj az előtted lévő fal felé!",       # I5, végső review — "előtted" NEM került fel
+    "Hányan laknak Magyarországon?",           # PR #129 review — a csupasz "hányan" hamis pozitívja
+    "Hányan képviselik a törzset?",            # PR #129 review — ua.
 ]
 
 
