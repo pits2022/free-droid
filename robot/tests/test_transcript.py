@@ -125,3 +125,13 @@ def test_a_kapu_a_FUGGVENYBEN_van_nem_a_hivoknal(tmp_path, monkeypatch):
     monkeypatch.setenv("FREEDROID_DEBUG", "igen")
     log(Interakcio(hallott="x"), p)
     assert len(olvas(p)) == 1, "debug posztúrában viszont írnia KELL"
+
+
+def test_a_latvany_bekerul_a_naplosorba(tmp_path):
+    """A LEÍRÁS naplózódik — a KÉPKOCKA soha (spec §5: új adatosztály, és a retenció
+    itt nem védelem).
+
+    A `debug_poszturaban` autouse fixture már beállította a FREEDROID_DEBUG-ot."""
+    p = tmp_path / "transcript.jsonl"
+    log(Interakcio(hallott="Mit látsz?", latvany="A room with a table."), p)
+    assert olvas(p)[0]["latvany"] == "A room with a table."
