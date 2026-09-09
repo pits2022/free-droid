@@ -9,9 +9,25 @@ RAG-nál ez mérésből jött (a „Szabi, gyere ide!" mindhárom mintájában e
 <tool> blokk, és a modell képességet hallucinált, amint hosszpadlót kapott). Ugyanez
 áll a látásra: egy parancsra elküldött képkocka 2-3 másodpercet visz el a semmiért.
 
-A kulcsszavak ÉS a kérdés UGYANAZON a tokenizálón mennek át — így a ragozás
-(„látsz"/„látod"/„látni") magától működik, és nem kell kézzel tövezett listát
-karbantartani.
+A kulcsszavak ÉS a kérdés UGYANAZON a tokenizálón mennek át — a közös tokenizáló
+ékezetet/kis-nagybetűt normalizál és stopszót dob. DE: a `normalize.MIN_STEM = 6`
+azt jelenti, hogy a `lát`/`néz` igecsalád SOHA nem kap tövezést (a stemmer csak
+akkor vág, ha a maradék tő ≥ 6 karakter — a "lát"/"néz" 3-4 karakteres alapalak
+erre sosem éri el a küszöböt). Egy agresszívebb tövező ezt megoldaná, de az a
+RAG-index tövezését is módosítaná, amivel ez a tokenizáló KÖZÖS — kicsapná a
+precizitást, amit PR #25 mérve kalibrált. A gyakori ragozott alakokat ezért
+SZÁNDÉKOSAN, egyenként soroljuk fel lent — egy új alak hozzáadása új felszíni
+alak felvételét jelenti, nem egy általánosabb szabályt.
+
+🔴 EGY TOVÁBBI CSAPDA (mérve, javítva): egy kulcsszó-KIFEJEZÉS TÖBB szóból is
+állhat ("nézz körül", "milyen színű"). Ha a kifejezés tokenjeit egyetlen lapos
+halmazba öntjük, a szavaknak nem kell EGYÜTT szerepelniük a kérdésben — ezért
+"Menj körbe a szoba körül!" (parancs) hamis pozitívot adott a `korul` token
+miatt, "Nézz utána, mikor van a szünet!" pedig a `nezz` miatt (idiomatikus
+"nézz utána", nem vizuális). A javítás: `_LATAS_TOKENEK` egy TUPLE OF
+TOKEN-TUPLE-ÖKBŐL áll (egy elem = egy kifejezés tokenjei), és egy kérdés csak
+akkor talál, ha VALAMELYIK kifejezés ÖSSZES tokenje jelen van a kérdésben
+(részhalmaz-illesztés) — nem elég, ha csak egy token metsz.
 """
 
 from __future__ import annotations
@@ -21,19 +37,42 @@ from freedroid.rag.normalize import tokenize
 # SZŰK lista, szándékosan. Bővíteni csak úgy szabad, hogy a
 # `test_a_parancsok_es_alkotas_keresek_NEM` teszt zöld marad: egy hétköznapi tő
 # („van", „ez") bekerülése MINDEN kérdést látás-kérdéssé tenne.
+#
+# A `lát` igecsalád ragozott alakjai (lát, látod, látsz, látja, látni, láttál)
+# KÜLÖN sorok, mert a MIN_STEM=6 miatt a közös tokenizáló ezeket sosem vonja
+# össze — lásd a modul docstringjét.
+#
+# "kit látsz" NINCS itt: a tokenjei ({"kit", "latsz"}) valódi szuperhalmaza a
+# "látsz" kifejezés tokenjének ({"latsz"}) — bármely kérdés, amit a "kit
+# látsz" elkapna, a "látsz" egyetlen tokenje is elkapja (ellenőrizve
+# `tokenize()`-zal), tehát a külön sor felesleges.
+#
+# "nézd meg" SZÁNDÉKOSAN hiányzik: "nézd meg a kijelzőn" nem látás-kérdés, a
+# kifejezés valódi kétértelmű — a kihagyás tudatos, nem hiányosság.
+#
+# "milyen színű" MARAD, bár lore-kérdésre is tüzelhet ("Milyen színű a
+# Yotengrit zászlaja a mondák szerint?") — vállalt kompromisszum: a
+# konferencia-közönségtől jövő "milyen színű" kérdés túlnyomó többsége valódi
+# látás-kérdés, és a brief a "Milyen színű a pólóm?"-ot kötelező pozitívként
+# írja elő.
 _LATAS_KIFEJEZESEK = (
     "látsz",
     "látod",
     "látni",
+    "lát",
+    "látja",
+    "láttál",
     "nézz körül",
-    "kit látsz",
     "milyen színű",
 )
 
-_LATAS_TOKENEK = frozenset(
-    t for kifejezes in _LATAS_KIFEJEZESEK for t in tokenize(kifejezes))
+# Tuple of token-tuples: EGY elem = EGY kifejezés tokenjei EGYÜTT kellenek.
+_LATAS_TOKENEK: tuple[tuple[str, ...], ...] = tuple(
+    tuple(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
 
 
 def kell_e_kep(kerdes: str) -> bool:
     """Igaz, ha a kérdés a kamerakép nélkül nem válaszolható meg becsületesen."""
-    return bool(_LATAS_TOKENEK & set(tokenize(kerdes)))
+    kerdes_tokenek = set(tokenize(kerdes))
+    return any(set(kifejezes_tokenek) <= kerdes_tokenek
+               for kifejezes_tokenek in _LATAS_TOKENEK)

@@ -19,6 +19,8 @@ LATAS = [
     "Nézz körül és mondd el, mi van körülötted!",
     "Kit látsz magad előtt?",
     "Milyen színű a pólóm?",
+    "Mit lát a kamerád?",                      # javítás — MIN_STEM=6 miatt nem tövezhető
+    "Mit láttál eddig?",                       # javítás — ua.
 ]
 
 NEM_LATAS = [
@@ -29,6 +31,10 @@ NEM_LATAS = [
     "Mesélj a Yotengritről!",                  # RAG-kérdés
     "Hogy vagy ma?",                           # köszönés/small talk
     "Állj meg!",                               # PARANCS
+    "Menj körbe a szoba körül!",               # javítás — PARANCS, csak "körül" nem elég
+    "Kit hívjak, ha baj van?",                 # javítás — "kit" önmagában nem elég
+    "Nézz utána, mikor van a következő szünet!",  # javítás — idiomatikus "nézz utána"
+    "Kit ismersz még a Teremtőn kívül?",       # javítás — "kit" önmagában nem elég
 ]
 
 
@@ -56,3 +62,10 @@ def test_a_kulcsszavak_es_a_kerdes_UGYANAZON_a_tokenizalon_megy_at():
     assert kell_e_kep("látsz valamit?") is True
     assert kell_e_kep("Látod ezt?") is True
     assert kell_e_kep("Mit fogsz látni?") is True
+
+
+def test_a_tobbszavas_kifejezes_MINDEN_tokenje_kell():
+    """A mechanizmus önmagában: egy `nézz` + `körül` PÁR kell, nem elég csak az egyik.
+    Ha egy jövőbeli refaktor visszaáll lapos halmazra, ez a teszt hangosan bukjon."""
+    assert kell_e_kep("Nézz be a szomszédba!") is False
+    assert kell_e_kep("Nézz körül a szobában!") is True
