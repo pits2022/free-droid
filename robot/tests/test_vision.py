@@ -103,6 +103,31 @@ def test_az_ures_kep_meg_sem_hiv():
     assert halo.peldanyok == []
 
 
+def test_a_rossz_valasz_alak_SEM_dob():
+    """A modul EGY szabálya: `describe()` SOSEM dob. A válasz-kinyerés (`.get`/
+    `getattr`/`.strip()`) az őrzött ágon KÍVÜL futott — egy nem-sztring `response`
+    mező itt dobott volna, és épp azt a kört vitte volna el, amit a modul védeni
+    hivatott."""
+    halo = Halo(valasz=123)  # a `response` mező NEM sztring
+    v = CloudVLM(settings=beallitas(), client_factory=halo.gyar)
+    assert v.describe(JPEG) is None
+
+
+def test_a_response_nelkuli_objektum_SEM_dob():
+    class UresValasz:
+        """Se `.get`, se `response` attribútum."""
+
+    def gyar(host, timeout):
+        class Kliens:
+            def generate(self, **kw):
+                return UresValasz()
+
+        return Kliens()
+
+    v = CloudVLM(settings=beallitas(), client_factory=gyar)
+    assert v.describe(JPEG) is None
+
+
 def test_az_elerhetetlen_felho_INDOKKAL_ter_vissza(monkeypatch):
     """Az indok azért kell, mert a naplóban a „miért nem látott?" kérdés csak így
     válaszolható meg utólag — ugyanaz az elv, mint a FallbackLLMClient._probe-nál."""

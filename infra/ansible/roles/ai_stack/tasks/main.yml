@@ -119,11 +119,15 @@
 # fenti alap-pullhoz (a cloud Ollama nem a localhoston hallgat, hanem a `ollama_bind`
 # címen — enélkül a pull a saját gépen keresne egy sosem futó szolgáltatást).
 - name: Pull the cloud vision model (VLM)
-  ansible.builtin.command: "ollama pull {{ cloud_vision_model }}"
+  command: ollama pull {{ cloud_vision_model }}
   environment:
     OLLAMA_HOST: "{{ ollama_bind }}"
   when: "'cloud' in group_names and cloud_vision_model != ''"
-  changed_when: false
+  register: ollama_vision_pull
+  until: ollama_vision_pull.rc == 0
+  retries: 5
+  delay: 10
+  changed_when: true
 
 # A felhő inferencia-végpontnak SOHA nem szabad a publikus interfészen lógnia.
 # Ez a 2026-07-29-i mérésen validált invariáns (H200-tests.md, 4. szakasz).

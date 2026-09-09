@@ -69,13 +69,17 @@ class CloudVLM:
                 prompt=self._cfg.prompt,
                 images=[base64.b64encode(jpeg).decode("ascii")],
                 stream=False)
-        except Exception as e:  # noqa: BLE001 — hálózat/HTTP/időtúllépés, mind ugyanaz
+            # A válasz-kinyerés IS az őrzött ágban van: egy nem-sztring `response` mező
+            # (pl. hibás VLM-kliens, ami számot ad vissza) a `.strip()`-en dobna, és a
+            # modul EGYETLEN szabálya, hogy a `describe()` SOSEM dob — a kör akkor is
+            # menjen tovább, ha a hiba a válasz FELDOLGOZÁSÁBAN van, nem a hívásban.
+            szoveg = (valasz.get("response") if isinstance(valasz, dict)
+                      else getattr(valasz, "response", "")) or ""
+            szoveg = szoveg.strip()
+        except Exception as e:  # noqa: BLE001 — hálózat/HTTP/időtúllépés/rossz válasz, mind ugyanaz
             log.warning("a felhős VLM nem válaszolt (%s: %s) — Szabi most nem lát",
                         type(e).__name__, e)
             return None
-        szoveg = (valasz.get("response") if isinstance(valasz, dict)
-                  else getattr(valasz, "response", "")) or ""
-        szoveg = szoveg.strip()
         if not szoveg:
             log.warning("a felhős VLM üres leírást adott — Szabi most nem lát")
             return None
