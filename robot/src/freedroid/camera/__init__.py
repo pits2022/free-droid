@@ -135,6 +135,11 @@ class PanTiltCamera:
         self._pca = PCA9685(self._i2c, address=G.PCA9685_ADDR)
         self._pca.frequency = self._cfg.pwm_frequency_hz
         self._szog = {"pan": 0.0, "tilt": 0.0}
+        # MELYIK tengely áll holtjáték-tisztán a 0-ban. Induláskor EGYIK SEM: az alábbi
+        # `_kiad` kompenzáció NÉLKÜL ad ki 0-t, tehát a fogak abból az irányból
+        # feszülnek, amerről a szervo épp érkezett. Az első `home()` ezért valódi
+        # mozdulat kell legyen — üres halmazzal indulunk, nem `{"pan", "tilt"}`-tel.
+        self._tiszta: set[str] = set()
         for t in (self._pan_t, self._tilt_t):
             self._kiad(t, 0.0)
 
@@ -157,6 +162,7 @@ class PanTiltCamera:
                         "(sáv: %.2f..%.2f ms)", t.nev, cel, vagott, t.min_ms, t.max_ms)
         self._kiad(t, vagott)
         self._szog[t.nev] = vagott
+        self._tiszta.discard(t.nev)     # relatív mozdulat: nem kompenzált
 
     def _beall_holtjatek_nelkul(self, t: Tengely, szog: float) -> None:
         """Egy pozíció felvétele MINDIG ugyanabból az irányból közelítve.
@@ -176,6 +182,13 @@ class PanTiltCamera:
             time.sleep(self._cfg.step_s)
         self._kiad(t, szog)
         self._szog[t.nev] = szog
+        # Ez az EGYETLEN kompenzált pozicionáló, tehát a nyilvántartás is itt él.
+        # A gesztusok `finally`-ága is ide fut be, így egy `nod` UTÁN sem kell
+        # fölösleges `home()`: ha a gesztus 0-ból indult, 0-ba is tér vissza tisztán.
+        if szog == 0.0:
+            self._tiszta.add(t.nev)
+        else:
+            self._tiszta.discard(t.nev)
 
     @staticmethod
     def _elojel(irany: str, parok: dict[str, int], tengely: str) -> int:
@@ -209,7 +222,15 @@ class PanTiltCamera:
         tenné a mozdulatot — a robot azt mondaná, „Felnézek, Teremtőm", és közben egy
         rándulás látszana. Így a gesztus a válasz idejére kint marad (azt látja a
         közönség), és minden kör ISMERT helyzetből indul.
+
+        🔴 AZ ŐR NEM OPTIMALIZÁCIÓ (mérve 2026-09-09, élő menet): a holtjáték-kompenzáció
+        FELTÉTEL NÉLKÜL alálő a hézagnyit (pan 10, tilt 5 fok), majd visszaáll — akkor is,
+        ha a fej MÁR 0/0-ban áll. Kompenzáció nélküli körben (a többségben) ez minden
+        egyes FIGYELJ-nél egy látható rándulás volt, amit „a kamera pásztáz egyet"-ként
+        lehetett látni. A mozdulat csak akkor kell, ha van mit helyrehozni.
         """
+        if self._tiszta == {"pan", "tilt"}:
+            return
         for t in (self._pan_t, self._tilt_t):
             self._beall_holtjatek_nelkul(t, 0.0)
 

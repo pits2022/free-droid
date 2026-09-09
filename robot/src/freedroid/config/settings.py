@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import sys
 from dataclasses import dataclass, field, fields
 from types import MappingProxyType
@@ -37,6 +38,40 @@ from typing import Mapping
 
 # The retriever owns this default: it is bundled standalone (HF Space) without config.
 from freedroid.rag.retriever import DEFAULT_MIN_COVERAGE
+
+
+# Go duration: egy vagy több <szám><mértékegység> tag, előjellel ("30m", "1h30m", "500ms").
+_DURATION = re.compile(r"^-?(\d+(\.\d+)?(ns|us|\u00b5s|ms|s|m|h))+$")
+
+
+def keep_alive_ertek(nyers: str | int) -> int | str:
+    """Az Ollama `keep_alive` mezője SZÁM (másodperc, -1 = amíg a folyamat él) VAGY
+    mértékegységes duration ("30m"). A `"-1"` SZTRING egyik sem.
+
+    🔴 MÉRVE 2026-09-09, élő edge red-team menetben: a `"-1"` sztringre az Ollama
+    `{"error":"time: missing unit in duration \"-1\""}`-et adott, azaz HTTP 400-at
+    ~100 mikroszekundum alatt — MINDEN edge-generálásra. A hiba safe mode-nak
+    látszott („se a felhő, se a helyi elme nem felel"), mert az `/api/tags` próba
+    közben 200-at ad: a kliens az edge-et VÁLASZTJA, aztán a generálás azonnal
+    elhasal. A felhő `"30m"`-je érvényes, ezért az előző, 140 körös felhős menet ezt
+    nem mutatta meg — az érték helyes volt, a TÍPUSA nem.
+
+    Ezért van itt konverzió ÉS validáció: a szám számként megy ki, a rossz érték pedig
+    INDULÁSKOR bukik, nem az első fallback pillanatában.
+    """
+    # A `TypeError` is ide tartozik (PR #128 review): a mező `str`-nek van jelölve, de a
+    # dataclass nem kényszeríti — egy `None` az `int()`-en TypeError-t dobna, a regexen
+    # pedig „expected string or bytes-like object"-et, azaz a `__post_init__`
+    # ValueError-kapuja MELLETT szállna el, mező-név nélkül. A hibaüzenet a diagnózis.
+    try:
+        return int(nyers)
+    except (ValueError, TypeError):
+        pass
+    if not isinstance(nyers, str) or not _DURATION.match(nyers):
+        raise ValueError(
+            f"keep_alive: {nyers!r} se nem szám, se nem mértékegységes duration "
+            f'(pl. "-1", "30m", "1h30m") — az Ollama HTTP 400-at adna rá')
+    return nyers
 
 
 @dataclass(frozen=True)
@@ -93,6 +128,12 @@ class LLMEndpoints:
         for nev in ("probe_timeout_s", "cloud_timeout_s", "edge_timeout_s"):
             if getattr(self, nev) <= 0:
                 raise ValueError(f"{nev} must be > 0")
+        # Induláskor bukjon, ne az első fallbacknél — ld. `keep_alive_ertek`.
+        for nev in ("cloud_keep_alive", "edge_keep_alive"):
+            try:
+                keep_alive_ertek(getattr(self, nev))
+            except ValueError as e:
+                raise ValueError(f"{nev}: {e}") from None
 
 
 @dataclass(frozen=True)

@@ -28,6 +28,7 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING, Callable, Protocol
 
+from freedroid.config.settings import keep_alive_ertek
 from freedroid.health.probe import http_get, jelold_elerhetetlennek, korben_elerhetetlen
 
 if TYPE_CHECKING:
@@ -161,14 +162,20 @@ class FallbackLLMClient:
         # "nem válaszolt" önmagában nem diagnózis.
         raise LLMUnavailable("egyik LLM háttér sem felelt — " + "; ".join(nyom))
 
-    def _keep_alive(self, backend: Backend) -> str:
+    def _keep_alive(self, backend: Backend) -> int | str:
         # Kifejezett leképezés, nem `if CLOUD else EDGE`. Egy jövőbeli harmadik háttér
         # az `else` ágon NÉMÁN az edge értékét kapná — ebben a modulban pont az a
         # szabály, hogy az ismeretlen eset HANGOSAN bukjon (ld. `camera action`,
         # `set_speed`): egy néma, rossz `keep_alive` úgy néz ki, mintha működne, és
         # csak a következő hideg fallbackkor derülne ki. (PR #124 review.)
-        return {Backend.CLOUD: self._cfg.cloud_keep_alive,
-                Backend.EDGE: self._cfg.edge_keep_alive}[backend]
+        #
+        # 🔴 A KONVERZIÓ NEM KOZMETIKA: a `"-1"` SZTRINGRE az Ollama HTTP 400-at ad
+        # ("missing unit in duration"), és mivel a próba közben 200-at, a hiba safe
+        # mode-nak látszik. Mérve 2026-09-09 — ld. `settings.keep_alive_ertek`.
+        # Itt van, és nem a hívási helyeken, mert a `warmup()` és a `_generate_on()`
+        # is ezen megy át: egy szűkület, két hívó.
+        return keep_alive_ertek({Backend.CLOUD: self._cfg.cloud_keep_alive,
+                                 Backend.EDGE: self._cfg.edge_keep_alive}[backend])
 
     def _generate_on(self, backend: Backend, prompt: str) -> str:
         url, model, timeout = self._params(backend)
