@@ -135,6 +135,20 @@ def test_a_kikapcsolt_felhos_stt_NEM_figyelmeztetes(monkeypatch, settings):
     assert checks.check_cloud_stt(kikapcsolva).status is Status.OK
 
 
+def test_vision_unreachable_is_warning_not_critical(monkeypatch, settings):
+    """Ugyanaz a szigor, mint a felhős Ollamánál/STT-nél: a felhő IGÉNY SZERINTI, a
+    robot látás nélkül is teljesen működőképes — egy CRITICAL itt a demó reggelén
+    safe módba vinné a robotot egy OPCIONÁLIS képesség miatt."""
+    import dataclasses
+
+    monkeypatch.setattr(checks, "http_get", lambda url, **k: (0, ""))
+    bekapcsolva = dataclasses.replace(
+        settings, vision=dataclasses.replace(
+            settings.vision, enabled=True, model="hamis-vlm:latest"))
+    r = checks.check_vision(bekapcsolva)
+    assert r.status is Status.WARN and not r.is_critical_failure
+
+
 # --- network: wireguard interface (cloud link → WARNING) -------------------- #
 def test_wireguard_absent_is_warning_with_remediation(monkeypatch, settings):
     monkeypatch.setattr(checks, "path_exists", lambda p: False)

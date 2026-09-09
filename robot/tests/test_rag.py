@@ -447,3 +447,45 @@ def test_a_lista_KEZZEL_gondozott_marad_nem_fuzzy():
     assert len(normalize.SZINONIMAK) < 40, "ez kézi lista; egy robbanás algoritmust sejtet"
     for kulcs, ertek in normalize.SZINONIMAK.items():
         assert isinstance(ertek, tuple) and all(isinstance(t, str) for t in ertek), kulcs
+
+
+# --- [LÁTVÁNY] (2026-09-09) ------------------------------------------------------- #
+
+def test_a_latvany_blokk_bekerul_a_promptba():
+    from freedroid.rag.context import build_prompt
+
+    p = build_prompt("Mit látsz?", [], latvany="A room with a table.")
+    assert "[LÁTVÁNY]" in p and "[/LÁTVÁNY]" in p
+    assert "A room with a table." in p
+    assert "Mit látsz?" in p
+
+
+def test_latvany_nelkul_a_prompt_VALTOZATLAN():
+    """A látás-router dönt: a nem-látás kérdések promptja egy karakterrel sem nő."""
+    from freedroid.rag.context import build_prompt
+
+    assert build_prompt("Ki vagy?", []) == "Ki vagy?"
+    assert build_prompt("Ki vagy?", [], latvany=None) == "Ki vagy?"
+
+
+def test_a_latas_HIANYA_is_kimondott_blokk():
+    """🔴 A néma kihagyás PONTOSAN a mai állapot, amiben a modell konfabulált egy
+    képleírást (2026-08-28: „a kamera szürke, feketéje áthatolhatatlan"). A negatív
+    blokk az EGYETLEN dolog, ami a „nem látok" választ ténnyé teszi a modellnek."""
+    from freedroid.rag.context import LATVANY_NINCS, build_prompt
+
+    p = build_prompt("Mit látsz?", [], latvany=LATVANY_NINCS)
+    assert "[LÁTVÁNY]" in p
+    assert LATVANY_NINCS in p
+
+
+def test_a_latvany_es_a_FORRAS_egyutt_is_jol_all_ossze(retriever):
+    """A két blokk egymástól függetlenül kapcsolható — egy látás-kérdés is találhat
+    forrást."""
+    from freedroid.rag.context import build_prompt
+
+    hits = retriever.retrieve("Yotengrit", top_k=1, min_score=0.0, min_coverage=0.0)
+    assert hits, "a fixture-korpusz nem adott találatot"   # ellenőrizve: 1 találat
+    p = build_prompt("Mit látsz?", hits, latvany="A room.")
+    assert "[FORRÁS]" in p and "[LÁTVÁNY]" in p
+    assert p.index("[LÁTVÁNY]") < p.index("[FORRÁS]"), "az érzékelés a tudás ELŐTT áll"

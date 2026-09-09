@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from freedroid.motion import MotionController
     from freedroid.rag.retriever import Hit
     from freedroid.safety import Watchdog
+    from freedroid.vision import VLMClient
     from freedroid.voice import STT, TTS, VAD
     from freedroid.voice.trigger import TriggerBusz
 
@@ -96,6 +97,7 @@ class Orchestrator:
     def __init__(self, settings: Settings | None = None,
                  motion: MotionController | None = None,
                  camera: CameraController | None = None,
+                 vlm: VLMClient | None = None,
                  watchdog: Watchdog | None = None,
                  llm: LLMClient | None = None,
                  stt: STT | None = None,
@@ -117,6 +119,9 @@ class Orchestrator:
         self.utolso_talalatok: list[Hit] = []
         self.motion = motion or CytronMotionController(settings)
         self.camera = camera if camera is not None else self._kamera(settings)
+        # A látás HIBATŰRŐEN épül, mint a kamera: egy hiányzó VLM nem akadályozhatja meg,
+        # hogy a robot beszéljen és mozogjon.
+        self.vlm = vlm if vlm is not None else self._vlm(settings)
         # A watchdog a `motion`-től olvassa a haladási irányt — EGYETLEN forrás, nem
         # vezet saját nyilvántartást (spec 5. szakasz).
         self.watchdog = watchdog or UltrasonicWatchdog(
@@ -194,6 +199,25 @@ class Orchestrator:
             log.warning("a pan/tilt kamera nem épült meg (%s: %s) — a `camera` "
                         "tool-hívások elmaradnak, a robot egyébként működik",
                         type(e).__name__, e)
+            return None
+
+    @staticmethod
+    def _vlm(settings: Settings | None):
+        """A felhős VLM — hibatűrően.
+
+        A `vision.enabled=False` NEM ad itt `None`-t: a `CloudVLM` objektum akkor is
+        megépül, csak a metódusai (`elerheto()`, `describe()`) viselkednek úgy, mintha
+        nem volna látás — ugyanaz a minta, mint a `motion`/`camera` vezérlőknél, ahol a
+        beállítás a VISELKEDÉST szabja, nem a bekötést. `None` itt kizárólag akkor jön,
+        ha maga a bekötés HASAL EL (pl. egy shadow deploy, ahol a `vision/` modul nem
+        szinkronizálódott) — ezt az `Orchestrator._latvany()` a `LATVANY_NINCS` KIMONDOTT
+        válasszal kezeli, nem néma kihagyással.
+        """
+        try:
+            from freedroid.vision import CloudVLM  # noqa: PLC0415
+            return CloudVLM(settings)
+        except Exception as e:  # noqa: BLE001 — a robot látás nélkül is működik
+            log.warning("a VLM nem épült meg (%s: %s) — Szabi nem lát", type(e).__name__, e)
             return None
 
     def _csipog(self) -> None:
@@ -276,9 +300,10 @@ class Orchestrator:
         hiányzik belőle, az kizárólag a `voice/` (ébresztőszó, STT, TTS).
         """
         hits = self.utolso_talalatok = self._talalatok(kerdes)
-        prompt = build_prompt(kerdes, hits)
+        latvany = self._latvany(kerdes)
+        prompt = build_prompt(kerdes, hits, latvany=latvany)
         esemeny = transcript.Interakcio(
-            hallott=kerdes, prompt=prompt,
+            hallott=kerdes, prompt=prompt, latvany=latvany or "",
             rag_cimek=[h.chunk.title for h in hits])
         # MINDKÉT generálás a try-on BELÜL. A nyelvi őr ugyanis MÁSODSZOR is hívhatja a
         # modellt (ha az első válasz nem magyar), és a háttér a két hívás között is
@@ -402,6 +427,67 @@ class Orchestrator:
                      "(elgépelt/félrehallott név? a BM25 lexikális)",
                      f": {kerdes!r}" if debug_mode() else "")
         return hits
+
+    def _latvany(self, kerdes: str) -> str | None:
+        """A látvány leírása, `LATVANY_NINCS`, vagy `None` (nem látás-kérdés).
+
+        🔴 A HÁROM KIMENET KÜLÖNBSÉGE A LÉNYEG. A `None` azt jelenti, hogy a kérdéshez
+        nem kell kép — a prompt egy karakterrel sem nő. A `LATVANY_NINCS` azt, hogy KELL
+        volna, de nincs — és ezt KI KELL MONDANI: a néma kihagyás pontosan az az állapot,
+        amiben a modell 2026-08-28-án kitalált egy képleírást.
+
+        🔴 A SORREND SZÁNDÉKOS (C1, végső review): ELŐBB a "kell-e kép" döntés, UTÁNA a
+        "van-e vlm" ellenőrzés — fordítva a két különböző állapot ("nem látás-kérdés" és
+        "a látás EL VAN TÖRVE") egyetlen néma `None`-ba folyt volna össze.
+
+        🔴 PR #129 review, JAVÍTVA: a `self.vlm is None` esetet korábban egy shadow
+        deploy-ra fogtuk, ahol a `vision/` modul nem szinkronizálódott — mérve, ez
+        TÉVES. Egy valóban HIÁNYZÓ `freedroid.vision` csomag a lenti KÉT lusta importon
+        (`LATVANY_NINCS`, `kell_e_kep`) bukna el `ModuleNotFoundError`-ral, amik a
+        try-on KÍVÜL állnak — tehát ez a hiba SOHA nem éri el a `self.vlm is None`
+        ágat, ezt a metódust magát vinné el, hangosan (a hívó `ask()` felöli
+        blanket except adja ki a safe-mode mondatot — hangos, de SZÉLESEBB, mint ez a
+        `LATVANY_NINCS` őr). A `self.vlm is None` a valódi, szűkebb eset: a `vision/`
+        csomag rendben importálódott, de a `CloudVLM` PÉLDÁNYOSÍTÁSA hasalt el
+        (`_vlm()` saját try-ja fogja meg, pl. hibás beállítás) — ekkor jön a
+        `LATVANY_NINCS` KIMONDOTT válasz, nem néma kihagyás.
+
+        Nyitott kérdés, SZÁNDÉKOSAN nem eldöntve itt: a két importot a try-on BELÜLRE
+        tenni lefedné a hiányzó-csomag esetet is — de ez valódi tervezési kérdés
+        (egy modulszintű import már a program INDULÁSAKOR elbukna, ami egy shadow
+        deploy-t egyáltalán el sem indítana), nem itt dől el.
+
+        SOSEM dob: egy látás-hiba nem viheti el a kört.
+        """
+        from freedroid.rag.context import LATVANY_NINCS  # noqa: PLC0415
+        from freedroid.vision.router import kell_e_kep  # noqa: PLC0415
+
+        if not kell_e_kep(kerdes):
+            return None
+        if self.vlm is None:
+            return LATVANY_NINCS
+        try:
+            # Az elérhetőség ELŐBB dől el, mint a kameramunka: egy halott alagút mellett
+            # a régi sorrend levágott egy képkockát (0.4-1.6 s), majd a TELJES
+            # `timeout_s`-t (8 s) is kivárta a hívásban — ~9 s néma színpadi csend egy
+            # olyan tényre, amit az STT/LLM próbája a körben már megállapított
+            # (`korben_elerhetetlen` — ld. `health/probe.py`). Az `elerheto()` ezt a
+            # cache-t konzultálja, tehát itt nem vár ki még egy időkorlátot.
+            elerheto, indok = self.vlm.elerheto()
+            if not elerheto:
+                log.info("látás kihagyva — %s", indok)
+                return LATVANY_NINCS
+            from freedroid.camera.frame import grab_jpeg  # noqa: PLC0415
+            from freedroid.config.settings import load_settings  # noqa: PLC0415
+
+            cfg = (self._settings or load_settings()).vision
+            jpeg = grab_jpeg(cfg.device or None, minoseg=cfg.jpeg_quality)
+            if jpeg is None:
+                return LATVANY_NINCS
+            return self.vlm.describe(jpeg) or LATVANY_NINCS
+        except Exception:  # noqa: BLE001 — a látás bukása nem némíthatja el a robotot
+            log.warning("a látás elhasalt — Szabi most nem lát", exc_info=True)
+            return LATVANY_NINCS
 
     def execute(self, valasz: str) -> str:
         """A modell nyers válaszából: végrehajtjuk a tool-okat, visszaadjuk a KIMONDANDÓT.

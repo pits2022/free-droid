@@ -682,6 +682,51 @@ class LedSettings:
 
 
 @dataclass(frozen=True)
+class VisionSettings:
+    """A felhős VLM — Szabi szeme. A kamera OLVASÓ ága (a `camera` beállítások a
+    szervókról szólnak).
+
+    ALAPÉRTELMEZÉSBEN KI VAN KAPCSOLVA, és ez szándékos: a látás a terv UTOLSÓ tétele,
+    a demó nem függ tőle, és egy félkész látás rosszabb, mint a bevallott vakság.
+
+    Az `url` a felhős Ollama — UGYANAZ a szolgáltatás, ami a 8B-t viszi, csak másik
+    modell-taggel (spec §4.1). Külön mező, nem a `llm.cloud_url` újrahasználata, mert a
+    tartalék terv (külön VLM-szerver, másik port) így egy env-felülírással elérhető.
+    """
+
+    enabled: bool = False
+
+    # A modell-tag SZÓ SZERINT az, amit az Ansible húz (`ai_stack/defaults/main.yml`
+    # `cloud_vision_model`). Rövidített névtér 404-et ad — ugyanaz a csapda, mint a
+    # `cloud_model`-nél.
+    url: str = "http://10.0.0.1:11434"
+    model: str = ""
+
+    # A VLM-nek adott utasítás NYELVE MÉG NYITOTT: a WP0 mérés (angol vs. magyar prompt
+    # a leírás nyelvi minőségére) NEM futott le — ez az angol csak egy induló találgatás,
+    # nem mért győztes. A rövidségért van: a 8B úgyis újramondja a saját szavaival, és a
+    # RAG-nál mért nyelv-regresszió (88% -> 44%) egy hosszú angol blokktól félő ok. Env-
+    # felülírható (`FREEDROID_VISION_PROMPT`) — a WP0 eredménye után ide kerül a mérés.
+    prompt: str = "Describe what you see in one or two short sentences."
+
+    timeout_s: float = 8.0
+    probe_timeout_s: float = 0.5      # ld. `LLMEndpoints.probe_timeout_s` — ugyanaz az érv
+    jpeg_quality: int = 85
+    device: str = ""                  # "" = próbálja /dev/video0..3-at (ld. camera/frame.py)
+
+    def __post_init__(self) -> None:
+        if self.enabled and not self.model:
+            raise ValueError(
+                "vision: enabled=True, de a model üres — a látás csendben sosem "
+                "látna semmit. Add meg a TELJES tagot (névtérrel együtt).")
+        for nev in ("timeout_s", "probe_timeout_s"):
+            if getattr(self, nev) <= 0:
+                raise ValueError(f"vision.{nev} must be > 0")
+        if not 1 <= self.jpeg_quality <= 100:
+            raise ValueError("vision.jpeg_quality must be 1..100")
+
+
+@dataclass(frozen=True)
 class Settings:
     llm: LLMEndpoints = field(default_factory=LLMEndpoints)
     safety: SafetySettings = field(default_factory=SafetySettings)
@@ -691,6 +736,7 @@ class Settings:
     camera: CameraSettings = field(default_factory=CameraSettings)
     power: PowerSettings = field(default_factory=PowerSettings)
     led: LedSettings = field(default_factory=LedSettings)
+    vision: VisionSettings = field(default_factory=VisionSettings)
 
 
 # Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt
@@ -704,7 +750,8 @@ _EGYEB_ENV = frozenset({
 _SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
              "MOTION": ("motion", MotionSettings), "VOICE": ("voice", VoiceSettings),
              "RAG": ("rag", RAGSettings), "CAMERA": ("camera", CameraSettings),
-             "POWER": ("power", PowerSettings), "LED": ("led", LedSettings)}
+             "POWER": ("power", PowerSettings), "LED": ("led", LedSettings),
+             "VISION": ("vision", VisionSettings)}
 
 # Csak skalár mezők írhatók felül. A `per_sensor_cm` (Mapping) szándékosan kimarad:
 # egy env-be sűrített dict saját mini-nyelvtant kívánna, és az elgépelése némán
@@ -778,18 +825,25 @@ def _tipusnev(annotacio: object) -> str:
     return str(annotacio)
 
 
+def _ismert_kulcsai(cls, elonev: str) -> set[str]:
+    """A szekció FELISMERT env-kulcsai — a példány MEGÉPÍTÉSE NÉLKÜL. Ez teszi lehetővé,
+    hogy egy alant hibás értékű mező miatt bukó `cls(**kwargs)` ELŐTT is végig tudjunk
+    menni MINDEN szekción a "ismeretlen kulcs" figyelmeztetésekért (ld. `load_settings`)."""
+    return {f"FREEDROID_{elonev}_{f.name.upper()}" for f in fields(cls)
+            if _tipusnev(f.type) in ("str", "int", "float", "bool")}
+
+
 def _szekciobol(cls, elonev: str, kornyezet) -> tuple[object, set[str]]:
     """Egy szekció példánya az env-ből. Visszaadja a FELISMERT kulcsokat is."""
-    kwargs, ismert = {}, set()
+    kwargs = {}
     for f in fields(cls):
         tipus = _tipusnev(f.type)
         if tipus not in ("str", "int", "float", "bool"):
             continue
         kulcs = f"FREEDROID_{elonev}_{f.name.upper()}"
-        ismert.add(kulcs)
         if (nyers := kornyezet.get(kulcs)) is not None:
             kwargs[f.name] = _ertek(kulcs, nyers, tipus)
-    return cls(**kwargs), ismert
+    return cls(**kwargs), _ismert_kulcsai(cls, elonev)
 
 
 def load_settings(env: dict[str, str] | None = None) -> Settings:
@@ -799,10 +853,15 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
     tartományon kívüli env-érték ugyanúgy indulásnál bukik, mint egy rossz default.
     """
     kornyezet = os.environ if env is None else env
-    reszek, ismert = {}, set()
-    for elonev, (mezo, cls) in _SZEKCIOK.items():
-        reszek[mezo], kulcsok = _szekciobol(cls, elonev, kornyezet)
-        ismert |= kulcsok
+
+    # A FELISMERT kulcsok ELŐBB, MÉG A SZEKCIÓK MEGÉPÍTÉSE ELŐTT (I6, végső review): a
+    # régi sorrendben (építés, majd a lenti figyelmeztető ciklus) egy hibás értékű mező
+    # a `cls(**kwargs)`-on ELŐBB dobott, mint ahogy a figyelmeztetés kiíródott volna —
+    # az üzemeltető egy elgépelt `FREEDROID_VISION_*` mögött csak egy csupasz
+    # `ValueError`-t látott, a SAJÁT elgépelt nevét soha.
+    ismert = set()
+    for elonev, (_, cls) in _SZEKCIOK.items():
+        ismert |= _ismert_kulcsai(cls, elonev)
 
     # ELGÉPELT FELÜLÍRÁS: némán az alapértelmezéssel futni pontosan az a csendes
     # sodródás, ami ellen ez a modul készült. Figyelmeztetés, nem hiba: egy ismeretlen
@@ -811,4 +870,11 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
         if kulcs not in ismert and kulcs not in _EGYEB_ENV:
             print(f"settings: ISMERETLEN felülírás, FIGYELMEN KÍVÜL HAGYVA: {kulcs} "
                   f"(elgépelés? az alapértelmezés marad érvényben)", file=sys.stderr)
+
+    # A TÉNYLEGES építés a figyelmeztetések UTÁN — a `ValueError` (rossz érték egy
+    # ISMERT mezőn) továbbra is hangosan bukik, csak már azután, hogy az operátor
+    # látta, melyik változót gépelte el.
+    reszek = {}
+    for elonev, (mezo, cls) in _SZEKCIOK.items():
+        reszek[mezo], _ = _szekciobol(cls, elonev, kornyezet)
     return Settings(**reszek)

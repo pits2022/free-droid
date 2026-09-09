@@ -126,3 +126,12 @@ def test_az_indok_MEGMONDJA_mi_hianyzik():
     (t,) = parse_tools("<tool>turn 180</tool>")
     ok = ervenytelen_ok(t)
     assert ok is not None and "direction" in ok and "turn" in ok
+
+
+def test_a_latas_NEM_hoz_uj_toolt():
+    """Spec §3/3. döntés: a látást az orchestrátor váltja ki, nem a modell. Ha egyszer
+    valaki mégis `<tool>look</tool>`-t vezetne be, az a mért tool-gyengeséget (kitalált
+    argumentumok) a látás-útra is ráhozná — ez a teszt az a kapu, ami erről szól."""
+    assert "look" not in KNOWN_TOOLS
+    assert "see" not in KNOWN_TOOLS
+    assert "vision" not in KNOWN_TOOLS

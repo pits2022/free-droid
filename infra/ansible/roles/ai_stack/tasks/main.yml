@@ -114,6 +114,23 @@
       modell nincs a listában — a pull elhasalt, vagy másik példányhoz ment.
     success_msg: "Ollama OK a(z) {{ ollama_bind }} címen, {{ ollama_model }} betöltve."
 
+# A felhős VLM (spec: docs/superpowers/specs/2026-09-09-vlm-design.md) — MÁSODIK
+# modell-tag ugyanabban a szolgáltatásban, tehát ugyanaz az OLLAMA_HOST kell, mint a
+# fenti alap-pullhoz (a cloud Ollama nem a localhoston hallgat, hanem a `ollama_bind`
+# címen — enélkül a pull a saját gépen keresne egy sosem futó szolgáltatást).
+- name: Pull the cloud vision model (VLM)
+  command: ollama pull {{ cloud_vision_model }}
+  environment:
+    OLLAMA_HOST: "{{ ollama_bind }}"
+  when: ollama_is_cloud and cloud_vision_model != ''
+  register: ollama_vision_pull
+  until: ollama_vision_pull.rc == 0
+  retries: 5
+  delay: 10
+  # `changed_when: true` szándékosan egyezik a fenti "Pull base model" taszkkal —
+  # PR #129 review: nem egyedi hanyagság, a két pull-taszk konzisztensen viselkedik.
+  changed_when: true
+
 # A felhő inferencia-végpontnak SOHA nem szabad a publikus interfészen lógnia.
 # Ez a 2026-07-29-i mérésen validált invariáns (H200-tests.md, 4. szakasz).
 - name: Assert the cloud API is not exposed on the public interface
