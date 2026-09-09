@@ -9,6 +9,7 @@ import pytest
 from freedroid.config import gpio
 from freedroid.config.settings import (
     LLMEndpoints,
+    keep_alive_ertek,
     MotionSettings,
     SafetySettings,
     Settings,
@@ -91,6 +92,31 @@ def test_settings_are_frozen():
     s = LLMEndpoints()
     with pytest.raises(dataclasses.FrozenInstanceError):
         s.model = "other"  # type: ignore[misc]
+
+
+# --- keep_alive: TÍPUS, nem érték (2026-09-09) -------------------------------- #
+
+def test_a_szam_szamkent_jon_vissza_a_duration_sztringkent():
+    """Az Ollama kétféle `keep_alive`-ot fogad: SZÁMOT (másodperc, -1 = amíg a folyamat
+    él) és mértékegységes duration-t. A `"-1"` sztring EGYIK SEM."""
+    assert keep_alive_ertek("-1") == -1 and not isinstance(keep_alive_ertek("-1"), str)
+    assert keep_alive_ertek("0") == 0
+    assert keep_alive_ertek("30m") == "30m"
+    assert keep_alive_ertek("1h30m") == "1h30m"
+    assert keep_alive_ertek("500ms") == "500ms"
+
+
+def test_az_ertelmezhetetlen_keep_alive_INDULASKOR_bukik():
+    """🔴 A 2026-09-09-i élő menet tanulsága. A rossz `keep_alive` NEM látszik rossznak:
+    a próba 200-at ad, a generálás 400-at, és a robot safe módba esik — a naplóban
+    „egyik háttér sem felelt". Ezért induláskor bukik, nem az első fallbacknél."""
+    with pytest.raises(ValueError, match="tegnap"):
+        keep_alive_ertek("tegnap")
+    with pytest.raises(ValueError, match="edge_keep_alive"):
+        LLMEndpoints(edge_keep_alive="egy perc")
+    # ...a `"30"` viszont pont NEM bukik: az érvényes szám (30 másodperc). A csapda
+    # nem a hiányzó mértékegység volt, hanem hogy a szám SZTRINGKÉNT ment ki.
+    assert LLMEndpoints(cloud_keep_alive="30").cloud_keep_alive == "30"
 
 
 # --- env-felülírás (2026-08-18) ---------------------------------------------- #

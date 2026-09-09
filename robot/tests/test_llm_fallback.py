@@ -260,7 +260,7 @@ def test_az_EDGE_modell_bent_marad_a_memoriaban(monkeypatch):
     c = kliens(monkeypatch, halo)
     c.warmup()
     keep = {p.host: p.hivasok[0]["keep_alive"] for p in halo.peldanyok if p.hivasok}
-    assert keep[EDGE] == "-1", keep
+    assert keep[EDGE] == -1, keep          # SZÁM, nem "-1" — ld. lentebb
     assert keep[CLOUD] == "30m", keep
 
 
@@ -272,7 +272,24 @@ def test_a_VALODI_hivas_is_visz_keep_alivet(monkeypatch):
     c = kliens(monkeypatch, halo)
     c.generate("Ki vagy?")
     (hivas,) = halo.peldanyok[0].hivasok
-    assert hivas["keep_alive"] == "-1"
+    assert hivas["keep_alive"] == -1
+
+
+def test_a_keep_alive_SZAMKENT_megy_ki_nem_sztringkent(monkeypatch):
+    """🔴 A 2026-09-09-i élő edge menet hibája. A `"-1"` SZTRINGRE az Ollama
+    `{"error":"time: missing unit in duration \"-1\""}`-et ad, azaz HTTP 400-at
+    ~100 mikroszekundum alatt — MINDEN edge-generálásra. Mivel az `/api/tags` próba
+    közben 200-at ad, a kliens az edge-et VÁLASZTJA, aztán a generálás azonnal
+    elhasal: a robot safe módba esik, és a naplóban ez „egyik háttér sem felelt"-nek
+    látszik, nem hibás kérésnek.
+
+    A típus tehát a tétel, nem az érték: a `-1` szám átmegy, a `"-1"` sztring nem.
+    A mértékegységes duration marad sztring (azt a Go parser érti)."""
+    halo = Halo({CLOUD, EDGE})
+    c = kliens(monkeypatch, halo)
+    assert c._keep_alive(Backend.EDGE) == -1
+    assert not isinstance(c._keep_alive(Backend.EDGE), str)
+    assert c._keep_alive(Backend.CLOUD) == "30m"
 
 
 def test_ismeretlen_hatterre_HANGOSAN_bukik_a_keep_alive(monkeypatch):
