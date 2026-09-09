@@ -196,38 +196,12 @@ def check_kamera_szervo(settings: Settings) -> CheckResult:
               "a fej középen áll — a TÉNYLEGES elfordulást nézd meg szemmel")
 
 
-def _elso_kepkocka(eszkoz: str | None):
-    """Az első eszköz, ami VALÓDI képkockát ad. A `/dev/video*` fele ISP/kodek csomópont
-    (a Pi 5-ön 20+ darab van), azok megnyílnak, de nem adnak képet — a jelenlét tehát
-    nem bizonyíték, a képkocka az."""
-    import cv2
-
-    jeloltek = [eszkoz] if eszkoz else [f"/dev/video{i}" for i in range(4)]
-    for jelolt in jeloltek:
-        cap = cv2.VideoCapture(jelolt)
-        try:
-            if not cap.isOpened():
-                continue
-            # Az első képkockák jellemzően feketék (az automatika még áll be) — egy
-            # rögtön kiolvasott kocka EGYENLETES lenne, azaz a mérőeszköz gyártaná
-            # pont azt a hibát, amit keres.
-            kocka = None
-            for _ in range(8):
-                siker, k = cap.read()
-                if siker:
-                    kocka = k
-                time.sleep(0.05)
-            if kocka is not None:
-                return jelolt, kocka
-        finally:
-            cap.release()
-    return None, None
-
-
 def check_kamera_kep(_: Settings, eszkoz: str | None) -> CheckResult:
     import numpy as np
 
-    hol, kocka = _elso_kepkocka(eszkoz)
+    from freedroid.camera.frame import elso_kepkocka
+
+    hol, kocka = elso_kepkocka(eszkoz)
     if kocka is None:
         return fail("camera_frame", Layer.HARDWARE, Severity.WARNING,
                     "egyetlen /dev/video* sem adott képkockát")
