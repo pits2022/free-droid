@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from freedroid.vision.router import kell_e_kep
+from freedroid.vision.router import _ellenorzi_uresek_ellen, kell_e_kep
 
 LATAS = [
     "Mit látsz?",
@@ -21,6 +21,7 @@ LATAS = [
     "Milyen színű a pólóm?",
     "Mit lát a kamerád?",                      # javítás — MIN_STEM=6 miatt nem tövezhető
     "Mit láttál eddig?",                       # javítás — ua.
+    "Hányan vagytok itt?",                     # I5, végső review — a spec listájának tagja
 ]
 
 NEM_LATAS = [
@@ -35,6 +36,7 @@ NEM_LATAS = [
     "Kit hívjak, ha baj van?",                 # javítás — "kit" önmagában nem elég
     "Nézz utána, mikor van a következő szünet!",  # javítás — idiomatikus "nézz utána"
     "Kit ismersz még a Teremtőn kívül?",       # javítás — "kit" önmagában nem elég
+    "Fordulj az előtted lévő fal felé!",       # I5, végső review — "előtted" NEM került fel
 ]
 
 
@@ -69,3 +71,12 @@ def test_a_tobbszavas_kifejezes_MINDEN_tokenje_kell():
     Ha egy jövőbeli refaktor visszaáll lapos halmazra, ez a teszt hangosan bukjon."""
     assert kell_e_kep("Nézz be a szomszédba!") is False
     assert kell_e_kep("Nézz körül a szobában!") is True
+
+
+def test_az_ures_tokenlistaju_kifejezes_HANGOSAN_bukik():
+    """I7 (végső review): a spec saját "kell-e kép" listája tartalmazza a "mi ez"-t,
+    ami `tokenize()`-on ÜRES listát ad (mindkét szó stopszó) — a részhalmaz-illesztésben
+    ez MINDEN kérdésre illeszkedne (`set() <= barmi`). A guard importkor fusson, tehát a
+    hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen piros teszt."""
+    with pytest.raises(ValueError, match="mi ez"):
+        _ellenorzi_uresek_ellen(("mi ez",), ((),))

@@ -59,8 +59,11 @@ def elso_kepkocka(eszkoz: str | None = None, *,
 
 def grab_jpeg(eszkoz: str | None = None, *, minoseg: int = 85,
               cap_factory: Callable[[str], Any] | None = None) -> bytes | None:
-    """Egy JPEG, vagy `None`. SOSEM dob — a látás hiánya nem hiba, hanem állapot,
-    amit a robot ki tud mondani (ld. a spec §4.5 negatív blokkját)."""
+    """Egy JPEG, vagy `None` — de ez a függvény ÖNMAGÁBAN NEM SOSEM-dobó ígéret: a lenti
+    `import cv2` és az `elso_kepkocka()` hívás is try-on KÍVÜL áll, tehát egy törött
+    OpenCV-telepítés (`ImportError`) innen simán kijut. A tényleges "a látás hibája
+    sosem viszi el a kört" garanciát EGY réteggel feljebb, az `Orchestrator._latvany()`
+    adja (a hívást ott fogja körbe a try/except) — ld. a spec §4.5 negatív blokkját."""
     import cv2  # noqa: PLC0415
 
     hol, kocka = elso_kepkocka(eszkoz, cap_factory=cap_factory)

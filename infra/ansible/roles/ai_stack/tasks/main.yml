@@ -122,7 +122,7 @@
   command: ollama pull {{ cloud_vision_model }}
   environment:
     OLLAMA_HOST: "{{ ollama_bind }}"
-  when: "'cloud' in group_names and cloud_vision_model != ''"
+  when: ollama_is_cloud and cloud_vision_model != ''
   register: ollama_vision_pull
   until: ollama_vision_pull.rc == 0
   retries: 5

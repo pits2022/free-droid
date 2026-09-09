@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from freedroid.motion import MotionController
     from freedroid.rag.retriever import Hit
     from freedroid.safety import Watchdog
+    from freedroid.vision import VLMClient
     from freedroid.voice import STT, TTS, VAD
     from freedroid.voice.trigger import TriggerBusz
 
@@ -96,7 +97,7 @@ class Orchestrator:
     def __init__(self, settings: Settings | None = None,
                  motion: MotionController | None = None,
                  camera: CameraController | None = None,
-                 vlm: object | None = None,
+                 vlm: VLMClient | None = None,
                  watchdog: Watchdog | None = None,
                  llm: LLMClient | None = None,
                  stt: STT | None = None,
@@ -202,7 +203,16 @@ class Orchestrator:
 
     @staticmethod
     def _vlm(settings: Settings | None):
-        """A felhős VLM — hibatűrően. `None`, ha a látás ki van kapcsolva vagy nem épül."""
+        """A felhős VLM — hibatűrően.
+
+        A `vision.enabled=False` NEM ad itt `None`-t: a `CloudVLM` objektum akkor is
+        megépül, csak a metódusai (`elerheto()`, `describe()`) viselkednek úgy, mintha
+        nem volna látás — ugyanaz a minta, mint a `motion`/`camera` vezérlőknél, ahol a
+        beállítás a VISELKEDÉST szabja, nem a bekötést. `None` itt kizárólag akkor jön,
+        ha maga a bekötés HASAL EL (pl. egy shadow deploy, ahol a `vision/` modul nem
+        szinkronizálódott) — ezt az `Orchestrator._latvany()` a `LATVANY_NINCS` KIMONDOTT
+        válasszal kezeli, nem néma kihagyással.
+        """
         try:
             from freedroid.vision import CloudVLM  # noqa: PLC0415
             return CloudVLM(settings)
@@ -426,19 +436,38 @@ class Orchestrator:
         volna, de nincs — és ezt KI KELL MONDANI: a néma kihagyás pontosan az az állapot,
         amiben a modell 2026-08-28-án kitalált egy képleírást.
 
+        🔴 A SORREND SZÁNDÉKOS (C1, végső review): ELŐBB a "kell-e kép" döntés, UTÁNA a
+        "van-e vlm" ellenőrzés — fordítva a két különböző állapot ("nem látás-kérdés" és
+        "a látás EL VAN TÖRVE") egyetlen néma `None`-ba folyt volna össze. A `self.vlm is
+        None` egy realisztikus eset: a `_vlm()` hibatűrő, tehát egy shadow deploy, ahol a
+        `vision/` modul nem szinkronizálódott, pont ezt adja — és egy "Mit látsz?" ekkor
+        némán, kép nélkül futott volna a modellhez, szabadon konfabulálva újra.
+
         SOSEM dob: egy látás-hiba nem viheti el a kört.
         """
         from freedroid.rag.context import LATVANY_NINCS  # noqa: PLC0415
         from freedroid.vision.router import kell_e_kep  # noqa: PLC0415
 
-        if self.vlm is None or not kell_e_kep(kerdes):
+        if not kell_e_kep(kerdes):
             return None
+        if self.vlm is None:
+            return LATVANY_NINCS
         try:
+            # Az elérhetőség ELŐBB dől el, mint a kameramunka: egy halott alagút mellett
+            # a régi sorrend levágott egy képkockát (0.4-1.6 s), majd a TELJES
+            # `timeout_s`-t (8 s) is kivárta a hívásban — ~9 s néma színpadi csend egy
+            # olyan tényre, amit az STT/LLM próbája a körben már megállapított
+            # (`korben_elerhetetlen` — ld. `health/probe.py`). Az `elerheto()` ezt a
+            # cache-t konzultálja, tehát itt nem vár ki még egy időkorlátot.
+            elerheto, indok = self.vlm.elerheto()
+            if not elerheto:
+                log.info("látás kihagyva — %s", indok)
+                return LATVANY_NINCS
             from freedroid.camera.frame import grab_jpeg  # noqa: PLC0415
             from freedroid.config.settings import load_settings  # noqa: PLC0415
 
-            minoseg = (self._settings or load_settings()).vision.jpeg_quality
-            jpeg = grab_jpeg(minoseg=minoseg)
+            cfg = (self._settings or load_settings()).vision
+            jpeg = grab_jpeg(cfg.device or None, minoseg=cfg.jpeg_quality)
             if jpeg is None:
                 return LATVANY_NINCS
             return self.vlm.describe(jpeg) or LATVANY_NINCS

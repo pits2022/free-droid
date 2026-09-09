@@ -42,6 +42,12 @@ from freedroid.rag.normalize import tokenize
 # KÜLÖN sorok, mert a MIN_STEM=6 miatt a közös tokenizáló ezeket sosem vonja
 # össze — lásd a modul docstringjét.
 #
+# A CSUPASZ "lát" ugyanezért tüzel lore-kérdésre is, pl. "Mit jelent, hogy lát a
+# lélek?" — ugyanaz a vállalt kompromisszum, mint a "milyen színű"-nél lent, csak
+# itt a leírás NEM csak LATENCIA kérdés: egy képkocka ekkor egy NEM látás-kérdésre
+# is elhagyja az eszközt (felmegy a felhős VLM-hez), ami adatvédelmi dimenzió, nem
+# csak elvesztegetett 2-3 másodperc.
+#
 # "kit látsz" NINCS itt: a tokenjei ({"kit", "latsz"}) valódi szuperhalmaza a
 # "látsz" kifejezés tokenjének ({"latsz"}) — bármely kérdés, amit a "kit
 # látsz" elkapna, a "látsz" egyetlen tokenje is elkapja (ellenőrizve
@@ -54,7 +60,24 @@ from freedroid.rag.normalize import tokenize
 # Yotengrit zászlaja a mondák szerint?") — vállalt kompromisszum: a
 # konferencia-közönségtől jövő "milyen színű" kérdés túlnyomó többsége valódi
 # látás-kérdés, és a brief a "Milyen színű a pólóm?"-ot kötelező pozitívként
-# írja elő.
+# írja elő. FIGYELEM: a "milyen" itt NEM védi a kifejezést a fenti egy-tokenes
+# csapdától — "milyen" stopszó (`normalize.py`), tehát a kifejezés a tokenizáláson
+# ténylegesen EGYETLEN tokenre (`szinu`) esik össze, nem kettőre.
+#
+# "hányan" — a spec listájának cheap, egyértelmű tagja: nem ütközik parancs- vagy
+# alkotás-kérdéssel (nincs olyan mozgás/alkotás mintázat, ami "hányan"-t tartalmazna).
+#
+# 🔴 A SPEC LISTÁJÁBÓL KÉT TAGOT SZÁNDÉKOSAN KIHAGYTUNK (I5, végső review) — ne
+# vedd fel őket "a spec szerint":
+#   - "ki van előtted" / "mi van előtted": az "előtted" ÖNMAGÁBAN egyetlen tokenre
+#     tövez (`elotted`), és ez a token szuperhalmazként illeszkedne a "Fordulj az
+#     előtted lévő fal felé!" PARANCSRA is — pont az az osztály, amit a router
+#     kizárni hivatott (ld. a modul tetején, RAG-mérésre hivatkozva).
+#   - "mi ez": a `tokenize()` ÜRES listát ad rá (mindkét szó stopszó) — a
+#     részhalmaz-illesztésben egy üres tokenhalmaz MINDEN kérdésre illeszkedik
+#     (`set() <= barmi`), tehát ez a kifejezés MINDEN kérdést látás-kérdésnek
+#     jelölne. Lásd `_ellenorzi_uresek_ellen()` lent — ez a csapda importkor
+#     hangosan bukik, nem csendben.
 _LATAS_KIFEJEZESEK = (
     "látsz",
     "látod",
@@ -64,11 +87,31 @@ _LATAS_KIFEJEZESEK = (
     "láttál",
     "nézz körül",
     "milyen színű",
+    "hányan",
 )
 
 # Tuple of token-tuples: EGY elem = EGY kifejezés tokenjei EGYÜTT kellenek.
 _LATAS_TOKENEK: tuple[tuple[str, ...], ...] = tuple(
     tuple(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
+
+
+def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
+                            tokenek: tuple[tuple[str, ...], ...]) -> None:
+    """I7 (végső review): a részhalmaz-illesztésben egy ÜRES tokenlistájú kifejezés
+    (`set() <= barmi`) MINDEN kérdésre illeszkedne — azaz minden kérdés képet kérne.
+
+    Ma egyik kifejezés sem üres — de a spec saját "kell-e kép" listája TARTALMAZZA a
+    "mi ez"-t, ami `tokenize()`-on üresre esik (mindkét szó stopszó), és aki "a spec
+    szerint" pótolja a hiányzó tételeket, pont ebbe fut bele. Ez a hívás importkor fut,
+    tehát a hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen piros teszt."""
+    for kifejezes, tok in zip(kifejezesek, tokenek):
+        if not tok:
+            raise ValueError(
+                f"vision.router: {kifejezes!r} üres tokenlistára tövez — a "
+                f"részhalmaz-illesztésben ez MINDEN kérdést látás-kérdésnek jelölné")
+
+
+_ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _LATAS_TOKENEK)
 
 
 def kell_e_kep(kerdes: str) -> bool:

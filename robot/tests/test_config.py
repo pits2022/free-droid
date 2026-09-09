@@ -187,6 +187,20 @@ def test_a_tobbi_modul_env_valtozoira_NEM_szol(capsys):
     assert capsys.readouterr().err == ""
 
 
+def test_elgepelt_kulcs_FIGYELMEZTET_MEG_EGY_MASIK_SZEKCIO_BUKASA_MELLETT_IS(capsys):
+    """I6 (végső review): a régi sorrendben (szekciók építése, majd a figyelmeztető
+    ciklus) egy MÁSIK szekció rossz értéke a `cls(**kwargs)`-on ELŐBB dobott, mint
+    ahogy a lenti figyelmeztetés kiíródott volna — az üzemeltető egy elgépelt
+    `FREEDROID_VISION_*` mögött csak egy csupasz `ValueError`-t látott, a saját
+    elgépelt nevét soha. A figyelmeztetésnek a kivétel ELLENÉRE is meg kell jelennie."""
+    with pytest.raises(ValueError, match="nem értelmezhető"):
+        load_settings({"FREEDROID_VISION_MODLE": "hamis-vlm:latest",  # elgépelt kulcs
+                       "FREEDROID_MOTION_DEG_PER_S_AT_FULL": "gyorsan"})  # más szekció bukik
+    hiba = capsys.readouterr().err
+    assert "ISMERETLEN felülírás" in hiba
+    assert "FREEDROID_VISION_MODLE" in hiba
+
+
 def test_a_felismert_kulcsok_keszlete_ROGZITETT():
     """PR #88 review: a mezőket az ANNOTÁCIÓ alapján ismerjük fel, és ez elromolhat.
 

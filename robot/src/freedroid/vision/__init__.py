@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Protocol
 
 from freedroid.health.probe import http_get, jelold_elerhetetlennek, korben_elerhetetlen
 
@@ -23,6 +23,15 @@ if TYPE_CHECKING:
     from freedroid.config.settings import Settings, VisionSettings
 
 log = logging.getLogger(__name__)
+
+
+class VLMClient(Protocol):
+    """A felhős VLM szűk felülete — ezt várja az `Orchestrator(vlm=...)` paramétere.
+    Mirrors `CameraController`/`MotionController` (`camera/__init__.py`,
+    `motion/__init__.py`): egy Protocol a teszt-dublőrökhöz is, nem csak a valódihoz."""
+
+    def elerheto(self) -> tuple[bool, str]: ...
+    def describe(self, jpeg: bytes) -> str | None: ...
 
 
 def _ollama_client(host: str, timeout: float):
@@ -77,13 +86,25 @@ class CloudVLM:
                       else getattr(valasz, "response", "")) or ""
             szoveg = szoveg.strip()
         except Exception as e:  # noqa: BLE001 — hálózat/HTTP/időtúllépés/rossz válasz, mind ugyanaz
+            # A KAPCSOLÓDÁSI hibát (OSError — ide tartozik a `TimeoutError` is) a
+            # `korben_elerhetetlen` cache-be is beírjuk: eddig a `describe()` MEGTUDTA,
+            # hogy a host halott, de nem szólt senkinek — a kör hátralévő része (egy
+            # esetleges edge-STT/LLM próba) ugyanazt az időkorlátot várta volna ki
+            # újra. Egy rossz VÁLASZALAK (pl. `AttributeError` a `.strip()`-en) NEM
+            # kapcsolódási hiba — a host felelt, csak rosszul —, ezért az NEM jelöl.
+            if isinstance(e, OSError):
+                jelold_elerhetetlennek(self._cfg.url)
             log.warning("a felhős VLM nem válaszolt (%s: %s) — Szabi most nem lát",
                         type(e).__name__, e)
             return None
         if not szoveg:
             log.warning("a felhős VLM üres leírást adott — Szabi most nem lát")
             return None
-        log.info("látvány: %s", szoveg)
+        # A HOSSZ mehet INFO-ra, a SZÖVEG nem: ez egy hallgató LEÍRÁSA, a journald pedig
+        # perzisztens és a demó előtti törlés (`find /var/log/freedroid -delete`) nem éri
+        # el — ugyanaz a kapu, mint az STT-átiratnál (`orchestrator/__init__.py`).
+        log.info("látvány kész: %d karakter", len(szoveg))
+        log.debug("látvány: %r", szoveg)
         return szoveg
 
 

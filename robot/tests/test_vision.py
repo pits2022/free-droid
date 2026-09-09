@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import base64
 import dataclasses
+import logging
 
 import pytest
 
 from freedroid.config.settings import Settings, VisionSettings
+from freedroid.health.probe import korben_elerhetetlen
 from freedroid.vision import CloudVLM
 
 URL = "http://10.0.0.1:11434"
@@ -53,12 +55,9 @@ def beallitas(**kw) -> Settings:
 
 
 def kliens(monkeypatch, halo: Halo, **kw) -> CloudVLM:
-    """A `http_get` a `vision` modul NÉVTERÉBEN cserélendő (ott importáltuk), a
-    `uj_kor()` pedig azért kell, mert a kör-hatókörű elérhetetlen-cache MODUL-szintű:
-    egy előző teszt által halottnak jelölt host átszivárogna ebbe a tesztbe."""
-    from freedroid.health import probe
-
-    probe.uj_kor()
+    """A `http_get` a `vision` modul NÉVTERÉBEN cserélendő (ott importáltuk). A
+    kör-hatókörű elérhetetlen-cache friss állapotát a `conftest.py` autouse
+    `_friss_kor` fixture-je adja minden teszt köré — nincs itt külön `uj_kor()`."""
     monkeypatch.setattr("freedroid.vision.http_get", halo.http_get)
     return CloudVLM(settings=beallitas(**kw), client_factory=halo.gyar)
 
@@ -142,3 +141,44 @@ def test_az_enabled_ures_modellel_INDULASKOR_bukik():
     """Egy bekapcsolt, de modell nélküli látás CSENDBEN sosem látna semmit."""
     with pytest.raises(ValueError, match="vision_model|model"):
         VisionSettings(enabled=True, model="")
+
+
+def test_a_kapcsolodasi_hiba_a_hostot_ELERHETETLENNEK_jeloli():
+    """I1 (végső review): eddig a `describe()` MEGTUDTA a kapcsolódási hibából, hogy a
+    host halott, de nem szólt a `korben_elerhetetlen` cache-nek — a kör hátralévő
+    részében (STT/LLM próba ugyanarra a hostra) ez feleslegesen kivárt volna még egy
+    időkorlátot."""
+    halo = Halo(hiba=ConnectionError("boom"))
+    v = CloudVLM(settings=beallitas(), client_factory=halo.gyar)
+    assert v.describe(JPEG) is None
+    assert korben_elerhetetlen(URL) is True
+
+
+def test_a_valaszalak_hibaja_NEM_jeloli_elerhetetlennek():
+    """Ellenpróba: egy rossz VÁLASZALAK (a host FELELT, csak érvénytelenül) nem
+    kapcsolódási hiba, tehát NEM jelölheti halottnak a hostot — az `AttributeError`
+    a `.strip()`-en nem `OSError`."""
+    halo = Halo(valasz=123)  # a `response` mező NEM sztring -> `.strip()` AttributeError
+    v = CloudVLM(settings=beallitas(), client_factory=halo.gyar)
+    assert v.describe(JPEG) is None
+    assert korben_elerhetetlen(URL) is False
+
+
+def test_a_latvany_SZOVEGE_csak_DEBUG_szinten_megy(caplog):
+    """I2 (végső review): a leírás SZÖVEGE (akár egy hallgató arcáról) korábban INFO
+    szinten ment a journald-ba — az PERZISZTENS, és a demó előtti törlés
+    (`find /var/log/freedroid -delete`) nem éri el. A hossz maradhat INFO-n
+    (demó-posztúra jelzés), a szöveg csak DEBUG-on látszódjon."""
+    halo = Halo(valasz="Egy konkrét arc leírása.")
+    v = CloudVLM(settings=beallitas(), client_factory=halo.gyar)
+
+    caplog.set_level(logging.INFO, logger="freedroid.vision")
+    v.describe(JPEG)
+    info_uzenetek = " ".join(r.getMessage() for r in caplog.records)
+    assert "Egy konkrét arc leírása" not in info_uzenetek
+
+    caplog.clear()
+    caplog.set_level(logging.DEBUG, logger="freedroid.vision")
+    v.describe(JPEG)
+    debug_uzenetek = " ".join(r.getMessage() for r in caplog.records)
+    assert "Egy konkrét arc leírása" in debug_uzenetek
