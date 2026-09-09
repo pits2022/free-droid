@@ -24,7 +24,7 @@
 | **Mozgás** | ✅ Kalibrálva teli és merült akkun; **feszültség-kompenzáció** a menetidőben. |
 | **Biztonság** | ✅ Stop-küszöb **30 cm**; a `fast` fokozat fékútja élesben **19,4 cm** hézagot hagyott. Akku-őr: 10,2 V figyelmeztetés (csipogó is), 9,6 V alatt mozgás-tiltás. |
 | **Felhő** | ⚙️ On-demand, `terraform apply` percek alatt. GPU-választás élő API-ból (`gpu_pick.py`) — nincs beégetett alapértelmezés. |
-| **Nyitva** | Red-team kör a v12-n · **akku-mérő kalibráció: a szoftver 0,2 V-tal magasabbat mond a csipogónál (2026-09-08)** · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
+| **Nyitva** | Red-team kör a v12-n · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
 
 **Dátumok:** az előadás **2026. okt. 21.** (Hacktivity, Lurdy, 40 perc); a projekt belső
 határideje **okt. 15.** — egy hét szándékos ráhagyás. A doksik az okt. 15-höz mérnek.
@@ -479,6 +479,23 @@ Csak két 3,3 V-os pin van, tehát a három VCC-t össze kell fűzni.
     a `freedroid-health` is jelenti. Egy hiányzó/olvashatatlan mérő csak WARNING — a demó
     mérő nélkül is megy, egy mélykisütött LiPo viszont nem jön vissza.
 *   **Szoftver:** `robot/src/freedroid/power.py` — stdlib, `ioctl(I2C_SLAVE)`, nincs smbus.
+*   ✅ **A KALIBRÁCIÓ HELYES, a gyári `divider = 3.91` marad — LEZÁRVA 2026-09-08.**
+    Napközben úgy tűnt, hogy a szoftver 0,2 V-tal magasabbat mond a csipogónál, és
+    javasoltunk egy `FREEDROID_POWER_DIVIDER=3.82` felülírást. **Ez tévedés volt, és a
+    felülírás maga okozta a következő „a szoftver alámér" észlelést** — az esti mérések
+    már azzal készültek. Négy pont, terheletlenül, a GYÁRI osztóval:
+
+    | szoftver | csipogó | műszer | eltérés a műszertől |
+    | ---: | ---: | ---: | ---: |
+    | 11,89 | 11,90 | 12,00 | −0,11 |
+    | 11,49 | 11,40 | — | (+0,09 a csipogóhoz) |
+    | 11,36 | 11,30 | 11,42 | **−0,06** |
+
+    Az eltérés előjelet vált és ±0,1 V-on belül szór — ami pontosan a csipogó és a
+    műszer kijelzési felbontása. Nincs szisztematikus hiba. **Tanulság a módszerre:** a
+    napközbeni +0,23 V-os „eltérés" NEM EGYIDEJŰ leolvasásokból jött, terhelés mellett;
+    egy sagelő akkun három műszer három időpontban háromfélét mond. Kalibrációt csak
+    egyidejű, terheletlen mérésből szabad megítélni.
 
 ### 6. LED ring
 *   **Alkatrész:** WS2812 5050 RGB NeoPixel ring, 5V. (Összeforrasztva 2026-09-03, a GPIO-ra még nincs rádugva; a LED-szám: 24 → `FREEDROID_LED_COUNT`.)
@@ -1235,6 +1252,39 @@ szerepelnek. **Egy pontja téves volt, KETTŐ áll — és mindkettő az előad�
 > vagy váratlan hibára. Nem ellentmondás, hanem puffer — és a doksikban azért áll a
 > korábbi dátum, hogy az ütemterv arra feszüljön. **A puffert ne éld fel előre.**
 
+#### 5.0b AZ ELŐADÁS VÁZA — a Teremtő, 2026-09-08 (40 perc + Q&A)
+
+| idő | blokk | megjegyzés |
+| :--- | :--- | :--- |
+| 0:00–0:02 | **Hideg nyitás — demó #1** | pre-flight gate-tel (ld. lent) |
+| 0:02–0:09 | Fenyegetésmodell | 7 perc |
+| 0:09–0:14 | **Ellátási lánc, nem adatvédelem** | 5 perc |
+| 0:14–0:20 | Amit építettem (hardver, hibrid, 4 tulajdonság) | |
+| 0:20–0:25 | **Fine-tuning: a három réteg, a dataset a lever, a v13/v14 bukás** | ÚJ — az absztrakt ígérete |
+| 0:25–0:29 | **Demó #2 — failover + a narratíva-csapda válasza** | egyben |
+| 0:29–0:33 | Mit nem tud — ismert hibamódok, előre kimondva | |
+| 0:33–0:35 | Zárás: az egy gondolat + „Szabi a folyosón lesz ebédig" | ÚJ |
+| 0:35–0:40 | Q&A — ráadás, elhagyható | demó #3 |
+
+**Amit a mai (2026-09-08) mérések a blokkokhoz adnak — ezek a KÉSZ anyagok:**
+
+*   **0:20–0:25 (fine-tuning):** a v13 (`lora_r` 16) mérhetően rontott, a v14 a persona-lapon
+    88% → 44%-ra esett nyelv-regresszióval. A demó-modell ezért **v12 + RAG, lefagyasztva**.
+    Ez a blokk igazi sztorija: nem az, hogy sikerült, hanem hogy **megmértük és visszaléptünk**.
+*   **0:25–0:29 (failover):** valódi incidens, ugyanaznap. A `terraform destroy` menet közben
+    elvitte a felhőt; az edge HIDEGEN indult, 90 s-nál időtúllépés → safe mode → „Most nem
+    tudok gondolkodni, Teremtőm." 80 másodperccel később ugyanaz az edge hibátlanul felelt.
+    **Javítva** (mindkét háttér bemelegítve, az edge bent marad) — a demón tehát a JAVÍTOTT
+    viselkedés megy, de a történet elmondható.
+*   **0:25–0:29 (narratíva-csapda):** „a demó a HANGOT is a felhőbe küldi" — a Teremtő tegye
+    fel a kérdést maga (§5.0), és a válasz a KÓDRÉTEG legyen: watchdog · `scan_wifi` · `guard`
+    · `safe_mode`. Auditálható kód, nem súlyok.
+*   **0:29–0:33 (mit nem tud):** mérve, nem sejtve — a RAG a `Jin-Jang`/`Yin-Yang` írásvariánson
+    0 találatot adott; a 3B „Balra fordulok"-ot mond és `turn right 90`-et ad ki; a kamera
+    aktuátor, nincs látás. Mind a napló alapján, előre kimondva.
+*   **Számok a nyitáshoz:** 30 cm-es megállás (élesben 19,4 cm hézag, 193 ms reakció) · a
+    stop-döntést NEM az LLM hozza · a modell, a prompt és a korpusz publikus.
+
 #### 5.1 Előadás elkészítése — 2026. szept. 1. → szept. 30. · **felelős: a Teremtő**
 
 Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se a specben, se a
@@ -1360,7 +1410,16 @@ csatlakozik"), tehát a kimondott SSID-knek IGAZNAK kell lenniük.
     **Ha belefér az időbe: VLM a felhőben. Ha nem: nincs kód — dataset/prompt, és Szabinak
     nincs szeme.** 📌 **A Teremtő 2026-09-08: „a kamera használata szuper feature lenne és
     szerintem lesz még rá időnk"** — a tétel tehát él, de továbbra is a terv VÉGÉN áll, és
-    semmi más nem függ tőle. Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
+    semmi más nem függ tőle.
+
+    📌 **A Teremtő pontosítása 2026-09-08 este:** ha a VLM-hez fine-tune kell, akkor abba a
+    körbe **az eddigi összes tapasztalatot** be kell építeni, nem csak a VLM-specifikusakat —
+    „hátha lesz egy szuper modell belőle". Ez konkrét lista, nem jószándék: a v13 (`lora_r` 16)
+    mérhető rontása · a v14 nyelv-regressziója (88% → 44%) · a tool-argumentumok gyengesége
+    (kitalált `action` értékek, hiányzó irány) · a kimondott szöveg és a tool ELLENTMONDÁSA
+    („Balra fordulok" + `turn right 90`) · a hosszú-koherencia tétel, ami a 8B-n három körön
+    át nem mozdult. ⚠️ És a kikötés is áll: a **v12 marad a demó-modell**, amíg egy új kör az
+    ÉLŐ evalon mérhetően jobb nem lesz. Ez a projekt-terv UTOLSÓ tétele; semmi más nem függ tőle.
 
     **A mai állapot, mérve:** a kamera **csak aktuátor**. A `PanTiltCamera` `pan`/`tilt`/
     gesztust (`face_speaker`, `nod`, `scan`) tud, és **soha nem olvas képkockát**; a
