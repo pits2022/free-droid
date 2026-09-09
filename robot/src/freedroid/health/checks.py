@@ -89,6 +89,29 @@ def check_cloud_stt(settings: Settings) -> CheckResult:
     return warn(name, Layer.NETWORK, "cloud STT unreachable — using the local whisper")
 
 
+def check_vision(settings: Settings) -> CheckResult:
+    """A felhős VLM — WARNING, mint a többi felhős check.
+
+    A felhő IGÉNY SZERINTI, és a robot látás nélkül teljesen működőképes: egy CRITICAL
+    itt a demó reggelén safe módba vinné a robotot egy OPCIONÁLIS képesség miatt.
+    Amit ez a check ér: a modell-tag KÉT helyen él (`VisionSettings.model` és az
+    Ansible `cloud_vision_model`), és ha a kettő elcsúszik, az csendes vakságként
+    jelentkezne — a robot menne tovább, csak sosem látna.
+    """
+    name = "vision"
+    if not settings.vision.enabled:
+        return ok(name, Layer.NETWORK, detail="a látás ki van kapcsolva")
+    code, torzs = http_get(f"{settings.vision.url}/api/tags",
+                           timeout=settings.vision.probe_timeout_s)
+    if code != 200:
+        return warn(name, Layer.NETWORK, "a VLM végpontja nem elérhető — Szabi nem lát")
+    if settings.vision.model not in torzs:
+        return warn(name, Layer.NETWORK,
+                    f"a(z) '{settings.vision.model}' VLM nincs betöltve — "
+                    f"`ollama pull {settings.vision.model}`")
+    return ok(name, Layer.NETWORK, detail="VLM reachable")
+
+
 # --------------------------------------------------------------------------- #
 # Hardware layer (Pi-only; SKIPPED off-Pi)
 # --------------------------------------------------------------------------- #
@@ -272,6 +295,7 @@ ALL_CHECKS: tuple[Check, ...] = (
     check_wireguard_interface,
     check_cloud_ollama,
     check_cloud_stt,
+    check_vision,
     check_gpio_chip,
     check_i2c_bus,
     check_spi_bus,
