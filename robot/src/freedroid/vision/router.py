@@ -211,7 +211,7 @@ class Station:
 # sora kell (PR #137 review 5: a „Nézzél körbe!" és a „Pásztázd körbe!" kimaradt).
 _LOOK_AROUND_PHRASES = ("nézz körül", "nézz körbe", "nézz szét", "nézzél körül",
                         "nézzél körbe", "nézzél szét", "pásztázz körbe", "pásztázd körbe",
-                        "pásztázz körül")
+                        "pásztázz körül", "pásztázd körül")
 _LOOK_AROUND_TOKEN_SETS = _build_token_sets(_LOOK_AROUND_PHRASES, "körbenézés")
 
 # 🔴 Az irány a stopszó-szűrés ELŐTTI szavakon dől el: a „fel" és a „le" STOPSZÓ, a
