@@ -732,14 +732,30 @@ class VisionSettings:
     jpeg_quality: int = 85
     device: str = ""                  # "" = próbálja /dev/video0..3-at (ld. camera/frame.py)
 
+    # A NÉZÉSI TERV pózai („nézz körül" / „nézz fel, mit látsz") — spec 2026-09-15-nezz-korul.
+    # A kamera széles látószögű, a ±45 fok három képpel lefedi a teret (a Teremtő). Mért
+    # tartomány: pan +56,4 / -78,9 fok, tilt ±53,6 fok — mindegyik belefér.
+    look_side_deg: float = 45.0
+    look_up_deg: float = 30.0
+    look_down_deg: float = 30.0
+    # Pózváltás UTÁN, a kép ELŐTT: a szervó beállása + a rázkódás lecsengése. Hardver-
+    # hangoló; csak valódi mozdulás után várunk (`move_to()` visszatérési értéke).
+    settle_s: float = 0.5
+
     def __post_init__(self) -> None:
         if self.enabled and not self.model:
             raise ValueError(
                 "vision: enabled=True, de a model üres — a látás csendben sosem "
                 "látna semmit. Add meg a TELJES tagot (névtérrel együtt).")
-        for nev in ("timeout_s", "probe_timeout_s", "warmup_timeout_s", "num_ctx"):
+        for nev in ("timeout_s", "probe_timeout_s", "warmup_timeout_s", "num_ctx",
+                    "look_side_deg", "look_up_deg", "look_down_deg", "settle_s"):
             if getattr(self, nev) <= 0:
                 raise ValueError(f"vision.{nev} must be > 0")
+        for nev in ("look_side_deg", "look_up_deg", "look_down_deg"):
+            if getattr(self, nev) > 90.0:
+                raise ValueError(f"vision.{nev} must be <= 90")
+        if self.settle_s > 3.0:
+            raise ValueError("vision.settle_s must be <= 3.0")
         try:
             keep_alive_ertek(self.keep_alive)
         except ValueError as e:
