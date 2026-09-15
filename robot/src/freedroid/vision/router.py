@@ -24,15 +24,18 @@ alak felvételét jelenti, nem egy általánosabb szabályt.
 halmazba öntjük, a szavaknak nem kell EGYÜTT szerepelniük a kérdésben — ezért
 "Menj körbe a szoba körül!" (parancs) hamis pozitívot adott a `korul` token
 miatt, "Nézz utána, mikor van a szünet!" pedig a `nezz` miatt (idiomatikus
-"nézz utána", nem vizuális). A javítás: `_LATAS_TOKENEK` egy TUPLE OF
-TOKEN-TUPLE-ÖKBŐL áll (egy elem = egy kifejezés tokenjei), és egy kérdés csak
+"nézz utána", nem vizuális). A javítás: `_VISION_TOKEN_SETS` kifejezésenként
+EGY token-halmazból áll (egy elem = egy kifejezés tokenjei), és egy kérdés csak
 akkor talál, ha VALAMELYIK kifejezés ÖSSZES tokenje jelen van a kérdésben
 (részhalmaz-illesztés) — nem elég, ha csak egy token metsz.
 """
 
 from __future__ import annotations
 
-from freedroid.rag.normalize import tokenize
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
+
+from freedroid.rag.normalize import tokenize, words
 
 # SZŰK lista, szándékosan. Bővíteni csak úgy szabad, hogy a
 # `test_a_parancsok_es_alkotas_keresek_NEM` teszt zöld marad: egy hétköznapi tő
@@ -97,34 +100,190 @@ _LATAS_KIFEJEZESEK = (
     "hányan vagytok",
     "hányan vannak",
     "hányan vagyunk",
+    # 🔴 STT-torzítások (élő menet, 2026-09-15, a transcript szó szerint): a Whisper a
+    # „Mit látsz?"-t így hallotta — „Mitlát!", „Mit látze?", „Mondel mit Lats.", „Meet
+    # lads!". Ezek a körök [LÁTVÁNY] nélkül mentek, és a modell kitalálta, mit lát —
+    # pontosan a 2026-08-28-i konfabulációs út. A „lads" angol szó, tehát egy angol
+    # mondatra („Hi lads!") is képet kér: vállalt ár, mert a robot csak magyarul
+    # beszél, és a kihagyás itt hazugságot szül, a téves képkérés csak 3 másodpercet.
+    # A forrásnál (a Whisper szótár-promptjában) is javítható — az mérendő, mert
+    # hangfelvétel nélkül nem ellenőrizhető; ez a lista addig is fogja a mért alakokat.
+    "mitlát",
+    "látze",
+    "látza",
+    "lats",
+    "lads",
 )
 
-# Tuple of token-tuples: EGY elem = EGY kifejezés tokenjei EGYÜTT kellenek.
-_LATAS_TOKENEK: tuple[tuple[str, ...], ...] = tuple(
-    tuple(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
+# Hálózati „látás" — ha a kérdés ezek bármelyikét tartalmazza, NEM kér képet, akármi más
+# illeszkedik. Mérve 2026-09-15: „Mit látsz a hálózaton?" és „…milyen hálózatokat látsz a
+# Wi-Fi-n" a `látsz` miatt képet kért, és a robot a wifik helyett a szobát írta le (a
+# Teremtő: „a router ezt szűrje ki"). Ugyanaz a részhalmaz-illesztés, mint a látás-listán
+# (PR #136 review 4): a `Wi-Fi` két tokenje (`wi`, `fi`) PÁRBAN kell — egy magányos `wi`
+# bármilyen rövid STT-maradék lehet —, és egy jövőbeli többszavas tiltókifejezés („helyi
+# hálózat") sem tüzel egyetlen szavára. A rövid, kötőjel NÉLKÜL ragozott alakokra
+# (`wifit`, `wifire`, `ssidet`, `ssidt`, `wlant` — nem tövezhetők, MIN_STEM) a
+# `_is_network_question` előtag-illesztése felel (PR #136 review 6: az `ssid` és a
+# `wlan` ugyanúgy átcsúszott, mint korábban a `wifi`). Ami előtaggal fogható, az CSAK
+# ott szerepel (PR #136 review 7) — a kifejezéslista a többtokenes elemeké. A `halozat`
+# is előtag (PR #136 review 10): a „hálózati" képzett alak `halozati` tokenre esik, amit a
+# tövező nem vág vissza, és egy előtag minden ragozott és képzett alakot lefed.
+_NETWORK_EXPRESSIONS = ("Wi-Fi",)
+# TUPLE kell: a `str.startswith` listát vagy halmazt nem fogad el (TypeError).
+_NETWORK_PREFIXES: tuple[str, ...] = ("wifi", "ssid", "wlan", "halozat")
+# Az üres-token csapda előtag-változata (PR #136 review 12): `"x".startswith("")` minden szóra
+# igaz, egy üres vagy egybetűs előtag tehát MINDEN látás-kérdést elnémítana. Importkor bukik.
+if any(len(p) < 2 for p in _NETWORK_PREFIXES):
+    raise ValueError(f"vision.router: túl rövid hálózati előtag: {_NETWORK_PREFIXES!r}")
 
 
-def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
-                            tokenek: tuple[tuple[str, ...], ...]) -> None:
+def _ellenorzi_uresek_ellen(kifejezesek: Sequence[str],
+                            tokenek: Sequence[Collection[str]],
+                            context: str = "látás") -> None:
     """I7 (végső review): a részhalmaz-illesztésben egy ÜRES tokenlistájú kifejezés
-    (`set() <= barmi`) MINDEN kérdésre illeszkedne — azaz minden kérdés képet kérne.
+    (`set() <= barmi`) MINDEN kérdésre illeszkedne.
 
-    Ma egyik kifejezés sem üres — de a spec saját "kell-e kép" listája TARTALMAZZA a
-    "mi ez"-t, ami `tokenize()`-on üresre esik (mindkét szó stopszó), és aki "a spec
-    szerint" pótolja a hiányzó tételeket, pont ebbe fut bele. Ez a hívás importkor fut,
-    tehát a hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen piros teszt."""
-    for kifejezes, tok in zip(kifejezesek, tokenek):
+    A kár a listától függ, ezért a `context` a hibaüzenetben (PR #136 review 5): a
+    látás-listán minden kérdés képet kérne, a hálózati tiltólistán a látás csendben
+    megszűnne. Ma egyik kifejezés sem üres — de a spec saját "kell-e kép" listája
+    TARTALMAZZA a "mi ez"-t, ami `tokenize()`-on üresre esik (mindkét szó stopszó). Ez a
+    hívás importkor fut, tehát a hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen
+    piros teszt."""
+    # `strict=True`: eltérő hosszúságnál a sima `zip` a rövidebbnél némán megállna, és a
+    # maradék kifejezést sosem ellenőrizné (PR #136 review 3 — pont ez történt az `ssid`-del).
+    for kifejezes, tok in zip(kifejezesek, tokenek, strict=True):
         if not tok:
             raise ValueError(
-                f"vision.router: {kifejezes!r} üres tokenlistára tövez — a "
-                f"részhalmaz-illesztésben ez MINDEN kérdést látás-kérdésnek jelölné")
+                f"vision.router ({context}): {kifejezes!r} üres tokenlistára tövez — a "
+                f"részhalmaz-illesztésben ez minden kérdésre tévesen illeszkedne")
 
 
-_ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _LATAS_TOKENEK)
+def _build_token_sets(expressions: Sequence[str], context: str) -> tuple[frozenset[str], ...]:
+    """Kifejezésenként EGY token-halmaz (egy elem tokenjei EGYÜTT kellenek), importkor
+    ellenőrizve. Építés és ellenőrzés egy helyen: a kifejezés- és a halmazlista így
+    szerkezetileg nem csúszhat szét (PR #136 review 5)."""
+    token_sets = tuple(frozenset(tokenize(k)) for k in expressions)
+    _ellenorzi_uresek_ellen(expressions, token_sets, context)
+    return token_sets
+
+
+_VISION_TOKEN_SETS = _build_token_sets(_LATAS_KIFEJEZESEK, "látás")
+# 🔴 A tiltó oldalon a csapda FORDÍTVA ugyanaz (PR #136 review 2): egy üresre eső
+# kifejezés (`frozenset() <= barmi`) MINDEN kérdést hálózatinak jelölne — és a látás
+# csendben megszűnne.
+_NETWORK_TOKEN_SETS = _build_token_sets(_NETWORK_EXPRESSIONS, "hálózat")
+
+
+def _is_network_question(question: str, tokens: set[str]) -> bool:
+    """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15).
+
+    Vállalt ár: a FIZIKAI hálózati tárgyról szóló kérdés („Milyen színű a Wi-Fi router?",
+    „Látsz hálózati kábelt?") sem kap képet — a kulcsszó nem választja szét a kettőt, és a
+    wifi–szoba összekeverés (a mért hiba) drágább egy kimaradt tárgyleírásnál.
+
+    Az előtag a kötőjel NÉLKÜLI nyers szavakon fut, nem a tokeneken (PR #136 review 8):
+    a „Wi-Fit"/„Wi-Fire" tokenje `wi` + `fit`, amit sem a `Wi-Fi` pár, sem a `wifi`
+    előtag nem fogna — a `wifit` nyers alak viszont igen. A `tokens` a hívóé: a kérdést
+    egyszer tokenizáljuk (PR #136 review 9)."""
+    return (any(token_set <= tokens for token_set in _NETWORK_TOKEN_SETS)
+            or any(w.replace("-", "").startswith(_NETWORK_PREFIXES) for w in words(question)))
+
+
+@dataclass(frozen=True)
+class Station:
+    """A nézési terv egy állomása. `None` szög = maradjon az aktuális póz; `None` címke =
+    a sor címke nélkül kerül a `[LÁTVÁNY]` blokkba (spec §3.4/5)."""
+
+    label: str | None = None
+    pan_deg: float | None = None
+    tilt_deg: float | None = None
+
+    def __post_init__(self) -> None:
+        # A két szög EGYÜTT van vagy EGYÜTT hiányzik: a végrehajtó a `pan_deg`-ből dönti el,
+        # kell-e póz, és a `move_to` mindkettőt várja. Egy félig megadott póz hangosan
+        # bukjon, ne csendben maradjon ki a tilt (PR #137 review).
+        if (self.pan_deg is None) != (self.tilt_deg is None):
+            raise ValueError("Station: a pan_deg és a tilt_deg együtt adandó meg (vagy egyik sem)")
+
+
+# Körbenézés — a „nézz körül" már a látás-kifejezések közt van; ezek a TÖBB-állomásos ág.
+# A „nézzél" és a „pásztázd" külön tokenre tövez (MIN_STEM), ezért minden párnak saját
+# sora kell (PR #137 review 5: a „Nézzél körbe!" és a „Pásztázd körbe!" kimaradt).
+_LOOK_AROUND_PHRASES = ("nézz körül", "nézz körbe", "nézz szét", "nézzél körül",
+                        "nézzél körbe", "nézzél szét", "pásztázz körbe", "pásztázd körbe",
+                        "pásztázz körül", "pásztázd körül")
+_LOOK_AROUND_TOKEN_SETS = _build_token_sets(_LOOK_AROUND_PHRASES, "körbenézés")
+
+# 🔴 Az irány a stopszó-szűrés ELŐTTI szavakon dől el: a „fel" és a „le" STOPSZÓ, a
+# `tokenize("nézz fel")` és a `tokenize("nézz le")` egyaránt `['nezz']` (mérve,
+# 2026-09-15). A nyers szavakat a `rag.normalize.words()` adja, nem egy második ékezetfosztó.
+_LOOK_VERBS = frozenset({"nezz", "nezzel"})
+_DIRECTION_WORDS = {
+    "up": frozenset({"fel", "felfele", "plafonra", "mennyezetre"}),
+    "down": frozenset({"le", "lefele", "foldre", "padlora"}),
+    "left": frozenset({"balra", "balrafele"}),
+    "right": frozenset({"jobbra", "jobbrafele"}),
+    # „Nézz előre" VISSZAHOZZA a fejet (PR #137 review): az egyirányú póz a válasz után
+    # megmarad, és egy következő „nézz előre" nélküle a plafont írná le újra.
+    "forward": frozenset({"elore", "szembe"}),
+}
+_WORD_TO_DIRECTION = {w: d for d, ws in _DIRECTION_WORDS.items() for w in ws}
+# Az egyértelmű irányszó legfeljebb ennyi szóval követheti az igét: „nézz kérlek a földre".
+_DIRECTION_WINDOW = 3
+# ...és közvetlenül MEGELŐZHETI (PR #137 review): a magyar fókuszpozíció természetes —
+# „Balra nézz", „A földre nézz". Csak EGY szó: „Írd le és nézz rám" így sem lefelé nézés.
+_DIRECTION_BEFORE = 1
+# 🔴 A „fel" és a „le" IGEKÖTŐ is, ami más igéhez tartozhat: „Nézz oda, írd le, mit látsz"
+# a 3 szavas ablakban lefelé nézés LETT volna (PR #137 review 4). Ezek csak KÖZVETLENÜL az
+# ige mellett számítanak („nézz le", „le nézz"); a „lefelé"/„földre" marad a széles ablakban.
+_PREVERBS = frozenset({"fel", "le"})
+
+
+def _direction(question: str) -> str | None:
+    raw = words(question)
+    for i, word in enumerate(raw):
+        if word not in _LOOK_VERBS:
+            continue
+        before = raw[max(0, i - _DIRECTION_BEFORE):i]
+        after = raw[i + 1:i + 1 + _DIRECTION_WINDOW]
+        adjacent = {raw[j] for j in (i - 1, i + 1) if 0 <= j < len(raw)}
+        # Előbb az ige UTÁNI szavak (PR #137 review 7): a „nézz fel" az alap szórend, és egy
+        # megelőző tagmondat igekötője („Írd le, nézz fel") ne előzze meg.
+        for candidate in after + before:
+            if candidate in _PREVERBS and candidate not in adjacent:
+                continue
+            if candidate in _WORD_TO_DIRECTION:
+                return _WORD_TO_DIRECTION[candidate]
+    return None
+
+
+def vision_plan(question: str, *, side_deg: float = 45.0, up_deg: float = 30.0,
+                down_deg: float = 30.0) -> tuple[Station, ...] | None:
+    """A kérdés nézési terve, vagy `None`, ha nem kell kép (spec §3.1).
+
+    Prioritás: nincs látás-jel → `None`; hálózati kérdés → `None` (minden ágra); körbenézés
+    → három állomás; irány + látás-jel → egy címkézett állomás; sima látás-kérdés → egy
+    állomás az aktuális pózból. A kérdést EGYSZER tokenizáljuk, és a hálózati próba (nyers
+    szavakkal) csak valódi látás-jelnél indul (PR #136 review 9).
+    """
+    tokens = set(tokenize(question))
+    look_around = any(s <= tokens for s in _LOOK_AROUND_TOKEN_SETS)
+    if not look_around and not any(s <= tokens for s in _VISION_TOKEN_SETS):
+        return None
+    if _is_network_question(question, tokens):
+        return None
+    if look_around:
+        return (Station("Előre", 0.0, 0.0), Station("Balra", side_deg, 0.0),
+                Station("Jobbra", -side_deg, 0.0))
+    poses = {"up": Station("Fent", 0.0, up_deg), "down": Station("Lent", 0.0, -down_deg),
+             "left": Station("Balra", side_deg, 0.0), "right": Station("Jobbra", -side_deg, 0.0),
+             "forward": Station("Előre", 0.0, 0.0)}
+    direction = _direction(question)
+    if direction is not None:
+        return (poses[direction],)
+    return (Station(None, None, None),)
 
 
 def kell_e_kep(kerdes: str) -> bool:
     """Igaz, ha a kérdés a kamerakép nélkül nem válaszolható meg becsületesen."""
-    kerdes_tokenek = set(tokenize(kerdes))
-    return any(set(kifejezes_tokenek) <= kerdes_tokenek
-               for kifejezes_tokenek in _LATAS_TOKENEK)
+    return vision_plan(kerdes) is not None

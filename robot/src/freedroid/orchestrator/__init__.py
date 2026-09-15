@@ -42,12 +42,13 @@ from freedroid.voice.trigger import Esemeny
 
 if TYPE_CHECKING:
     from freedroid.camera import CameraController
-    from freedroid.config.settings import Settings
+    from freedroid.config.settings import Settings, VisionSettings
     from freedroid.llm import LLMClient
     from freedroid.motion import MotionController
     from freedroid.rag.retriever import Hit
     from freedroid.safety import Watchdog
     from freedroid.vision import VLMClient
+    from freedroid.vision.router import Station
     from freedroid.voice import STT, TTS, VAD
     from freedroid.voice.trigger import TriggerBusz
 
@@ -67,6 +68,10 @@ MOZGATO_TOOLOK = frozenset({"move", "turn"})
 # egy tábla viszont lefelé fordíthatná a kamerát (a kör eleji `home()` csak a KÖVETKEZŐ
 # körig tartaná vakon, de addig is).
 LATAS_KORBEN_ENGEDETT = frozenset({"stop"})
+
+# Ha a nézési terv mozgást kér, de nincs kamera-vezérlő (a szervó-vezérlő nem épült meg):
+# ne találjon ki semmit oldalra/felfelé (spec §4).
+HEAD_FIXED_NOTE = "A fejed most nem mozdul, csak előre látsz."
 
 # Amit ilyenkor mond. Konzerv mondat, mert a modellt ilyenkor nem kérdezzük meg újra.
 BIZTONSAGI_ELHARITAS = "Most nem mozdulok, Teremtőm. Nem látok tisztán."
@@ -159,6 +164,12 @@ class Orchestrator:
         # beszéd UTÁN futtatja. A lekérdező toolok (scan_wifi) nem halaszthatók: az
         # eredményük maga a mondat.
         self._halasztott: list | None = None
+        # Az ÁLLJ jelzője a látás-körnek (spec 2026-09-15-nezz-korul §5): a hurok a kör
+        # előtt adja át és utána `None`-ra állítja. Nem `ask()`-paraméter, mert a tesztek
+        # tíz helyen egyargumentumos lambdára cserélik az `ask`-ot. `None` = szöveges út.
+        # ⚠️ Emiatt az `ask()` NEM újrahívható párhuzamosan (PR #137 review 7) — ma egyetlen
+        # hurok hívja; egy több szálú hívónak előbb ezt kell paraméterré tennie.
+        self._stop_event: threading.Event | None = None
         self._akku_gyenge = False
         # Státusz-gyűrű (spec §6). Húzó modell: a rajzoló szál a `_led_scene()`-t kérdezi
         # képkockánként, tehát az állapotváltásokhoz NEM kell horog. Pi nélkül NullRing.
@@ -495,58 +506,131 @@ class Orchestrator:
 
         🔴 PR #129 review, JAVÍTVA: a `self.vlm is None` esetet korábban egy shadow
         deploy-ra fogtuk, ahol a `vision/` modul nem szinkronizálódott — mérve, ez
-        TÉVES. Egy valóban HIÁNYZÓ `freedroid.vision` csomag a lenti KÉT lusta importon
-        (`LATVANY_NINCS`, `kell_e_kep`) bukna el `ModuleNotFoundError`-ral, amik a
-        try-on KÍVÜL állnak — tehát ez a hiba SOHA nem éri el a `self.vlm is None`
-        ágat, ezt a metódust magát vinné el, hangosan (a hívó `ask()` felöli
-        blanket except adja ki a safe-mode mondatot — hangos, de SZÉLESEBB, mint ez a
-        `LATVANY_NINCS` őr). A `self.vlm is None` a valódi, szűkebb eset: a `vision/`
-        csomag rendben importálódott, de a `CloudVLM` PÉLDÁNYOSÍTÁSA hasalt el
-        (`_vlm()` saját try-ja fogja meg, pl. hibás beállítás) — ekkor jön a
-        `LATVANY_NINCS` KIMONDOTT válasz, nem néma kihagyás.
+        TÉVES. Egy valóban HIÁNYZÓ `freedroid.vision` csomag a lenti HÁROM lusta
+        importon (`load_settings`, `LATVANY_NINCS`, `vision_plan`) bukna el
+        `ModuleNotFoundError`-ral, amik a try-on KÍVÜL állnak — tehát ez a hiba SOHA
+        nem éri el a `self.vlm is None` ágat, ezt a metódust magát vinné el,
+        hangosan (a hívó `ask()` felöli blanket except adja ki a safe-mode mondatot —
+        hangos, de SZÉLESEBB, mint ez a `LATVANY_NINCS` őr). A `self.vlm is None` a
+        valódi, szűkebb eset: a `vision/` csomag rendben importálódott, de a
+        `CloudVLM` PÉLDÁNYOSÍTÁSA hasalt el (`_vlm()` saját try-ja fogja meg, pl.
+        hibás beállítás) — ekkor jön a `LATVANY_NINCS` KIMONDOTT válasz, nem néma
+        kihagyás.
 
-        Nyitott kérdés, SZÁNDÉKOSAN nem eldöntve itt: a két importot a try-on BELÜLRE
-        tenni lefedné a hiányzó-csomag esetet is — de ez valódi tervezési kérdés
-        (egy modulszintű import már a program INDULÁSAKOR elbukna, ami egy shadow
-        deploy-t egyáltalán el sem indítana), nem itt dől el.
+        Nyitott kérdés, SZÁNDÉKOSAN nem eldöntve itt: a három importot a try-on
+        BELÜLRE tenni lefedné a hiányzó-csomag esetet is — de ez valódi tervezési
+        kérdés (egy modulszintű import már a program INDULÁSAKOR elbukna, ami egy
+        shadow deploy-t egyáltalán el sem indítana), nem itt dől el.
 
         SOSEM dob: egy látás-hiba nem viheti el a kört.
         """
+        from freedroid.config.settings import load_settings  # noqa: PLC0415
         from freedroid.rag.context import LATVANY_NINCS  # noqa: PLC0415
-        from freedroid.vision.router import kell_e_kep  # noqa: PLC0415
+        from freedroid.vision.router import vision_plan  # noqa: PLC0415
 
-        if not kell_e_kep(kerdes):
+        cfg = (self._settings or load_settings()).vision
+        plan = vision_plan(kerdes, side_deg=cfg.look_side_deg, up_deg=cfg.look_up_deg,
+                           down_deg=cfg.look_down_deg)
+        if plan is None:
             return None
         if self.vlm is None:
             return LATVANY_NINCS
         try:
-            # Az elérhetőség ELŐBB dől el, mint a kameramunka: egy halott alagút mellett
-            # a régi sorrend levágott egy képkockát (0.4-1.6 s), majd a TELJES
-            # `timeout_s`-t (8 s) is kivárta a hívásban — ~9 s néma színpadi csend egy
-            # olyan tényre, amit az STT/LLM próbája a körben már megállapított
-            # (`korben_elerhetetlen` — ld. `health/probe.py`). Az `elerheto()` ezt a
-            # cache-t konzultálja, tehát itt nem vár ki még egy időkorlátot.
+            # Az elérhetőség ELŐBB dől el, mint a kameramunka: halott alagútnál se póz,
+            # se kép (`korben_elerhetetlen` cache, `probe_timeout_s`) — spec §4.
             elerheto, indok = self.vlm.elerheto()
             if not elerheto:
                 log.info("látás kihagyva — %s", indok)
                 return LATVANY_NINCS
-            from freedroid.camera.frame import grab_jpeg  # noqa: PLC0415
-            from freedroid.config.settings import load_settings  # noqa: PLC0415
-
-            cfg = (self._settings or load_settings()).vision
-            jpeg = grab_jpeg(cfg.device or None, minoseg=cfg.jpeg_quality)
-            if jpeg is None:
-                return LATVANY_NINCS
-            # 🔴 A leírás IDEGEN szöveg, mint egy SSID: egy felmutatott tábla tartalmát a
-            # VLM szó szerint leírja. A `<tool>` és minden más jelölés kiesik, MIELŐTT a
-            # 8B elé kerül — ugyanaz a szűrő, ami a `scan_wifi` hálózatneveit tisztítja.
-            # Ez az első réteg; a második (`_latas_kor_szurve`) a szöveges
-            # utasítást is fogja, amit ez nem tud.
-            leiras = idegen_szoveg_tisztit(self.vlm.describe(jpeg) or "")
-            return leiras or LATVANY_NINCS
+            lines, described = self._look(plan, cfg)
+            # Hiba-sorok („nem adott képet") önmagukban nem látvány: legalább EGY valódi
+            # leírás kell, különben a negatív blokk megy (spec §4).
+            return "\n".join(lines) if described else LATVANY_NINCS
         except Exception:  # noqa: BLE001 — a látás bukása nem némíthatja el a robotot
             log.warning("a látás elhasalt — Szabi most nem lát", exc_info=True)
             return LATVANY_NINCS
+
+    def _settle(self, seconds: float) -> None:
+        """A pózváltás utáni beállás — MEGSZAKÍTHATÓ: egy ÁLLJ a várakozás alatt se tartsa
+        fel a kört (spec §3.4, PR #135 review 2). Szöveges úton (nincs hurok) sima alvás."""
+        if self._stop_event is not None:
+            self._stop_event.wait(seconds)
+        else:
+            time.sleep(seconds)
+
+    def _look(self, plan: tuple[Station, ...], cfg: VisionSettings) -> tuple[list[str], bool]:
+        """A nézési terv végrehajtása: állomásonként póz -> beállás -> kép -> VLM -> sor.
+
+        🔴 A SORREND a lényeg (mérve 2026-09-15): a kép a póz UTÁN készül. Egy állomás
+        képkocka-hibája vagy szervó-hibája csak a SAJÁT sorát viszi; az első VLM-hiba
+        viszont a hátralévő állomásokat is (host-baj valószínű — nincs háromszor 8 s csend).
+
+        A kép- és a VLM-hiba (kivétel is) ÁLLOMÁSON BELÜL marad, és a vissza-középre
+        `finally`-ben fut (PR #137 review): egy kivétel a 2. állomáson se dobja el az 1.
+        leírását, és ne hagyja a fejet kitekerve. ÁLLJ után viszont semmi nem mozdul.
+        """
+        from freedroid.camera.frame import grab_jpeg  # noqa: PLC0415
+        from freedroid.vision.router import Station  # noqa: PLC0415
+
+        lines: list[str] = []
+        described = False
+        if self.vlm is None:        # a `_latvany` már kiszűrte — a típus és egy közvetlen hívó miatt
+            return lines, described
+        if self.camera is None and any(s.pan_deg is not None for s in plan):
+            lines.append(HEAD_FIXED_NOTE)
+            plan = (Station(),)
+        stop = self._stop_event
+        try:
+            for station in plan:
+                if stop is not None and stop.is_set():
+                    log.info("látás: ÁLLJ — a nézési terv megállt")
+                    break
+                prefix = f"{station.label}: " if station.label is not None else ""
+                # A statikus ellenőrzőnek is kimondva (PR #137 review): kamera nélkül a terv
+                # fent már egy póz nélküli állomásra cserélődött, és a Station a két szöget
+                # együtt adja — ez itt nem új feltétel, csak a típus.
+                if (station.pan_deg is not None and station.tilt_deg is not None
+                        and self.camera is not None):
+                    try:
+                        moved = self.camera.move_to(station.pan_deg, station.tilt_deg)
+                    except Exception:  # noqa: BLE001 — egy szervó-hiba csak a saját sorát viszi
+                        log.warning("látás: a fej nem állt be (%s)", station.label, exc_info=True)
+                        lines.append(f"{prefix}a fejem nem fordult oda.")
+                        continue
+                    if moved:
+                        self._settle(cfg.settle_s)
+                        if stop is not None and stop.is_set():
+                            log.info("látás: ÁLLJ — a nézési terv megállt")
+                            break
+                started = time.monotonic()
+                try:
+                    jpeg = grab_jpeg(cfg.device or None, minoseg=cfg.jpeg_quality)
+                except Exception:  # noqa: BLE001 — kamerahiba, nem host-baj: a túra megy tovább
+                    log.warning("látás: a kamera elhasalt (%s)", station.label, exc_info=True)
+                    jpeg = None
+                if jpeg is None:
+                    lines.append(f"{prefix}nem adott képet a kamera.")
+                    continue
+                try:
+                    # 🔴 IDEGEN szöveg (egy felmutatott tábla is lehet) — PR #134, 1. réteg.
+                    description = idegen_szoveg_tisztit(self.vlm.describe(jpeg) or "")
+                except Exception:  # noqa: BLE001 — VLM-hiba: a hátralévő állomások kimaradnak
+                    log.warning("látás: a VLM elhasalt (%s)", station.label, exc_info=True)
+                    description = ""
+                log.info("látás: %s állomás %.1f s", station.label or "egy",
+                         time.monotonic() - started)
+                if not description:
+                    break
+                lines.append(prefix + description)
+                described = True
+        finally:
+            if (len(plan) > 1 and self.camera is not None
+                    and not (stop is not None and stop.is_set())):
+                try:
+                    self.camera.move_to(0.0, 0.0)   # spec §3.4/6: ne kitekerve beszéljen
+                except Exception:  # noqa: BLE001
+                    log.warning("látás: a fej nem tért vissza középre", exc_info=True)
+        return lines, described
 
     def execute(self, valasz: str) -> str:
         """A modell nyers válaszából: végrehajtjuk a tool-okat, visszaadjuk a KIMONDANDÓT.
@@ -782,7 +866,13 @@ class Orchestrator:
             if trigger.allj.is_set():
                 return
             self._halasztott = []
-            valasz = self.ask(szoveg)
+            # A jelző CSAK erre a körre él (PR #137 review): egy későbbi szöveges `ask()`
+            # ne egy korábbi kör — esetleg már megnyomott — ÁLLJ-ával induljon.
+            self._stop_event = trigger.allj
+            try:
+                valasz = self.ask(szoveg)
+            finally:
+                self._stop_event = None
             log.debug("válasz: %r", valasz)
         except Exception:  # noqa: BLE001 — egy hibás kör nem viheti el a hurkot
             log.exception("a kör elhasalt a válasz ELŐTT")

@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# A `move_to` ennyin belül „már ott van"-nak veszi a fejet. Jóval a szervó felbontása alatt.
+POSE_TOLERANCE_DEG = 0.05
+
 
 class CameraAction(str, Enum):
     """`camera(action=...)` — composite gestures."""
@@ -34,6 +37,7 @@ class CameraController(Protocol):
     def tilt(self, direction: str, degrees: float) -> None: ...
     def action(self, action: CameraAction) -> None: ...
     def home(self) -> None: ...
+    def move_to(self, pan_deg: float, tilt_deg: float) -> bool: ...
 
 
 # --- geometria: tiszta függvények, hardver nélkül is mérhetők -----------------------
@@ -233,6 +237,33 @@ class PanTiltCamera:
             return
         for t in (self._pan_t, self._tilt_t):
             self._beall_holtjatek_nelkul(t, 0.0)
+
+    def move_to(self, pan_deg: float, tilt_deg: float) -> bool:
+        """ABSZOLÚT póz: pozitív pan = balra, pozitív tilt = fel. `True`, ha mozdult.
+
+        A nézési terv (spec 2026-09-15-nezz-korul) erre épül, nem a `pan`/`tilt`-re: azok
+        RELATÍVAK és hozzávetőlegesek (holtjáték nélkül), egy „balra 45, majd jobbra 45 a
+        KÖZÉPHEZ képest" pedig abszolút célokat kér. A holtjáték-kompenzált út
+        (`_beall_holtjatek_nelkul`) mindig ugyanabból az irányból érkezik, tehát a kép
+        ugyanabból a pózból készül, akárhonnan jött a fej.
+
+        A visszatérési érték a hívóé: CSAK valódi mozdulás után kell kivárni a beállást —
+        a kör eleji `home()` után az `Előre (0, 0)` egy tizedmásodpercet sem várhat.
+        """
+        moved = False
+        for axis, sign, requested in ((self._pan_t, G.PAN_LEFT_SIGN, pan_deg),
+                                      (self._tilt_t, G.TILT_UP_SIGN, tilt_deg)):
+            target = vagott_szog(axis, sign * requested)
+            if not math.isclose(target, sign * requested, abs_tol=1e-6):
+                log.warning("%s: %.1f fok a határon kívül, vágva %.1f fokra",
+                            axis.nev, sign * requested, target)
+            # Tűréssel: a relatív `pan`/`tilt` float-összeadással halmoz, és egy 1e-14 fokos
+            # eltérés miatt ne legyen holtjáték-rándulás + fölösleges beállás (PR #137 review).
+            if math.isclose(self._szog[axis.nev], target, abs_tol=POSE_TOLERANCE_DEG):
+                continue
+            self._beall_holtjatek_nelkul(axis, target)
+            moved = True
+        return moved
 
     def action(self, action: CameraAction) -> None:
         if action is CameraAction.FACE_SPEAKER:

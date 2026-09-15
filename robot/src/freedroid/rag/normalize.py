@@ -198,6 +198,21 @@ SZINONIMAK: dict[str, tuple[str, ...]] = {
 # hogy nem általánosít: minden új félrehallás egy új sor. Cserébe nulla fals pozitív.
 
 
+# Kötőjel-szerű jelek, amiket az STT a kötőjel helyett ír (U+2010–U+2015, U+2212).
+_DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"})
+
+
+def words(text: str) -> list[str]:
+    """Ékezetfosztott, kisbetűs nyers szavak — stopszó-szűrés és tövezés NÉLKÜL.
+
+    A kötőjeles szó egyben marad (`wi-fit`). Arra való, ahol a `tokenize()` épp azt
+    dobná el, amit keresünk: a „fel"/„le" stopszó, a „Wi-Fit" pedig `wi` + `fit` lesz.
+    """
+    # Az STT a kötőjel helyett gyakran gondolatjelet ír („Wi–Fit"): azok is kötőjelnek
+    # számítanak, különben a szó szétesne (`wi`, `fit`) — PR #137 review 6.
+    return _TOKEN.findall(_fold(text.translate(_DASHES)))
+
+
 def tokenize(text: str) -> list[str]:
     """Folded, stopword-stripped, lightly stemmed tokens (length > 1).
 

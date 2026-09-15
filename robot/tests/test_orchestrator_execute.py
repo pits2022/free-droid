@@ -74,6 +74,10 @@ class FakeCamera:
     def home(self) -> None:
         self.calls.append("home")
 
+    def move_to(self, pan_deg: float, tilt_deg: float) -> bool:
+        self.calls.append("move_to")
+        return True
+
     def close(self) -> None:
         pass
 

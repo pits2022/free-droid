@@ -54,6 +54,10 @@ class FakeCamera:
     def home(self) -> None:
         self.calls.append(("home",))
 
+    def move_to(self, pan_deg: float, tilt_deg: float) -> bool:
+        self.calls.append(("move_to", pan_deg, tilt_deg))
+        return True
+
 
 def dispatch_szoveg(reg: ToolRegistry, szoveg: str):
     (tool,) = parse_tools(szoveg)
