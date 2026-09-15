@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -134,6 +135,9 @@ class PanTiltCamera:
         self._i2c = busio.I2C(board.SCL, board.SDA)
         self._pca = PCA9685(self._i2c, address=G.PCA9685_ADDR)
         self._pca.frequency = self._cfg.pwm_frequency_hz
+        # A főszál (tool, `home()`) és az elengedő időzítő ugyanarra a buszra ír.
+        self._zar = threading.Lock()
+        self._elengedo: threading.Timer | None = None
         self._szog = {"pan": 0.0, "tilt": 0.0}
         # MELYIK tengely áll holtjáték-tisztán a 0-ban. Induláskor EGYIK SEM: az alábbi
         # `_kiad` kompenzáció NÉLKÜL ad ki 0-t, tehát a fogak abból az irányból
@@ -147,9 +151,37 @@ class PanTiltCamera:
 
     def _kiad(self, t: Tengely, szog: float) -> None:
         ms = pulzus_ms(t, szog)
-        # A 12 bites regisztert a könyvtár 16 bites `duty_cycle`-ből számolja (16-tal
-        # oszt), ezért megy ide a 0xFFFF és nem a 0x0FFF.
-        self._pca.channels[t.csatorna].duty_cycle = int(ms / self._keret_ms * 0xFFFF)
+        with self._zar:
+            # A 12 bites regisztert a könyvtár 16 bites `duty_cycle`-ből számolja (16-tal
+            # oszt), ezért megy ide a 0xFFFF és nem a 0x0FFF.
+            self._pca.channels[t.csatorna].duty_cycle = int(ms / self._keret_ms * 0xFFFF)
+            self._elengedes_utemez()
+
+    def _elengedes_utemez(self) -> None:
+        """🔴 Beállás után a szervók ELENGEDNEK (mérve 2026-09-15, a Pi-n).
+
+        Tartott jel mellett a szervók a hullámzó tápon (akku 10,2-11,3 V, álló robot
+        mellett) a pozíció körül „vadásztak": folyamatos rángás, és időnként parancs
+        nélküli mozdulás. Kézzel full-off-ra állítva a rángás AZONNAL megszűnt, és a
+        tilt a saját súrlódásán a helyén maradt — tehát a tartás nem kell a pozícióhoz.
+
+        Minden kiadás ÁTÜTEMEZI az elengedést, ezért gesztus közben (bólintás-lépés
+        0,35 s, pásztázás-lépés 0,04 s) nem sül el; csak az utolsó kiadás után
+        `release_after_s`-sel. Az újraélesztés abszolút pulzussal megy, tehát a pozíció
+        nem csúszik el tőle. Hívó tartja a `_zar`-at.
+        """
+        if self._elengedo is not None:
+            self._elengedo.cancel()
+        self._elengedo = threading.Timer(self._cfg.release_after_s, self._elenged)
+        self._elengedo.daemon = True
+        self._elengedo.start()
+
+    def _elenged(self) -> None:
+        # Az adafruit `duty_cycle = 0` a full-off bitet írja (0x1000), nem egy 0 ms-os
+        # pulzust — ugyanaz, amit 2026-09-15-én kézzel `i2cset`-tel kipróbáltunk.
+        with self._zar:
+            for t in (self._pan_t, self._tilt_t):
+                self._pca.channels[t.csatorna].duty_cycle = 0
 
     def _mozgat(self, t: Tengely, delta: float) -> None:
         cel = self._szog[t.nev] + delta
@@ -281,7 +313,16 @@ class PanTiltCamera:
             time.sleep(reszlet / self._cfg.scan_deg_per_s)
 
     def close(self) -> None:
-        """Leállás: a szervók elengednek (a kamera lebillen). Ez a helyes kilépés —
-        egy folyamat után tovább feszülő szervó órákig veszi az áramot."""
+        """Leállás: a szervók elengednek. Egy folyamat után tovább feszülő szervó órákig
+        veszi az áramot — és rángat.
+
+        🔴 A `deinit()` EZT NEM TESZI MEG (mérve 2026-09-15): csak a MODE1-et állítja
+        vissza, a csatornák értéke megmarad, és a PCA9685 a kilépés után is hajtotta a
+        szervókat (ch0 1,65 ms, ch1 1,50 ms). A korábbi docstring ennek az ellenkezőjét
+        állította. Ezért előbb explicit elengedés, és csak utána `deinit()`.
+        """
+        if self._elengedo is not None:
+            self._elengedo.cancel()
+        self._elenged()
         self._pca.deinit()
         self._i2c.deinit()
