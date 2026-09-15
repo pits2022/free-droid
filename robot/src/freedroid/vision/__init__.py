@@ -128,7 +128,7 @@ class CloudVLM:
         log.debug("látvány: %r", szoveg)
         return szoveg
 
-    def _opciok(self) -> dict:
+    def _opciok(self) -> dict[str, int]:
         # EGY hely a `describe()`-nek és a `warmup()`-nak: eltérő `num_ctx`-re az Ollama
         # újratölti a modellt (mérve 3,92 s), és a bemelegítés hatása elveszne.
         return {"num_ctx": self._cfg.num_ctx}
@@ -146,6 +146,10 @@ class CloudVLM:
         if not elerheto:
             log.warning("VLM bemelegítés kihagyva: %s", indok)
             return False
+        # ELŐTTE is naplóz: hidegen ez akár 30 s néma szünet az indulásban, és utólagos
+        # sor nélkül a napló egy lefagyott indulást mutatna (PR #132 review 3).
+        log.info("VLM bemelegítése (%s, legfeljebb %g s)…", self._cfg.model,
+                 self._cfg.warmup_timeout_s)
         try:
             keep = keep_alive_ertek(self._cfg.keep_alive)
             kliens = self._factory(self._cfg.url, self._cfg.warmup_timeout_s)

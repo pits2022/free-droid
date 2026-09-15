@@ -180,3 +180,12 @@ def test_a_start_a_VLM_et_is_bemelegiti(monkeypatch):
     o = orch(monkeypatch, vlm)
     o.start()
     assert vlm.melegitve is True
+
+
+def test_a_start_NEM_dob_ha_nincs_vlm_vagy_nincs_warmupja(monkeypatch):
+    """A `vlm` lehet `None` (a `_vlm()` példányosítása elhasalt), és egy VLM-kliensnek
+    nem kötelező bemelegítenie — egyik sem akaszthatja meg az indulást."""
+    for vlm in (None, HamisVLM()):
+        o = orch(monkeypatch, HamisVLM())
+        o.vlm = vlm
+        o.start()
