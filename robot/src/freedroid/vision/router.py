@@ -120,9 +120,12 @@ _LATAS_KIFEJEZESEK = (
 # Teremtő: „a router ezt szűrje ki"). Ugyanaz a részhalmaz-illesztés, mint a látás-listán
 # (PR #136 review 4): a `Wi-Fi` két tokenje (`wi`, `fi`) PÁRBAN kell — egy magányos `wi`
 # bármilyen rövid STT-maradék lehet —, és egy jövőbeli többszavas tiltókifejezés („helyi
-# hálózat") sem tüzel egyetlen szavára. A rövid ragozott alakokra (`wifit`, `wifire`) —
-# ezek nem tövezhetők (MIN_STEM) — a `_is_network_question` előtag-illesztése felel.
-_NETWORK_EXPRESSIONS = ("hálózat", "ssid", "Wi-Fi")
+# hálózat") sem tüzel egyetlen szavára. A rövid, kötőjel NÉLKÜL ragozott alakokra
+# (`wifit`, `wifire`, `ssidet`, `ssidt`, `wlant` — nem tövezhetők, MIN_STEM) a
+# `_is_network_question` előtag-illesztése felel (PR #136 review 6: az `ssid` és a
+# `wlan` ugyanúgy átcsúszott, mint korábban a `wifi`).
+_NETWORK_EXPRESSIONS = ("hálózat", "ssid", "Wi-Fi", "wlan")
+_NETWORK_PREFIXES = ("wifi", "ssid", "wlan")
 
 
 def _ellenorzi_uresek_ellen(kifejezesek: Sequence[str],
@@ -165,7 +168,7 @@ _NETWORK_TOKEN_SETS = _build_token_sets(_NETWORK_EXPRESSIONS, "hálózat")
 def _is_network_question(tokens: set[str]) -> bool:
     """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15)."""
     return (any(token_set <= tokens for token_set in _NETWORK_TOKEN_SETS)
-            or any(t.startswith("wifi") for t in tokens))
+            or any(t.startswith(_NETWORK_PREFIXES) for t in tokens))
 
 
 def kell_e_kep(kerdes: str) -> bool:

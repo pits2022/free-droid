@@ -57,6 +57,11 @@ NEM_LATAS = [
     "Látod a wifire kapcsolódó eszközöket?",
     "Mit látsz a Wi-Fi-n?",                    # PR #136 review — Wi-Fi a „hálózat" szó NÉLKÜL
     "Milyen SSID-ket látsz?",                  # PR #136 review — az ssid ág külön is
+    # PR #136 review 6 — kötőjel nélkül ragozva a rövid alak nem tövez (MIN_STEM):
+    "Milyen ssidet látsz?",
+    "Milyen ssidt látsz?",
+    "Milyen wlant látsz?",
+    "Mit látsz a WLAN-on?",
 ]
 
 
