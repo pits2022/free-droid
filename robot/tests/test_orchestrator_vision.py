@@ -260,7 +260,7 @@ def test_NEM_latas_korben_a_mozgas_VALTOZATLANUL_megy(monkeypatch):
 
 
 def test_a_transcript_MEGMONDJA_mit_dobott_el_a_kapu(monkeypatch):
-    """A `toolok` a modell kísérlete; a `kapu_eldobott` nélkül a napló egy elhárított
+    """A `toolok` a modell kísérlete; a `latas_kapu_eldobott` nélkül a napló egy elhárított
     `move`-ot végrehajtottnak mutatna (PR #134 review 2)."""
     naplo = []
     monkeypatch.setattr("freedroid.orchestrator.transcript.log", naplo.append)
@@ -268,5 +268,5 @@ def test_a_transcript_MEGMONDJA_mit_dobott_el_a_kapu(monkeypatch):
     o.ask("Mit látsz?")
     (esemeny,) = naplo
     assert esemeny.toolok == ["move", "stop"]
-    assert esemeny.kapu_eldobott == ["move"]
+    assert esemeny.latas_kapu_eldobott == ["move"]
     assert o.motion.hivasok == []

@@ -101,7 +101,7 @@ szíjakkal, **letakart lencse**, arc, behúzott függönyös szoba, cserépkály
      KÖVETKEZŐ, már nem látás-kör `move`-ját gyorsítaná. Engedélylistával egy új tool alapból
      tiltott. A `camera` is kikerült (PR #134 review 2): a képkocka az LLM ELŐTT készül, tehát
      egy látás-körben kiadott fejfordítás az adott kör látványán nem segít, egy tábla viszont
-     lefelé fordíthatná a kamerát. Az elhárítás a transcriptben is látszik (`kapu_eldobott`).
+     lefelé fordíthatná a kamerát. Az elhárítás a transcriptben is látszik (`latas_kapu_eldobott`).
      Ma nincs olyan legitim parancs, ami egy körben lát ÉS mozog vagy állapotot vált
      (`approach_speaker`/`follow_speaker`: `NotImplementedError`); ha lesz, a lista tudatosan
      bővítendő.

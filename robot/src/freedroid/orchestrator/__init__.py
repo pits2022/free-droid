@@ -357,13 +357,15 @@ class Orchestrator:
 
         eredmeny = guard(valasz)
         # A `toolok` a modell KÍSÉRLETE (a szűrés ELŐTT) — a „mit akart tenni?" kérdés pont
-        # egy injekciós körben a legérdekesebb. A `kapu_eldobott` mondja meg, mi NEM futott
+        # egy injekciós körben a legérdekesebb. A `latas_kapu_eldobott` mondja meg, mi NEM futott
         # le belőle: a kettő nélkül a napló egy elhárított `move`-ot végrehajtottnak mutatna.
         esemeny.toolok = [t.name for t in eredmeny.toolok]
         if latvany is not None:
             szurt = self._latas_kor_szurve(eredmeny)
-            esemeny.kapu_eldobott = [t.name for t in eredmeny.toolok
-                                     if t not in szurt.toolok]
+            # Név szerint, a házirendből — nem `t not in szurt.toolok`: az a ParsedTool
+            # egyenlőségén múlna, és egy engedett tool duplikátumát is félreszámolhatná.
+            esemeny.latas_kapu_eldobott = [t.name for t in eredmeny.toolok
+                                           if t.name not in LATAS_KORBEN_ENGEDETT]
             eredmeny = szurt
         transcript.log(esemeny)
         return self.execute_guarded(eredmeny)
