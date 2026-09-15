@@ -213,7 +213,6 @@ def words(text: str) -> list[str]:
     return _TOKEN.findall(_fold(text.translate(_DASHES)))
 
 
-
 def tokenize(text: str) -> list[str]:
     """Folded, stopword-stripped, lightly stemmed tokens (length > 1).
 

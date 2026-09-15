@@ -177,6 +177,10 @@ _NETWORK_TOKEN_SETS = _build_token_sets(_NETWORK_EXPRESSIONS, "hálózat")
 def _is_network_question(question: str, tokens: set[str]) -> bool:
     """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15).
 
+    Vállalt ár: a FIZIKAI hálózati tárgyról szóló kérdés („Milyen színű a Wi-Fi router?",
+    „Látsz hálózati kábelt?") sem kap képet — a kulcsszó nem választja szét a kettőt, és a
+    wifi–szoba összekeverés (a mért hiba) drágább egy kimaradt tárgyleírásnál.
+
     Az előtag a kötőjel NÉLKÜLI nyers szavakon fut, nem a tokeneken (PR #136 review 8):
     a „Wi-Fit"/„Wi-Fire" tokenje `wi` + `fit`, amit sem a `Wi-Fi` pár, sem a `wifi`
     előtag nem fogna — a `wifit` nyers alak viszont igen. A `tokens` a hívóé: a kérdést
