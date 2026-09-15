@@ -609,13 +609,6 @@ class CameraSettings:
     scan_deg_per_s: float = 45.0
     scan_step_deg: float = 2.0      # ekkora lépésekben, hogy folyamatosnak lássék
 
-    # Az utolsó kiadás után ennyivel ELENGEDNEK a szervók (full-off) — tartott jel
-    # mellett a hullámzó tápon rángtak (mérve 2026-09-15, ld. `camera._elengedes_utemez`).
-    # Hardver-hangoló: nagyobb legyen a leghosszabb szervó-ugrásnál (~0,3 s egy teljes
-    # pan-lendületre) és a gesztusok lépésközénél (`step_s` 0,35 s), különben gesztus
-    # közben vagy félúton engedne el.
-    release_after_s: float = 0.6
-
     def __post_init__(self) -> None:
         if self.pwm_frequency_hz <= 0:
             raise ValueError("pwm_frequency_hz must be > 0")
@@ -633,9 +626,6 @@ class CameraSettings:
             raise ValueError("nod_count, nod_deg, scan_deg mind > 0 kell legyen")
         if self.step_s <= 0:
             raise ValueError("step_s must be > 0")
-        if self.release_after_s <= self.step_s:
-            raise ValueError("release_after_s > step_s kell legyen — különben a bólintás "
-                             "lépései között elengedne")
         if self.scan_deg_per_s <= 0 or self.scan_step_deg <= 0:
             raise ValueError("scan_deg_per_s és scan_step_deg > 0 kell legyen")
 
