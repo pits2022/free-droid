@@ -497,3 +497,4 @@ def test_words_keeps_stopwords_and_hyphenated_words():
     res = words("Nézz FEL a Wi-Fit keresve!")
     assert res == ["nezz", "fel", "a", "wi-fit", "keresve"]
     assert "fel" not in tokenize("Nézz FEL a Wi-Fit keresve!")
+    assert words("") == [] and words("?!, …") == []

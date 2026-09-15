@@ -125,9 +125,12 @@ _LATAS_KIFEJEZESEK = (
 # (`wifit`, `wifire`, `ssidet`, `ssidt`, `wlant` — nem tövezhetők, MIN_STEM) a
 # `_is_network_question` előtag-illesztése felel (PR #136 review 6: az `ssid` és a
 # `wlan` ugyanúgy átcsúszott, mint korábban a `wifi`). Ami előtaggal fogható, az CSAK
-# ott szerepel (PR #136 review 7) — a kifejezéslista a tövezendő és a többtokenes elemeké.
-_NETWORK_EXPRESSIONS = ("hálózat", "Wi-Fi")
-_NETWORK_PREFIXES = ("wifi", "ssid", "wlan")
+# ott szerepel (PR #136 review 7) — a kifejezéslista a többtokenes elemeké. A `halozat`
+# is előtag (PR #136 review 10): a „hálózati" képzett alak `halozati` tokenre esik, amit a
+# tövező nem vág vissza, és egy előtag minden ragozott és képzett alakot lefed.
+_NETWORK_EXPRESSIONS = ("Wi-Fi",)
+# TUPLE kell: a `str.startswith` listát vagy halmazt nem fogad el (TypeError).
+_NETWORK_PREFIXES: tuple[str, ...] = ("wifi", "ssid", "wlan", "halozat")
 
 
 def _ellenorzi_uresek_ellen(kifejezesek: Sequence[str],
