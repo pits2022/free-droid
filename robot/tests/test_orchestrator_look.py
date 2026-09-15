@@ -188,6 +188,30 @@ def test_stop_event_stops_the_tour(monkeypatch):
     assert rec.events[-1][0] == "describe", "ÁLLJ után nincs több mozgás, vissza-középre sem"
 
 
+def test_stop_event_during_the_last_station_skips_the_return_to_centre(monkeypatch):
+    """A reviewer-mérte eset: az ÁLLJ a HARMADIK (utolsó) állomás describe-ja alatt jön.
+    A for-ciklus ilyenkor RENDESEN kifut (nincs `break`), tehát egy, csak a ciklus
+    TETEJÉN olvasott jelző nem venné észre — a záró vissza-középrének az ÉLŐ eseményt
+    kell néznie, nem egy befagyasztott `stopped` változót."""
+    rec = Recorder()
+    stop = threading.Event()
+
+    class LastStationStoppingVLM(FakeVLM):
+        def describe(self, jpeg):
+            eredmeny = super().describe(jpeg)
+            if not self.answers:            # ez volt az UTOLSÓ állomás leírása
+                stop.set()
+            return eredmeny
+
+    o, _ = build(monkeypatch, rec,
+                LastStationStoppingVLM(rec, ["egy ajtó", "egy ablak", "egy polc"]))
+    o._stop_event = stop
+    o.ask("Nézz körül!")
+    assert [e[0] for e in rec.events] == [
+        "move_to", "grab", "describe", "move_to", "grab", "describe", "move_to", "grab", "describe",
+    ], "ÁLLJ az utolsó leírás alatt: nincs záró vissza-középre move_to"
+
+
 def test_settle_is_interruptible_by_the_stop_event(monkeypatch):
     """`stop_event.wait(settle_s)`, nem `sleep` — az ÁLLJ a beállás alatt se várjon."""
     rec = Recorder()

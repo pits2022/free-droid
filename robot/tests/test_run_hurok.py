@@ -155,6 +155,23 @@ def test_egy_kor_vegigmegy_a_lancon(monkeypatch):
     assert tts.mondatok == ["válasz: Ki vagy te?"]
 
 
+def test_egy_kor_atadja_a_stop_eventet_a_latas_kornek(monkeypatch):
+    """A `_look` (spec 2026-09-15-nezz-korul) EGYETLEN termelési forrása a stop
+    eventnek a `trigger.allj` — minden más teszt (`test_orchestrator_look.py`) ezt
+    kézzel állítja be, tehát ha ez a bekötő sor eltűnne `_egy_kor`-ból, azok a
+    tesztek zöldek maradnának. Ez a teszt AZT a sort fogja."""
+    vad, stt, tts = HamisVAD(), HamisSTT("Ki vagy te?"), HamisTTS()
+    tts.engedd.set()
+    o = robot(stt=stt, tts=tts, vad=vad)
+    busz = TriggerBusz()
+    latott = []
+    monkeypatch.setattr(o, "ask", lambda k: latott.append(o._stop_event is busz.allj) or "válasz")
+
+    o._egy_kor(stt, tts, vad, busz)
+
+    assert latott == [True]
+
+
 def test_ures_atirat_eseten_NEM_kerdezunk_es_NEM_beszelunk(monkeypatch):
     """Egy félrenyomott gomb ne szüljön LLM-hívást és egy találomra mondott mondatot."""
     vad, stt, tts = HamisVAD(), HamisSTT("   "), HamisTTS()

@@ -570,11 +570,10 @@ class Orchestrator:
         if needs_head and self.camera is None:
             lines.append(HEAD_FIXED_NOTE)
             plan = (Station(None, None, None),)
-        stopped = False
+        stop = self._stop_event
         for station in plan:
-            if self._stop_event is not None and self._stop_event.is_set():
+            if stop is not None and stop.is_set():
                 log.info("látás: ÁLLJ — a nézési terv megállt")
-                stopped = True
                 break
             prefix = f"{station.label}: " if station.label is not None else ""
             if station.pan_deg is not None:
@@ -598,7 +597,8 @@ class Orchestrator:
                 break
             lines.append(prefix + description)
             described = True
-        if len(plan) > 1 and not stopped and self.camera is not None:
+        if (len(plan) > 1 and self.camera is not None
+                and not (stop is not None and stop.is_set())):
             try:
                 self.camera.move_to(0.0, 0.0)   # spec §3.4/6: ne kitekerve beszéljen
             except Exception:  # noqa: BLE001
