@@ -167,13 +167,13 @@ _VISION_TOKEN_SETS = _build_token_sets(_LATAS_KIFEJEZESEK, "látás")
 _NETWORK_TOKEN_SETS = _build_token_sets(_NETWORK_EXPRESSIONS, "hálózat")
 
 
-def _is_network_question(question: str) -> bool:
+def _is_network_question(question: str, tokens: set[str]) -> bool:
     """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15).
 
     Az előtag a kötőjel NÉLKÜLI nyers szavakon fut, nem a tokeneken (PR #136 review 8):
     a „Wi-Fit"/„Wi-Fire" tokenje `wi` + `fit`, amit sem a `Wi-Fi` pár, sem a `wifi`
-    előtag nem fogna — a `wifit` nyers alak viszont igen."""
-    tokens = set(tokenize(question))
+    előtag nem fogna — a `wifit` nyers alak viszont igen. A `tokens` a hívóé: a kérdést
+    egyszer tokenizáljuk (PR #136 review 9)."""
     return (any(token_set <= tokens for token_set in _NETWORK_TOKEN_SETS)
             or any(w.replace("-", "").startswith(_NETWORK_PREFIXES) for w in words(question)))
 
@@ -238,17 +238,20 @@ def vision_plan(question: str, *, side_deg: float = 45.0, up_deg: float = 30.0,
                 down_deg: float = 30.0) -> tuple[Station, ...] | None:
     """A kérdés nézési terve, vagy `None`, ha nem kell kép (spec §3.1).
 
-    Prioritás: hálózati kérdés → `None`; körbenézés → három állomás; irány + látás-jel →
-    egy címkézett állomás; sima látás-kérdés → egy állomás az aktuális pózból.
+    Prioritás: nincs látás-jel → `None`; hálózati kérdés → `None` (minden ágra); körbenézés
+    → három állomás; irány + látás-jel → egy címkézett állomás; sima látás-kérdés → egy
+    állomás az aktuális pózból. A kérdést EGYSZER tokenizáljuk, és a hálózati próba (nyers
+    szavakkal) csak valódi látás-jelnél indul (PR #136 review 9).
     """
-    if _is_network_question(question):
-        return None
     tokens = set(tokenize(question))
-    if any(s <= tokens for s in _LOOK_AROUND_TOKEN_SETS):
+    look_around = any(s <= tokens for s in _LOOK_AROUND_TOKEN_SETS)
+    if not look_around and not any(s <= tokens for s in _VISION_TOKEN_SETS):
+        return None
+    if _is_network_question(question, tokens):
+        return None
+    if look_around:
         return (Station("Előre", 0.0, 0.0), Station("Balra", side_deg, 0.0),
                 Station("Jobbra", -side_deg, 0.0))
-    if not any(s <= tokens for s in _VISION_TOKEN_SETS):
-        return None
     poses = {"up": Station("Fent", 0.0, up_deg), "down": Station("Lent", 0.0, -down_deg),
              "left": Station("Balra", side_deg, 0.0), "right": Station("Jobbra", -side_deg, 0.0),
              "forward": Station("Előre", 0.0, 0.0)}
