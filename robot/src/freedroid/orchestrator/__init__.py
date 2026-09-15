@@ -60,9 +60,13 @@ MOZGATO_TOOLOK = frozenset({"move", "turn"})
 # Amit egy LÁTÁS-körben (a router képet kért) végrehajtunk — ENGEDÉLYLISTA, nem tiltólista.
 # A képi prompt-injekció nem csak mozgást kérhet: a `set_speed` és a `set_mode` MEGMARADÓ
 # állapotot ír, tehát egy tábla a sebességet átállítva a KÖVETKEZŐ, már nem látás-kör
-# `move`-ját gyorsítaná fel (PR #133 review 3). A `stop` mindig szabad, a `camera` a fejet
-# fordítja. Egy új tool így alapból TILTOTT a látás-körben, nem alapból engedett.
-LATAS_KORBEN_ENGEDETT = frozenset({"stop", "camera"})
+# `move`-ját gyorsítaná fel (PR #133 review 3). Egy új tool így alapból TILTOTT a
+# látás-körben, nem alapból engedett. A `stop` mindig szabad.
+# A `camera` SINCS benne (PR #134 review 2): a képkocka az LLM ELŐTT készül, tehát egy
+# látás-körben kiadott fejfordítás az adott kör látványán nem segít — legitim haszna nincs,
+# egy tábla viszont lefelé fordíthatná a kamerát (a kör eleji `home()` csak a KÖVETKEZŐ
+# körig tartaná vakon, de addig is).
+LATAS_KORBEN_ENGEDETT = frozenset({"stop"})
 
 # Amit ilyenkor mond. Konzerv mondat, mert a modellt ilyenkor nem kérdezzük meg újra.
 BIZTONSAGI_ELHARITAS = "Most nem mozdulok, Teremtőm. Nem látok tisztán."
@@ -352,12 +356,16 @@ class Orchestrator:
         esemeny.valasz = valasz
 
         eredmeny = guard(valasz)
-        # A napló a modell KÍSÉRLETÉT őrzi (a szűrés ELŐTT): a „mit akart tenni?" kérdés
-        # pont egy injekciós körben a legérdekesebb.
+        # A `toolok` a modell KÍSÉRLETE (a szűrés ELŐTT) — a „mit akart tenni?" kérdés pont
+        # egy injekciós körben a legérdekesebb. A `kapu_eldobott` mondja meg, mi NEM futott
+        # le belőle: a kettő nélkül a napló egy elhárított `move`-ot végrehajtottnak mutatna.
         esemeny.toolok = [t.name for t in eredmeny.toolok]
-        transcript.log(esemeny)
         if latvany is not None:
-            eredmeny = self._latas_kor_szurve(eredmeny)
+            szurt = self._latas_kor_szurve(eredmeny)
+            esemeny.kapu_eldobott = [t.name for t in eredmeny.toolok
+                                     if t not in szurt.toolok]
+            eredmeny = szurt
+        transcript.log(esemeny)
         return self.execute_guarded(eredmeny)
 
     @staticmethod
