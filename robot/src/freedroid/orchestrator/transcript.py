@@ -50,6 +50,7 @@ class Interakcio:
     latvany: str = ""
     prompt: str = ""                   # ami TÉNYLEG a modellhez ment (grounding-gal)
     toolok: list[str] = field(default_factory=list)        # a kiparsolt tool-hívások
+    latas_kapu_eldobott: list[str] = field(default_factory=list)  # …amit a látás-kapu NEM engedett
     stt_ms: int | None = None
     llm_ms: int | None = None
     hiba: str = ""                     # ha a kör elhasalt, ide jön a rövid ok
