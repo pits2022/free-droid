@@ -140,10 +140,10 @@ class CloudVLM:
         if not elerheto:
             log.warning("VLM bemelegítés kihagyva: %s", indok)
             return False
-        keep = keep_alive_ertek(self._cfg.keep_alive)
         try:
+            keep = keep_alive_ertek(self._cfg.keep_alive)
             kliens = self._factory(self._cfg.url, self._cfg.warmup_timeout_s)
-            kliens.generate(model=self._cfg.model, prompt="", keep_alive=keep)
+            kliens.generate(model=self._cfg.model, prompt="", stream=False, keep_alive=keep)
         except Exception as e:  # noqa: BLE001 — a bemelegítés sosem buktathat indulást
             log.warning("VLM bemelegítés sikertelen (%s: %s)", type(e).__name__, e)
             return False

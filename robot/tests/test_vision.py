@@ -94,7 +94,8 @@ def test_a_bemelegites_HOSSZU_korlattal_kep_nelkul_tolt(monkeypatch):
     (p,) = halo.peldanyok
     assert p.timeout == 60.0
     (hivas,) = p.hivasok
-    assert hivas == {"model": "hamis-vlm:latest", "prompt": "", "keep_alive": "30m"}
+    assert hivas == {"model": "hamis-vlm:latest", "prompt": "", "stream": False,
+                     "keep_alive": "30m"}
 
 
 def test_a_bemelegites_SOSEM_dob_es_kikapcsolva_meg_sem_hiv(monkeypatch):
