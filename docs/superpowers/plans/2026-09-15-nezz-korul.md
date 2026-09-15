@@ -856,7 +856,7 @@ A `_latvany()` törzsében a meglévő, `from freedroid.rag.context import LATVA
 Run: `cd robot && uv run pytest -q tests/test_orchestrator_look.py tests/test_orchestrator_vision.py tests/test_run_hurok.py && uv run pytest -q && uv run ruff check .`
 Expected: PASS. A `test_orchestrator_vision.py` mostani tesztjei (`camera=None`, sima „Mit látsz?") változatlanul zöldek — az egyállomásos, póz nélküli út nem ír megjegyzést.
 
-- [ ] **Step 6: A spec sorának javítása**
+- [x] **Step 6: A spec sorának javítása** — KÉSZ a PR #135 branch-én (a spec nincs a feature branch-en); ezt a lépést HAGYD KI.
 
 `docs/superpowers/specs/2026-09-15-nezz-korul-design.md`, a §3.4 végén cseréld ezt:
 
@@ -876,8 +876,7 @@ egyargumentumos lambdára cseréli az `ask`-ot. A szöveges út (`ask_smoke`, te
 - [ ] **Step 7: Commit**
 
 ```bash
-git add robot/src/freedroid/orchestrator/__init__.py robot/tests/test_orchestrator_look.py \
-        docs/superpowers/specs/2026-09-15-nezz-korul-design.md
+git add robot/src/freedroid/orchestrator/__init__.py robot/tests/test_orchestrator_look.py
 git commit -F - <<'EOF'
 feat(vision): előbb a póz, aztán a kép — az orchestrátor végrehajtja a nézési tervet
 

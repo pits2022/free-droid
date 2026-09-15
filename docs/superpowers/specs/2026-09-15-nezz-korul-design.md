@@ -104,8 +104,9 @@ a szögek `0 < x <= 90`, a `settle_s` `0 < x <= 3.0`.
    NINCS visszaállás** és semmilyen további fejmozgás (PR #135 review 2): ha a kábel
    akadt be, a középre állás tépné ki. A kör eleji `home()` változatlan.
 
-Az `ask()` új, opcionális paramétere: `ask(kerdes, stop_event: threading.Event | None = None)`
-— a hurok a `trigger.allj`-t adja át; a szöveges út (`ask_smoke`, tesztek) `None`-nal fut.
+A `stop_event`-et a hurok a kör előtt állítja be (`self._stop_event = trigger.allj`), mint a
+`self._halasztott`-at — NEM `ask()`-paraméter, mert a `test_run_hurok.py` tíz helyen
+egyargumentumos lambdára cseréli az `ask`-ot. A szöveges út (`ask_smoke`, tesztek) `None`-nal fut.
 
 ## 4. Hibakezelés — a látás sosem viszi el a kört
 
