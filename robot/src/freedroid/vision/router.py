@@ -35,7 +35,7 @@ from __future__ import annotations
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
-from freedroid.rag.normalize import _TOKEN, _fold, tokenize
+from freedroid.rag.normalize import tokenize, words
 
 # SZŰK lista, szándékosan. Bővíteni csak úgy szabad, hogy a
 # `test_a_parancsok_es_alkotas_keresek_NEM` teszt zöld marad: egy hétköznapi tő
@@ -167,10 +167,15 @@ _VISION_TOKEN_SETS = _build_token_sets(_LATAS_KIFEJEZESEK, "látás")
 _NETWORK_TOKEN_SETS = _build_token_sets(_NETWORK_EXPRESSIONS, "hálózat")
 
 
-def _is_network_question(tokens: set[str]) -> bool:
-    """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15)."""
+def _is_network_question(question: str) -> bool:
+    """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15).
+
+    Az előtag a kötőjel NÉLKÜLI nyers szavakon fut, nem a tokeneken (PR #136 review 8):
+    a „Wi-Fit"/„Wi-Fire" tokenje `wi` + `fit`, amit sem a `Wi-Fi` pár, sem a `wifi`
+    előtag nem fogna — a `wifit` nyers alak viszont igen."""
+    tokens = set(tokenize(question))
     return (any(token_set <= tokens for token_set in _NETWORK_TOKEN_SETS)
-            or any(t.startswith(_NETWORK_PREFIXES) for t in tokens))
+            or any(w.replace("-", "").startswith(_NETWORK_PREFIXES) for w in words(question)))
 
 
 @dataclass(frozen=True)
@@ -197,27 +202,34 @@ _LOOK_AROUND_TOKEN_SETS = _build_token_sets(_LOOK_AROUND_PHRASES, "körbenézés
 
 # 🔴 Az irány a stopszó-szűrés ELŐTTI szavakon dől el: a „fel" és a „le" STOPSZÓ, a
 # `tokenize("nézz fel")` és a `tokenize("nézz le")` egyaránt `['nezz']` (mérve,
-# 2026-09-15). Az ékezetfosztás a `rag.normalize` segédjeivel megy, nem egy másodikkal.
+# 2026-09-15). A nyers szavakat a `rag.normalize.words()` adja, nem egy második ékezetfosztó.
 _LOOK_VERBS = frozenset({"nezz", "nezzel"})
 _DIRECTION_WORDS = {
     "up": frozenset({"fel", "felfele", "plafonra", "mennyezetre"}),
     "down": frozenset({"le", "lefele", "foldre", "padlora"}),
     "left": frozenset({"balra"}),
     "right": frozenset({"jobbra"}),
+    # „Nézz előre" VISSZAHOZZA a fejet (PR #137 review): az egyirányú póz a válasz után
+    # megmarad, és egy következő „nézz előre" nélküle a plafont írná le újra.
+    "forward": frozenset({"elore", "szembe"}),
 }
-# Az irányszó legfeljebb ennyi szóval követheti az igét: „nézz a földre" (a névelő
-# átugorható), de „Nézz rám és írd le" NEM lefelé nézés.
+# Az irányszó legfeljebb ennyi szóval követheti az igét: „nézz kérlek a földre", de
+# „Nézz rám és írd le" NEM lefelé nézés.
 _DIRECTION_WINDOW = 3
+# ...és közvetlenül MEGELŐZHETI (PR #137 review): a magyar fókuszpozíció természetes —
+# „Balra nézz", „A földre nézz". Csak EGY szó: „Írd le és nézz rám" így sem lefelé nézés.
+_DIRECTION_BEFORE = 1
 
 
 def _direction(question: str) -> str | None:
-    words = _TOKEN.findall(_fold(question))
-    for i, word in enumerate(words):
+    raw = words(question)
+    for i, word in enumerate(raw):
         if word not in _LOOK_VERBS:
             continue
-        for following in words[i + 1:i + 1 + _DIRECTION_WINDOW]:
+        nearby = raw[max(0, i - _DIRECTION_BEFORE):i] + raw[i + 1:i + 1 + _DIRECTION_WINDOW]
+        for candidate in nearby:
             for direction, direction_words in _DIRECTION_WORDS.items():
-                if following in direction_words:
+                if candidate in direction_words:
                     return direction
     return None
 
@@ -229,16 +241,17 @@ def vision_plan(question: str, *, side_deg: float = 45.0, up_deg: float = 30.0,
     Prioritás: hálózati kérdés → `None`; körbenézés → három állomás; irány + látás-jel →
     egy címkézett állomás; sima látás-kérdés → egy állomás az aktuális pózból.
     """
-    tokens = set(tokenize(question))
-    if _is_network_question(tokens):
+    if _is_network_question(question):
         return None
+    tokens = set(tokenize(question))
     if any(s <= tokens for s in _LOOK_AROUND_TOKEN_SETS):
         return (Station("Előre", 0.0, 0.0), Station("Balra", side_deg, 0.0),
                 Station("Jobbra", -side_deg, 0.0))
     if not any(s <= tokens for s in _VISION_TOKEN_SETS):
         return None
     poses = {"up": Station("Fent", 0.0, up_deg), "down": Station("Lent", 0.0, -down_deg),
-             "left": Station("Balra", side_deg, 0.0), "right": Station("Jobbra", -side_deg, 0.0)}
+             "left": Station("Balra", side_deg, 0.0), "right": Station("Jobbra", -side_deg, 0.0),
+             "forward": Station("Előre", 0.0, 0.0)}
     direction = _direction(question)
     if direction is not None:
         return (poses[direction],)

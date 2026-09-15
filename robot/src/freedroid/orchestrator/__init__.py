@@ -582,7 +582,11 @@ class Orchestrator:
                     log.info("látás: ÁLLJ — a nézési terv megállt")
                     break
                 prefix = f"{station.label}: " if station.label is not None else ""
-                if station.pan_deg is not None:
+                # A statikus ellenőrzőnek is kimondva (PR #137 review): kamera nélkül a terv
+                # fent már egy póz nélküli állomásra cserélődött, és a Station a két szöget
+                # együtt adja — ez itt nem új feltétel, csak a típus.
+                if (station.pan_deg is not None and station.tilt_deg is not None
+                        and self.camera is not None):
                     try:
                         moved = self.camera.move_to(station.pan_deg, station.tilt_deg)
                     except Exception:  # noqa: BLE001 — egy szervó-hiba csak a saját sorát viszi

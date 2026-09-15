@@ -62,6 +62,9 @@ NEM_LATAS = [
     "Milyen ssidt látsz?",
     "Milyen wlant látsz?",
     "Mit látsz a WLAN-on?",
+    # PR #136 review 8 — kötőjellel ragozva a `Wi-Fi` tokenje `wi` + `fit`:
+    "Látsz Wi-Fit?",
+    "Mit látsz a Wi-Fire?",
 ]
 
 
@@ -204,3 +207,18 @@ def test_half_specified_station_fails_loudly():
     with pytest.raises(ValueError, match="együtt"):
         Station("Fent", None, 30.0)
     assert Station() == Station(None, None, None)
+
+
+@pytest.mark.parametrize("question, station", [
+    ("Nézz előre, mit látsz?", Station("Előre", 0.0, 0.0)),        # PR #137 review: a fej visszajön
+    ("Nézz szembe és mondd el, mit látsz!", Station("Előre", 0.0, 0.0)),
+    ("Balra nézz, mit látsz?", Station("Balra", 45.0, 0.0)),        # PR #137 review: fókuszpozíció
+    ("A földre nézz, mit látsz?", Station("Lent", 0.0, -30.0)),
+])
+def test_forward_and_direction_before_the_verb(question, station):
+    assert vision_plan(question) == (station,)
+
+
+def test_only_one_word_before_the_verb_counts():
+    """„Írd le és nézz rám, mit látsz" — a `le` két szóval az ige előtt van, nem irány."""
+    assert vision_plan("Írd le és nézz rám, mit látsz!") == (Station(None, None, None),)
