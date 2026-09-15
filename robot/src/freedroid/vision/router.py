@@ -24,8 +24,8 @@ alak felvételét jelenti, nem egy általánosabb szabályt.
 halmazba öntjük, a szavaknak nem kell EGYÜTT szerepelniük a kérdésben — ezért
 "Menj körbe a szoba körül!" (parancs) hamis pozitívot adott a `korul` token
 miatt, "Nézz utána, mikor van a szünet!" pedig a `nezz` miatt (idiomatikus
-"nézz utána", nem vizuális). A javítás: `_LATAS_TOKENEK` egy TUPLE OF
-TOKEN-TUPLE-ÖKBŐL áll (egy elem = egy kifejezés tokenjei), és egy kérdés csak
+"nézz utána", nem vizuális). A javítás: `_VISION_TOKEN_SETS` kifejezésenként
+EGY token-halmazból áll (egy elem = egy kifejezés tokenjei), és egy kérdés csak
 akkor talál, ha VALAMELYIK kifejezés ÖSSZES tokenje jelen van a kérdésben
 (részhalmaz-illesztés) — nem elég, ha csak egy token metsz.
 """
@@ -123,14 +123,13 @@ _LATAS_KIFEJEZESEK = (
 _NETWORK_TOKENS = frozenset(t for k in ("hálózat", "ssid") for t in tokenize(k))
 _WI_FI = frozenset(tokenize("Wi-Fi"))
 
-# Tuple of token-tuples: EGY elem = EGY kifejezés tokenjei EGYÜTT kellenek.
-_LATAS_TOKENEK: tuple[tuple[str, ...], ...] = tuple(
-    tuple(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
-_VISION_TOKEN_SETS = tuple(frozenset(t) for t in _LATAS_TOKENEK)
+# EGY elem = EGY kifejezés tokenjei, EGYÜTT kellenek (részhalmaz-illesztés).
+_VISION_TOKEN_SETS: tuple[frozenset[str], ...] = tuple(
+    frozenset(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
 
 
 def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
-                            tokenek: tuple[tuple[str, ...], ...]) -> None:
+                            tokenek: tuple[frozenset[str] | tuple[str, ...], ...]) -> None:
     """I7 (végső review): a részhalmaz-illesztésben egy ÜRES tokenlistájú kifejezés
     (`set() <= barmi`) MINDEN kérdésre illeszkedne — azaz minden kérdés képet kérne.
 
@@ -145,13 +144,25 @@ def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
                 f"részhalmaz-illesztésben ez MINDEN kérdést látás-kérdésnek jelölné")
 
 
-_ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _LATAS_TOKENEK)
+_ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _VISION_TOKEN_SETS)
+# 🔴 A tiltó oldalon a csapda FORDÍTVA ugyanaz (PR #136 review 3): egy üresre eső
+# `_WI_FI` (`frozenset() <= barmi`) MINDEN kérdést hálózatinak jelölne — és a látás
+# csendben megszűnne. Egy tokenre eső `Wi-Fi` pedig a párban-illesztést rontaná el.
+_ellenorzi_uresek_ellen(("hálózat", "ssid"), (_NETWORK_TOKENS,))
+if len(_WI_FI) != 2:
+    raise ValueError(f"vision.router: a 'Wi-Fi' {sorted(_WI_FI)!r} tokenre esett — "
+                     f"pontosan kettő kell (wi, fi), különben a párban-illesztés elromlik")
+
+
+def _is_network_question(tokens: set[str]) -> bool:
+    """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15)."""
+    return (not tokens.isdisjoint(_NETWORK_TOKENS) or _WI_FI <= tokens
+            or any(t.startswith("wifi") for t in tokens))
 
 
 def kell_e_kep(kerdes: str) -> bool:
     """Igaz, ha a kérdés a kamerakép nélkül nem válaszolható meg becsületesen."""
     kerdes_tokenek = set(tokenize(kerdes))
-    if (not kerdes_tokenek.isdisjoint(_NETWORK_TOKENS) or _WI_FI <= kerdes_tokenek
-            or any(t.startswith("wifi") for t in kerdes_tokenek)):
+    if _is_network_question(kerdes_tokenek):
         return False
     return any(token_set <= kerdes_tokenek for token_set in _VISION_TOKEN_SETS)

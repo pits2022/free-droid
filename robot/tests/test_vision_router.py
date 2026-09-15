@@ -73,10 +73,11 @@ def test_a_parancsok_es_alkotas_keresek_NEM(kerdes):
     assert kell_e_kep(kerdes) is False, kerdes
 
 
-def test_lone_wi_token_does_not_block_vision():
-    """A `wi` csak a `fi`-vel PÁRBAN hálózati jel (PR #136 review): egy rövid STT-maradék
+@pytest.mark.parametrize("question", ["Wi, mit látsz?", "Fi, mit látsz?"])
+def test_lone_wi_or_fi_token_does_not_block_vision(question):
+    """A `wi` és a `fi` csak PÁRBAN hálózati jel (PR #136 review): egy rövid STT-maradék
     ne némítsa el a látást."""
-    assert kell_e_kep("Wi, mit látsz?") is True
+    assert kell_e_kep(question) is True
 
 
 def test_az_ures_kerdes_nem_ker_kepet():
