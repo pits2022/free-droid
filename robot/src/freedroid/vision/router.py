@@ -213,12 +213,16 @@ _DIRECTION_WORDS = {
     # megmarad, és egy következő „nézz előre" nélküle a plafont írná le újra.
     "forward": frozenset({"elore", "szembe"}),
 }
-# Az irányszó legfeljebb ennyi szóval követheti az igét: „nézz kérlek a földre", de
-# „Nézz rám és írd le" NEM lefelé nézés.
+_WORD_TO_DIRECTION = {w: d for d, ws in _DIRECTION_WORDS.items() for w in ws}
+# Az egyértelmű irányszó legfeljebb ennyi szóval követheti az igét: „nézz kérlek a földre".
 _DIRECTION_WINDOW = 3
 # ...és közvetlenül MEGELŐZHETI (PR #137 review): a magyar fókuszpozíció természetes —
 # „Balra nézz", „A földre nézz". Csak EGY szó: „Írd le és nézz rám" így sem lefelé nézés.
 _DIRECTION_BEFORE = 1
+# 🔴 A „fel" és a „le" IGEKÖTŐ is, ami más igéhez tartozhat: „Nézz oda, írd le, mit látsz"
+# a 3 szavas ablakban lefelé nézés LETT volna (PR #137 review 4). Ezek csak KÖZVETLENÜL az
+# ige mellett számítanak („nézz le", „le nézz"); a „lefelé"/„földre" marad a széles ablakban.
+_PREVERBS = frozenset({"fel", "le"})
 
 
 def _direction(question: str) -> str | None:
@@ -226,11 +230,14 @@ def _direction(question: str) -> str | None:
     for i, word in enumerate(raw):
         if word not in _LOOK_VERBS:
             continue
-        nearby = raw[max(0, i - _DIRECTION_BEFORE):i] + raw[i + 1:i + 1 + _DIRECTION_WINDOW]
-        for candidate in nearby:
-            for direction, direction_words in _DIRECTION_WORDS.items():
-                if candidate in direction_words:
-                    return direction
+        before = raw[max(0, i - _DIRECTION_BEFORE):i]
+        after = raw[i + 1:i + 1 + _DIRECTION_WINDOW]
+        adjacent = {raw[j] for j in (i - 1, i + 1) if 0 <= j < len(raw)}
+        for candidate in before + after:
+            if candidate in _PREVERBS and candidate not in adjacent:
+                continue
+            if candidate in _WORD_TO_DIRECTION:
+                return _WORD_TO_DIRECTION[candidate]
     return None
 
 

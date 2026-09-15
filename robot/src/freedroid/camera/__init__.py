@@ -254,7 +254,7 @@ class PanTiltCamera:
         for axis, sign, requested in ((self._pan_t, G.PAN_LEFT_SIGN, pan_deg),
                                       (self._tilt_t, G.TILT_UP_SIGN, tilt_deg)):
             target = vagott_szog(axis, sign * requested)
-            if target != sign * requested:
+            if not math.isclose(target, sign * requested, abs_tol=1e-6):
                 log.warning("%s: %.1f fok a határon kívül, vágva %.1f fokra",
                             axis.nev, sign * requested, target)
             # Tűréssel: a relatív `pan`/`tilt` float-összeadással halmoz, és egy 1e-14 fokos

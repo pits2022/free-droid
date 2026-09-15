@@ -572,6 +572,8 @@ class Orchestrator:
 
         lines: list[str] = []
         described = False
+        if self.vlm is None:        # a `_latvany` már kiszűrte — a típus és egy közvetlen hívó miatt
+            return lines, described
         if self.camera is None and any(s.pan_deg is not None for s in plan):
             lines.append(HEAD_FIXED_NOTE)
             plan = (Station(),)

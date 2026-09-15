@@ -222,3 +222,20 @@ def test_forward_and_direction_before_the_verb(question, station):
 def test_only_one_word_before_the_verb_counts():
     """„Írd le és nézz rám, mit látsz" — a `le` két szóval az ige előtt van, nem irány."""
     assert vision_plan("Írd le és nézz rám, mit látsz!") == (Station(None, None, None),)
+
+
+@pytest.mark.parametrize("question", [
+    "Nézz oda, írd le, mit látsz!",          # PR #137 review 4: az „írd le" igekötője
+    "Nézz rám, aztán mondd fel, mit látsz!",
+])
+def test_preverb_of_another_verb_is_not_a_direction(question):
+    assert vision_plan(question) == (Station(None, None, None),)
+
+
+@pytest.mark.parametrize("question, station", [
+    ("Nézz le, mit látsz?", Station("Lent", 0.0, -30.0)),
+    ("Le nézz, mit látsz?", Station("Lent", 0.0, -30.0)),
+    ("Nézz kérlek a földre, mit látsz?", Station("Lent", 0.0, -30.0)),
+])
+def test_preverb_adjacent_and_unambiguous_word_in_window_still_work(question, station):
+    assert vision_plan(question) == (station,)
