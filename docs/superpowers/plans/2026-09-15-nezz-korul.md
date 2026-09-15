@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Előfeltétel: a PR #136 (`fix/vision-router-stt-wifi`) merge-elve** — a router STT-tűrése és hálózati tiltása (`_NETWORK_TOKENS`, `_WI_FI`, `_VISION_TOKEN_SETS`) erre épül. Branch: `feature/look-around` a friss `origin/main`-ről.
+- **Előfeltétel: a PR #136 (`fix/vision-router-stt-wifi`) tartalma** — a router STT-tűrése és hálózati tiltása (`_NETWORK_TOKENS`, `_WI_FI`, `_VISION_TOKEN_SETS: tuple[frozenset[str], ...]`, `_is_network_question(tokens)`) erre épül. Branch: `feature/look-around` a `fix/vision-router-stt-wifi` csúcsáról (ha a #136 addigra merge-elve, a friss `origin/main`-ről).
 - **Új függvény- és változónevek ANGOLUL** (a Teremtő szabálya). A meglévő magyar azonosítókhoz (`_latvany`, `kell_e_kep`, `_LATAS_KIFEJEZESEK`…) NEM nyúlunk. A robot működéséhez magyar SZTRINGEK (címkék `Előre`/`Balra`/`Jobbra`/`Fent`/`Lent`, a `[LÁTVÁNY]` sorai) magyarok maradnak.
 - Feature branch, soha nem `main`. **Push NINCS automatikusan.** `uv run ruff check .` commit ELŐTT.
 - **Commit-üzenet MINDIG idézőjeles heredoc** (`git commit -F - <<'EOF'`). **SOHA `git stash`.**
@@ -20,7 +20,7 @@
 - **Egyetlen képkocka sem kerülhet lemezre** (VLM spec §5). A leírás szövege csak DEBUG-on naplózható.
 - A `LATAS_KORBEN_ENGEDETT` és a `KNOWN_TOOLS` NEM változik.
 - Szögek: a `move_to(pan_deg, tilt_deg)` szemantikája **pozitív pan = balra, pozitív tilt = fel**; a kamera a `G.PAN_LEFT_SIGN` / `G.TILT_UP_SIGN` előjellel fordítja a belső szögre. Mért tartomány: pan +56,4° / −78,9°, tilt ±53,6°.
-- Alapértékek (spec §3.3): `look_side_deg = 45.0`, `look_up_deg = 30.0`, `look_down_deg = 30.0`, `settle_s = 0.5`.
+- Alapértékek (spec §3.3): `look_side_deg = 45.0`, `look_up_deg = 30.0`, `look_down_deg = 30.0`, `settle_s = 0.5`. Validáció: szögek `0 < x <= 90`, `settle_s` `0 < x <= 3.0`.
 - Blokk-sorok (spec §4): `A fejed most nem mozdul, csak előre látsz.` · `<címke>: nem adott képet a kamera.` · `<címke>: a fejem nem fordult oda.`
 
 **Egy tudatos eltérés a spec szövegétől (a Task 3 javítja a specben is):** a spec `ask(kerdes, stop_event=None)` paramétert írt. A `tests/test_run_hurok.py` TÍZ helyen cseréli az `ask`-ot egyargumentumos lambdára (`lambda k: …`) — egy új paraméter mind a tizet eltörné. Ehelyett a meglévő minta: a hurok a kör előtt beállítja a `self._stop_event = trigger.allj` attribútumot, pontosan ahogy ma a `self._halasztott = []`-t. A viselkedés ugyanaz.
@@ -138,6 +138,15 @@ def test_non_positive_look_settings_fail_at_startup(field):
         VisionSettings(**{field: 0.0})
 
 
+@pytest.mark.parametrize("field, value", [("look_side_deg", 90.1), ("look_up_deg", 180.0),
+                                          ("look_down_deg", 91.0), ("settle_s", 3.1)])
+def test_too_large_look_settings_fail_at_startup(field, value):
+    """Egy elgépelt env (`FREEDROID_VISION_SETTLE_S=100`) ne némítsa el a kört, és egy
+    `LOOK_SIDE_DEG=180` ne vigye a fejet végállásba (PR #135 review 2)."""
+    with pytest.raises(ValueError, match=f"vision.{field}"):
+        VisionSettings(**{field: value})
+
+
 def test_look_settings_defaults():
     v = Settings().vision
     assert (v.look_side_deg, v.look_up_deg, v.look_down_deg, v.settle_s) == (45.0, 30.0, 30.0, 0.5)
@@ -171,6 +180,11 @@ Expected: FAIL — `AttributeError: 'PanTiltCamera' object has no attribute 'mov
                     "look_side_deg", "look_up_deg", "look_down_deg", "settle_s"):
             if getattr(self, nev) <= 0:
                 raise ValueError(f"vision.{nev} must be > 0")
+        for nev in ("look_side_deg", "look_up_deg", "look_down_deg"):
+            if getattr(self, nev) > 90.0:
+                raise ValueError(f"vision.{nev} must be <= 90")
+        if self.settle_s > 3.0:
+            raise ValueError("vision.settle_s must be <= 3.0")
 ```
 
 - [ ] **Step 4: `move_to()` a kamerában**
@@ -354,7 +368,7 @@ from dataclasses import dataclass
 from freedroid.rag.normalize import _TOKEN, _fold, tokenize
 ```
 
-A `def kell_e_kep(...)` TELJES régi törzsét cseréld erre (a felette lévő konstansok és `_ellenorzi_uresek_ellen` maradnak):
+A `def kell_e_kep(...)` TELJES régi definícióját cseréld erre (a felette lévő konstansok, az `_ellenorzi_uresek_ellen` és a PR #136-ból jövő `_is_network_question()` maradnak):
 
 ```python
 @dataclass(frozen=True)
@@ -371,8 +385,7 @@ class Station:
 _LOOK_AROUND_PHRASES = ("nézz körül", "nézz körbe", "nézz szét", "nézzél körül",
                         "nézzél szét", "pásztázz körbe")
 _LOOK_AROUND_TOKEN_SETS = tuple(frozenset(tokenize(p)) for p in _LOOK_AROUND_PHRASES)
-_ellenorzi_uresek_ellen(_LOOK_AROUND_PHRASES,
-                        tuple(tuple(tokenize(p)) for p in _LOOK_AROUND_PHRASES))
+_ellenorzi_uresek_ellen(_LOOK_AROUND_PHRASES, _LOOK_AROUND_TOKEN_SETS)
 
 # 🔴 Az irány a stopszó-szűrés ELŐTTI szavakon dől el: a „fel" és a „le" STOPSZÓ, a
 # `tokenize("nézz fel")` és a `tokenize("nézz le")` egyaránt `['nezz']` (mérve,
@@ -387,11 +400,6 @@ _DIRECTION_WORDS = {
 # Az irányszó legfeljebb ennyi szóval követheti az igét: „nézz a földre" (a névelő
 # átugorható), de „Nézz rám és írd le" NEM lefelé nézés.
 _DIRECTION_WINDOW = 2
-
-
-def _is_network_question(tokens: set[str]) -> bool:
-    return (not tokens.isdisjoint(_NETWORK_TOKENS) or _WI_FI <= tokens
-            or any(t.startswith("wifi") for t in tokens))
 
 
 def _direction(question: str) -> str | None:
@@ -486,6 +494,7 @@ EOF
 
 **Interfaces:**
 - Consumes: `vision_plan(question, *, side_deg, up_deg, down_deg)`, `Station` (Task 2); `CameraController.move_to(pan_deg, tilt_deg) -> bool`, `VisionSettings.look_side_deg/look_up_deg/look_down_deg/settle_s` (Task 1).
+- Produces: `Orchestrator._settle(self, seconds: float) -> None` — megszakítható beállási várakozás (a tesztek ezt cserélik).
 - Produces: `Orchestrator._look(self, plan: tuple[Station, ...], cfg: VisionSettings) -> tuple[list[str], bool]` — a blokk sorai, és hogy készült-e legalább EGY valódi leírás (ha nem, a hívó `LATVANY_NINCS`-et ad); `Orchestrator._stop_event: threading.Event | None`; `HEAD_FIXED_NOTE` konstans.
 
 - [ ] **Step 1: A bukó tesztek megírása**
@@ -583,7 +592,6 @@ def build(monkeypatch, rec, vlm, *, camera="fake", frames=None, **vision):
 
     monkeypatch.setattr("freedroid.camera.frame.grab_jpeg", grab)
     sleeps: list[float] = []
-    monkeypatch.setattr("freedroid.orchestrator.time.sleep", sleeps.append)
     settings = dataclasses.replace(Settings(), vision=VisionSettings(
         enabled=True, model="fake-vlm:latest", **vision))
     cam = FakeCamera(rec) if camera == "fake" else camera
@@ -591,6 +599,7 @@ def build(monkeypatch, rec, vlm, *, camera="fake", frames=None, **vision):
                      motion=Stub(), watchdog=Stub())
     monkeypatch.setattr("freedroid.orchestrator.transcript.log", lambda *a, **k: None)
     monkeypatch.setattr(o, "_talalatok", lambda k: [])
+    monkeypatch.setattr(o, "_settle", sleeps.append)
     o.camera = cam
     return o, sleeps
 
@@ -683,6 +692,20 @@ def test_stop_event_stops_the_tour(monkeypatch):
     assert rec.events[-1][0] == "describe", "ÁLLJ után nincs több mozgás, vissza-középre sem"
 
 
+def test_settle_is_interruptible_by_the_stop_event(monkeypatch):
+    """`stop_event.wait(settle_s)`, nem `sleep` — az ÁLLJ a beállás alatt se várjon."""
+    rec = Recorder()
+    o, _ = build(monkeypatch, rec, FakeVLM(rec, []))
+    monkeypatch.undo()   # a valódi _settle kell
+    stop = threading.Event()
+    stop.set()
+    o._stop_event = stop
+    import time as _time
+    started = _time.monotonic()
+    Orchestrator._settle(o, 2.0)
+    assert _time.monotonic() - started < 0.5
+
+
 def test_no_camera_controller_says_the_head_is_fixed(monkeypatch):
     rec = Recorder()
     o, _ = build(monkeypatch, rec, FakeVLM(rec, ["egy ajtó"]), camera=None)
@@ -768,6 +791,14 @@ A `_latvany()` törzsében a meglévő, `from freedroid.rag.context import LATVA
             log.warning("a látás elhasalt — Szabi most nem lát", exc_info=True)
             return LATVANY_NINCS
 
+    def _settle(self, seconds: float) -> None:
+        """A pózváltás utáni beállás — MEGSZAKÍTHATÓ: egy ÁLLJ a várakozás alatt se tartsa
+        fel a kört (spec §3.4, PR #135 review 2). Szöveges úton (nincs hurok) sima alvás."""
+        if self._stop_event is not None:
+            self._stop_event.wait(seconds)
+        else:
+            time.sleep(seconds)
+
     def _look(self, plan, cfg) -> tuple[list[str], bool]:
         """A nézési terv végrehajtása: állomásonként póz -> beállás -> kép -> VLM -> sor.
 
@@ -799,7 +830,7 @@ A `_latvany()` törzsében a meglévő, `from freedroid.rag.context import LATVA
                     lines.append(f"{prefix}a fejem nem fordult oda.")
                     continue
                 if moved:
-                    time.sleep(cfg.settle_s)
+                    self._settle(cfg.settle_s)
             started = time.monotonic()
             jpeg = grab_jpeg(cfg.device or None, minoseg=cfg.jpeg_quality)
             if jpeg is None:

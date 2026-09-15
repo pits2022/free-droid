@@ -74,8 +74,9 @@ relatív és hozzávetőleges, ezért nem arra épül. A `CameraController` Prot
 | `look_down_deg` | 30.0 | lefelé |
 | `settle_s` | 0.5 | várakozás a pózváltás után, a kép előtt (a szervó beállása + a rázkódás lecsengése) |
 
-Env-ből felülírhatók (`FREEDROID_VISION_*`, a meglévő általános betöltő). Validáció:
-mind `> 0`.
+Env-ből felülírhatók (`FREEDROID_VISION_*`, a meglévő általános betöltő). Validáció
+(PR #135 review 2 — egy elgépelt env ne vigye a fejet végállásba és ne némítsa el a kört):
+a szögek `0 < x <= 90`, a `settle_s` `0 < x <= 3.0`.
 
 ### 3.4 Orchestrátor — `_latvany()`
 
@@ -88,15 +89,20 @@ mind `> 0`.
      sorok maradnak;
    - ha a szög nem `None` (**`is not None`** — a `0.0` érvényes cél, `bool(0.0)` hamis) →
      `camera.move_to()`; a `settle_s` várakozás CSAK akkor, ha a póz ténylegesen változott
-     (a kör eleji `home()` után az `Előre (0, 0)` nem mozdít);
+     (a kör eleji `home()` után az `Előre (0, 0)` nem mozdít), és a várakozás
+     MEGSZAKÍTHATÓ: `stop_event.wait(settle_s)`, nem `sleep` (PR #135 review 2);
+   - a `grab_jpeg()` a beállás UTÁN exponált képet ad: minden hívásnál ÚJ
+     `VideoCapture`-t nyit és 8 bemelegítő kockát eldob (`camera/frame.py`), tehát egy
+     mozgás előtti, pufferelt kocka nem jöhet vissza;
    - `grab_jpeg` → `describe` → `idegen_szoveg_tisztit` → sor.
 5. A blokk sora: `címke: leírás`, ha a `label is not None`; különben címke nélkül. Tehát a
    sima „mit látsz" címke nélkül megy (mint ma), az egyirányú viszont címkével
    (`Lent: …`) — a 8B-nek ez a kapaszkodó, hogy MERRE nézett.
 6. **Póz a válasz alatt:** egyirányú kérésnél a kamera a pózban marad (természetes
    tekintet); **körbenézés után visszaáll középre** (`move_to(0, 0)`, kép és várakozás
-   nélkül) — különben jobbra 45°-ban kitekerve beszélne a közönség helyett. A kör eleji
-   `home()` változatlan.
+   nélkül) — különben jobbra 45°-ban kitekerve beszélne a közönség helyett. **ÁLLJ után
+   NINCS visszaállás** és semmilyen további fejmozgás (PR #135 review 2): ha a kábel
+   akadt be, a középre állás tépné ki. A kör eleji `home()` változatlan.
 
 Az `ask()` új, opcionális paramétere: `ask(kerdes, stop_event: threading.Event | None = None)`
 — a hurok a `trigger.allj`-t adja át; a szöveges út (`ask_smoke`, tesztek) `None`-nal fut.
