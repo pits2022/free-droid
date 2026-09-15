@@ -234,3 +234,11 @@ def test_a_latvany_SZOVEGE_csak_DEBUG_szinten_megy(caplog):
     v.describe(JPEG)
     debug_uzenetek = " ".join(r.getMessage() for r in caplog.records)
     assert "Egy konkrét arc leírása" in debug_uzenetek
+
+
+@pytest.mark.parametrize("kw", [{"warmup_timeout_s": 0.0}, {"warmup_timeout_s": -5.0},
+                                {"num_ctx": 0}, {"num_ctx": -1024}])
+def test_a_nem_pozitiv_bemelegites_vagy_kontextus_INDULASKOR_bukik(kw):
+    """Egy 0-s `num_ctx` vagy `warmup_timeout_s` a hívásban bukna — induláskor bukjon."""
+    with pytest.raises(ValueError, match=r"vision\.\w+ must be > 0"):
+        VisionSettings(**kw)
