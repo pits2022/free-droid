@@ -212,6 +212,30 @@ def test_stop_event_during_the_last_station_skips_the_return_to_centre(monkeypat
     ], "ÁLLJ az utolsó leírás alatt: nincs záró vissza-középre move_to"
 
 
+def test_stop_event_during_settle_skips_the_frame_of_that_station(monkeypatch):
+    """A `_settle()` reagál az ÁLLJ-ra és visszatér — de enélkül a fix nélkül a HÍVÓ
+    (`_look`) ezt nem nézte volna meg: a MOZDULT állomás képét a VLM-nek elküldte volna
+    (akár 9,6 s felesleges hálózati munka egy eredményért, amit `_egy_kor` úgyis eldob),
+    és a hurok süket maradt volna a KÖVETKEZŐ gombnyomásra. Az ÁLLJ-t a settle UTÁN
+    AZONNAL ellenőrizni kell, mielőtt a képkocka-lekérés elindulna."""
+    rec = Recorder()
+    stop = threading.Event()
+    o, _ = build(monkeypatch, rec, FakeVLM(rec, ["egy ajtó"]))
+    o._stop_event = stop
+    # A "Balra" állomás mozdulna (az induló póz (0,0), a "Balra" (45,0)) — ez a settle,
+    # ami itt az ÁLLJ-t állítja be, mintha a gomb épp a beállás alatt nyomódott volna.
+    monkeypatch.setattr(o, "_settle", lambda seconds: stop.set())
+
+    o.ask("Nézz körül!")
+
+    kinds = [e[0] for e in rec.events]
+    assert kinds == ["move_to", "grab", "describe", "move_to"], (
+        "az Előre állomás (nem mozdul) lefut, a Balra CSAK a move_to-ig jut — "
+        "grab/describe nem indul, és a Jobbra + a záró vissza-középre sem")
+    assert sum(1 for e in rec.events if e[0] == "describe") == 1
+    assert rec.events[-1] == ("move_to", 45.0, 0.0), "nincs záró vissza-középre"
+
+
 def test_settle_is_interruptible_by_the_stop_event(monkeypatch):
     """`stop_event.wait(settle_s)`, nem `sleep` — az ÁLLJ a beállás alatt se várjon."""
     rec = Recorder()

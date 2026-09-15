@@ -503,20 +503,21 @@ class Orchestrator:
 
         🔴 PR #129 review, JAVÍTVA: a `self.vlm is None` esetet korábban egy shadow
         deploy-ra fogtuk, ahol a `vision/` modul nem szinkronizálódott — mérve, ez
-        TÉVES. Egy valóban HIÁNYZÓ `freedroid.vision` csomag a lenti KÉT lusta importon
-        (`LATVANY_NINCS`, `kell_e_kep`) bukna el `ModuleNotFoundError`-ral, amik a
-        try-on KÍVÜL állnak — tehát ez a hiba SOHA nem éri el a `self.vlm is None`
-        ágat, ezt a metódust magát vinné el, hangosan (a hívó `ask()` felöli
-        blanket except adja ki a safe-mode mondatot — hangos, de SZÉLESEBB, mint ez a
-        `LATVANY_NINCS` őr). A `self.vlm is None` a valódi, szűkebb eset: a `vision/`
-        csomag rendben importálódott, de a `CloudVLM` PÉLDÁNYOSÍTÁSA hasalt el
-        (`_vlm()` saját try-ja fogja meg, pl. hibás beállítás) — ekkor jön a
-        `LATVANY_NINCS` KIMONDOTT válasz, nem néma kihagyás.
+        TÉVES. Egy valóban HIÁNYZÓ `freedroid.vision` csomag a lenti HÁROM lusta
+        importon (`load_settings`, `LATVANY_NINCS`, `vision_plan`) bukna el
+        `ModuleNotFoundError`-ral, amik a try-on KÍVÜL állnak — tehát ez a hiba SOHA
+        nem éri el a `self.vlm is None` ágat, ezt a metódust magát vinné el,
+        hangosan (a hívó `ask()` felöli blanket except adja ki a safe-mode mondatot —
+        hangos, de SZÉLESEBB, mint ez a `LATVANY_NINCS` őr). A `self.vlm is None` a
+        valódi, szűkebb eset: a `vision/` csomag rendben importálódott, de a
+        `CloudVLM` PÉLDÁNYOSÍTÁSA hasalt el (`_vlm()` saját try-ja fogja meg, pl.
+        hibás beállítás) — ekkor jön a `LATVANY_NINCS` KIMONDOTT válasz, nem néma
+        kihagyás.
 
-        Nyitott kérdés, SZÁNDÉKOSAN nem eldöntve itt: a két importot a try-on BELÜLRE
-        tenni lefedné a hiányzó-csomag esetet is — de ez valódi tervezési kérdés
-        (egy modulszintű import már a program INDULÁSAKOR elbukna, ami egy shadow
-        deploy-t egyáltalán el sem indítana), nem itt dől el.
+        Nyitott kérdés, SZÁNDÉKOSAN nem eldöntve itt: a három importot a try-on
+        BELÜLRE tenni lefedné a hiányzó-csomag esetet is — de ez valódi tervezési
+        kérdés (egy modulszintű import már a program INDULÁSAKOR elbukna, ami egy
+        shadow deploy-t egyáltalán el sem indítana), nem itt dől el.
 
         SOSEM dob: egy látás-hiba nem viheti el a kört.
         """
@@ -585,6 +586,9 @@ class Orchestrator:
                     continue
                 if moved:
                     self._settle(cfg.settle_s)
+                    if stop is not None and stop.is_set():
+                        log.info("látás: ÁLLJ — a nézési terv megállt")
+                        break
             started = time.monotonic()
             jpeg = grab_jpeg(cfg.device or None, minoseg=cfg.jpeg_quality)
             if jpeg is None:
