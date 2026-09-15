@@ -32,6 +32,7 @@ akkor talál, ha VALAMELYIK kifejezés ÖSSZES tokenje jelen van a kérdésben
 
 from __future__ import annotations
 
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 from freedroid.rag.normalize import _TOKEN, _fold, tokenize
@@ -122,18 +123,21 @@ _LATAS_KIFEJEZESEK = (
 # (`wi`, `fi`) — PÁRBAN kell, mert egy magányos `wi` bármilyen rövid STT-maradék lehet
 # (PR #136 review). A kifejezések a KÖZÖS tokenizálón mennek át, mint a látás-listáé,
 # hogy egy tövező-változás a kettőt ne vigye szét.
-_NETWORK_WORDS = ("hálózat", "ssid")
-_NETWORK_TOKEN_SETS = tuple(frozenset(tokenize(k)) for k in _NETWORK_WORDS)
-_NETWORK_TOKENS = frozenset().union(*_NETWORK_TOKEN_SETS)
-_WI_FI = frozenset(tokenize("Wi-Fi"))
+# Ugyanaz a részhalmaz-illesztés, mint a látás-listán (PR #136 review 4): egy elem = egy
+# kifejezés tokenjei, EGYÜTT kellenek. Így a `Wi-Fi` (`wi`, `fi`) párban kell külön őr
+# nélkül, és egy jövőbeli többszavas tiltókifejezés („helyi hálózat") sem tüzel egyetlen
+# szavára — egy lapos unió ezt nem tudná.
+_NETWORK_EXPRESSIONS = ("hálózat", "ssid", "Wi-Fi")
+_NETWORK_TOKEN_SETS: tuple[frozenset[str], ...] = tuple(
+    frozenset(tokenize(k)) for k in _NETWORK_EXPRESSIONS)
 
 # EGY elem = EGY kifejezés tokenjei, EGYÜTT kellenek (részhalmaz-illesztés).
 _VISION_TOKEN_SETS: tuple[frozenset[str], ...] = tuple(
     frozenset(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
 
 
-def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
-                            tokenek: tuple[frozenset[str] | tuple[str, ...], ...]) -> None:
+def _ellenorzi_uresek_ellen(kifejezesek: Sequence[str],
+                            tokenek: Sequence[Collection[str]]) -> None:
     """I7 (végső review): a részhalmaz-illesztésben egy ÜRES tokenlistájú kifejezés
     (`set() <= barmi`) MINDEN kérdésre illeszkedne — azaz minden kérdés képet kérne.
 
@@ -151,19 +155,15 @@ def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
 
 
 _ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _VISION_TOKEN_SETS)
-# A tiltószavakat EGYENKÉNT: az uniójuk akkor sem lenne üres, ha az egyik szó üresre tövez.
-_ellenorzi_uresek_ellen(_NETWORK_WORDS, _NETWORK_TOKEN_SETS)
 # 🔴 A tiltó oldalon a csapda FORDÍTVA ugyanaz (PR #136 review 2): egy üresre eső
-# `_WI_FI` (`frozenset() <= barmi`) MINDEN kérdést hálózatinak jelölne — és a látás
-# csendben megszűnne. Egy tokenre eső `Wi-Fi` pedig a párban-illesztést rontaná el.
-if len(_WI_FI) != 2:
-    raise ValueError(f"vision.router: a 'Wi-Fi' {sorted(_WI_FI)!r} tokenre esett — "
-                     f"pontosan kettő kell (wi, fi), különben a párban-illesztés elromlik")
+# kifejezés (`frozenset() <= barmi`) MINDEN kérdést hálózatinak jelölne — és a látás
+# csendben megszűnne. Kifejezésenként, importkor bukik.
+_ellenorzi_uresek_ellen(_NETWORK_EXPRESSIONS, _NETWORK_TOKEN_SETS)
 
 
 def _is_network_question(tokens: set[str]) -> bool:
     """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15)."""
-    return (not tokens.isdisjoint(_NETWORK_TOKENS) or _WI_FI <= tokens
+    return (any(token_set <= tokens for token_set in _NETWORK_TOKEN_SETS)
             or any(t.startswith("wifi") for t in tokens))
 
 
