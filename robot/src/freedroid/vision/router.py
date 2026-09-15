@@ -131,6 +131,10 @@ _LATAS_KIFEJEZESEK = (
 _NETWORK_EXPRESSIONS = ("Wi-Fi",)
 # TUPLE kell: a `str.startswith` listát vagy halmazt nem fogad el (TypeError).
 _NETWORK_PREFIXES: tuple[str, ...] = ("wifi", "ssid", "wlan", "halozat")
+# Az üres-token csapda előtag-változata (PR #136 review 12): `"x".startswith("")` minden szóra
+# igaz, egy üres vagy egybetűs előtag tehát MINDEN látás-kérdést elnémítana. Importkor bukik.
+if any(len(p) < 2 for p in _NETWORK_PREFIXES):
+    raise ValueError(f"vision.router: túl rövid hálózati előtag: {_NETWORK_PREFIXES!r}")
 
 
 def _ellenorzi_uresek_ellen(kifejezesek: Sequence[str],

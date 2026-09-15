@@ -500,4 +500,4 @@ def test_words_keeps_stopwords_and_hyphenated_words():
     assert words("") == []
     assert words("?!, …") == []
     # a gondolatjel is kötőjel (PR #137 review 6): „Wi–Fit" egy szó marad
-    assert words("Wi\u2013Fit") == words("Wi\u2014Fit") == ["wi-fit"]
+    assert words("Wi\u2013Fit") == words("Wi\u2014Fit") == words("Wi\u2015Fit") == ["wi-fit"]
