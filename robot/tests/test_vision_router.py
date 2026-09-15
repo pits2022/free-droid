@@ -145,6 +145,8 @@ LOOK_AROUND = (Station("Előre", 0.0, 0.0), Station("Balra", 45.0, 0.0),
     "Nézzél körül!",
     "Pásztázz körbe a kameráddal!",
     "Nézz körbe!",
+    "Nézzél körbe!",                     # PR #137 review 5
+    "Pásztázd körbe a szobát!",
 ])
 def test_look_around_is_three_stations(question):
     assert vision_plan(question) == LOOK_AROUND
@@ -241,4 +243,12 @@ def test_preverb_of_another_verb_is_not_a_direction(question):
     ("Nézz kérlek a földre, mit látsz?", Station("Lent", 0.0, -30.0)),
 ])
 def test_preverb_adjacent_and_unambiguous_word_in_window_still_work(question, station):
+    assert vision_plan(question) == (station,)
+
+
+@pytest.mark.parametrize("question, station", [
+    ("Nézz egy kicsit balrafelé, mit látsz?", Station("Balra", 45.0, 0.0)),   # PR #137 review 5
+    ("Nézz jobbrafelé, mit látsz?", Station("Jobbra", -45.0, 0.0)),
+])
+def test_felé_forms_of_left_and_right(question, station):
     assert vision_plan(question) == (station,)

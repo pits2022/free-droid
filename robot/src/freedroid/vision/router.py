@@ -199,8 +199,10 @@ class Station:
 
 
 # Körbenézés — a „nézz körül" már a látás-kifejezések közt van; ezek a TÖBB-állomásos ág.
+# A „nézzél" és a „pásztázd" külön tokenre tövez (MIN_STEM), ezért minden párnak saját
+# sora kell (PR #137 review 5: a „Nézzél körbe!" és a „Pásztázd körbe!" kimaradt).
 _LOOK_AROUND_PHRASES = ("nézz körül", "nézz körbe", "nézz szét", "nézzél körül",
-                        "nézzél szét", "pásztázz körbe")
+                        "nézzél körbe", "nézzél szét", "pásztázz körbe", "pásztázd körbe")
 _LOOK_AROUND_TOKEN_SETS = _build_token_sets(_LOOK_AROUND_PHRASES, "körbenézés")
 
 # 🔴 Az irány a stopszó-szűrés ELŐTTI szavakon dől el: a „fel" és a „le" STOPSZÓ, a
@@ -210,8 +212,8 @@ _LOOK_VERBS = frozenset({"nezz", "nezzel"})
 _DIRECTION_WORDS = {
     "up": frozenset({"fel", "felfele", "plafonra", "mennyezetre"}),
     "down": frozenset({"le", "lefele", "foldre", "padlora"}),
-    "left": frozenset({"balra"}),
-    "right": frozenset({"jobbra"}),
+    "left": frozenset({"balra", "balrafele"}),
+    "right": frozenset({"jobbra", "jobbrafele"}),
     # „Nézz előre" VISSZAHOZZA a fejet (PR #137 review): az egyirányú póz a válasz után
     # megmarad, és egy következő „nézz előre" nélküle a plafont írná le újra.
     "forward": frozenset({"elore", "szembe"}),
