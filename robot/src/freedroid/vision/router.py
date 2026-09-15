@@ -97,7 +97,27 @@ _LATAS_KIFEJEZESEK = (
     "hányan vagytok",
     "hányan vannak",
     "hányan vagyunk",
+    # 🔴 STT-torzítások (élő menet, 2026-09-15, a transcript szó szerint): a Whisper a
+    # „Mit látsz?"-t így hallotta — „Mitlát!", „Mit látze?", „Mondel mit Lats.", „Meet
+    # lads!". Ezek a körök [LÁTVÁNY] nélkül mentek, és a modell kitalálta, mit lát —
+    # pontosan a 2026-08-28-i konfabulációs út. A „lads" angol szó, tehát egy angol
+    # mondatra („Hi lads!") is képet kér: vállalt ár, mert a robot csak magyarul
+    # beszél, és a kihagyás itt hazugságot szül, a téves képkérés csak 3 másodpercet.
+    # A forrásnál (a Whisper szótár-promptjában) is javítható — az mérendő, mert
+    # hangfelvétel nélkül nem ellenőrizhető; ez a lista addig is fogja a mért alakokat.
+    "mitlát",
+    "látze",
+    "látza",
+    "lats",
+    "lads",
 )
+
+# Hálózati „látás" — ha a kérdés ezek bármelyikét tartalmazza, NEM kér képet, akármi más
+# illeszkedik. Mérve 2026-09-15: „Mit látsz a hálózaton?" és „…milyen hálózatokat látsz a
+# Wi-Fi-n" a `látsz` miatt képet kért, és a robot a wifik helyett a szobát írta le (a
+# Teremtő: „a router ezt szűrje ki"). Előtag-illesztés a `wifi`-re, mert a rövid ragozott
+# alakok (`wifit`, `wifire`) nem tövezhetők (MIN_STEM); a `Wi-Fi` két tokenre esik.
+_HALOZATI_TOKENEK = frozenset({"halozat", "wi", "ssid"})
 
 # Tuple of token-tuples: EGY elem = EGY kifejezés tokenjei EGYÜTT kellenek.
 _LATAS_TOKENEK: tuple[tuple[str, ...], ...] = tuple(
@@ -126,5 +146,7 @@ _ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _LATAS_TOKENEK)
 def kell_e_kep(kerdes: str) -> bool:
     """Igaz, ha a kérdés a kamerakép nélkül nem válaszolható meg becsületesen."""
     kerdes_tokenek = set(tokenize(kerdes))
+    if kerdes_tokenek & _HALOZATI_TOKENEK or any(t.startswith("wifi") for t in kerdes_tokenek):
+        return False
     return any(set(kifejezes_tokenek) <= kerdes_tokenek
                for kifejezes_tokenek in _LATAS_TOKENEK)

@@ -23,6 +23,15 @@ LATAS = [
     "Mit láttál eddig?",                       # javítás — ua.
     "Hányan vagytok itt?",                     # I5, végső review — a spec listájának tagja
     "Hányan vannak a teremben?",               # PR #129 review — páros kifejezés
+    # 🔴 Az STT így hallotta a „Mit látsz?"-t (élő menet, 2026-09-15, transcript
+    # szó szerint): router nélkül ezek a körök [LÁTVÁNY] nélkül mentek, és a modell
+    # kitalálta, mit lát („Egy sötét távoli helyiséget látok").
+    "Mitlát!",
+    "Mit látze?",
+    "Mit látza?",
+    "Mondel mit Lats.",
+    "Meet lads!",
+    "Mit, lads?",
 ]
 
 NEM_LATAS = [
@@ -40,6 +49,12 @@ NEM_LATAS = [
     "Fordulj az előtted lévő fal felé!",       # I5, végső review — "előtted" NEM került fel
     "Hányan laknak Magyarországon?",           # PR #129 review — a csupasz "hányan" hamis pozitívja
     "Hányan képviselik a törzset?",            # PR #129 review — ua.
+    # 🔴 Hálózati „látás" (élő menet, 2026-09-15): a `látsz` tüzelt, és a robot a wifik
+    # helyett a szobát írta le — a Teremtő: „a router ezt szűrje ki".
+    "Mit látsz a hálózaton?",
+    "Sorold fel, hogy milyen hálózatokat látsz a Wi-Fi-n.",
+    "Milyen wifit látsz?",
+    "Látod a wifire kapcsolódó eszközöket?",
 ]
 
 
