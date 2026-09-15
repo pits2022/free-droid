@@ -62,6 +62,9 @@ NEM_LATAS = [
     "Milyen ssidt látsz?",
     "Milyen wlant látsz?",
     "Mit látsz a WLAN-on?",
+    # PR #136 review 8 — kötőjellel ragozva a `Wi-Fi` tokenje `wi` + `fit`:
+    "Látsz Wi-Fit?",
+    "Mit látsz a Wi-Fire?",
 ]
 
 

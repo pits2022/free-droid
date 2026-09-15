@@ -198,6 +198,15 @@ SZINONIMAK: dict[str, tuple[str, ...]] = {
 # hogy nem általánosít: minden új félrehallás egy új sor. Cserébe nulla fals pozitív.
 
 
+def words(text: str) -> list[str]:
+    """Ékezetfosztott, kisbetűs nyers szavak — stopszó-szűrés és tövezés NÉLKÜL.
+
+    A kötőjeles szó egyben marad (`wi-fit`). Arra való, ahol a `tokenize()` épp azt
+    dobná el, amit keresünk: a „fel"/„le" stopszó, a „Wi-Fit" pedig `wi` + `fit` lesz.
+    """
+    return _TOKEN.findall(_fold(text))
+
+
 def tokenize(text: str) -> list[str]:
     """Folded, stopword-stripped, lightly stemmed tokens (length > 1).
 
