@@ -45,6 +45,44 @@ a ~139 ms-os alagúton át, saját biztonsági kérdésekkel a watchdog mellett.
 | 3 | **Az orchestrátor dönt, nincs új tool** | A RAG-routing mintája. A mért tool-gyengeség (kitalált `action` értékek, hiányzó irány) így nem tud elrontani semmit; a `KNOWN_TOOLS` változatlan marad. |
 | 4 | **A VLM nyelve mérésből dől el (WP0)** | Mindkét oldalon mért kockázat: az angol blokk a nyelv-regresszió (88% → 44%) felé tolhat; a magyar leírás minősége viszont esik, és abból a 8B magabiztos hazugságot épít. |
 
+### 3.1 WP0 mérés — 2026-09-15 (a `tobb-ember` jelenet még hátravan)
+
+Felhő: DO **RTX 6000 Ada, 49 GB** (nem a 20 GB-os 4000 Ada — ma ez volt deployolható).
+A hívás a Pi-ről ment az alagúton át (139 ms RTT), tehát a feltöltés benne van az időben.
+Jelöltek az ollama.com vision-listájáról, mindkettő „Text, Image input": **`qwen3.5:4b`**
+(3,4 GB) és **`gemma4:e4b`** (9,6 GB). 6 valódi kép a robot kamerájából: asztal alja
+szíjakkal, **letakart lencse**, arc, behúzott függönyös szoba, cserépkályha közelről, nappali.
+
+| Mért | Eredmény |
+| :- | :- |
+| **`images` mező** | ✅ HTTP 200, értelmes leírás — a spec §4.1 tartalék ága NEM kell. |
+| **Letakart lencse** | ✅ **mindkét modell tiszta** angolul: „dark, grainy, lacks sharp detail" / „very dark… faint smudge". Nem talál ki jelenetet. De egyik sem mondja ki, hogy „le van takarva" — a „nem látok" kimondása a 8B-n és a WP4-en múlik. |
+| **Nyelv → ANGOL** | 🔴 A magyar prompt a 12 kép×modell párból 11-ben rosszabb (egyetlen kivétel a gemma kályha-leírása): kitalált szavak („bőrövegszalag", „faverély"), téves tartalom („sötét ruhában", „garázsajtó", egy „énekes"), a gemma „egy-két mondat" helyett markdown-listát ír, és a letakart lencsén **félmondat után KOREAIRA vált**. Angolul a qwen mind a 6 képen hű (egy kivétel a 3. leletben); a gemma kétszer helyszínt talált ki. |
+| **Modell → `qwen3.5:4b`** | A legrészletesebb és a leggyorsabb: őszülő haj + bajusz + világoskék póló (a gemma „dark hair"-t mondott), zárszerkezet az ajtón, két gerenda + virágmintás textil. A gemma kétszer kitalált helyszínt adott („medical", „retail display"). |
+| **Idő** (meleg, angol, `think:false`) | qwen **0,8–1,3 s** fal-idő · gemma 0,95–6,9 s. Leürített, de lapcache-ben lévő modell újratöltése: **3,95 s**. A LEGELSŐ hívás lemezről: **29,75 s** betöltés. |
+| **VRAM** | 8B + whisper + mindkét VLM egyszerre: **27 GB / 49**. A `qwen3.5:4b` a 262K-s alap-kontextus miatt **12 GB-ot** foglal — 20 GB-os kártyán ez a szűk pont, ott `num_ctx` kell. |
+
+**Három lelet, ami KÓDOT érint (a WP0 kimenete, nem a mérés hibája):**
+
+1. 🔴 **`think` nélkül a qwen3.5 gondolkodik:** 575–1572 token egy mondatért, meleg
+   modellen is 6–10 s — a 8 s-os `timeout_s` mellett ez rendszeres időtúllépés. A
+   `describe()` ma nem küld `think`-et; a Pi `ollama` 0.6.2 kliense támogatja (mérve).
+   `think=False` → 36 token, 0,96 s.
+2. **Hidegindulás:** a lemezről első hívás (29,75 s) messze a `timeout_s` fölött, és a
+   VLM az Ollama alap 5 perces `keep_alive`-jával ürül. A 8B-hez hasonló bemelegítés +
+   hosszabb `keep_alive` kell, különben a demó első „Mit látsz?"-ja negatív blokkot kap.
+3. **Nem determinisztikus, és nem mindig hű:** ugyanarra a nappali-képre a második futás
+   „nagy, mintás szőnyeget" írt le a padlón (a kályhát nézte annak). Alacsony
+   `temperature` jelölt — a `[LÁTVÁNY]` blokk bizonytalan-nyelvű szövegezése így is kell.
+
+**Red-team-re írandó:** a VLM kérés nélkül leírja egy ember külsejét (kor, haj,
+arcszőrzet, ruha). A színpadon ez egy közönségtag külsejének kommentálása.
+
+**Az értékek a Task 2-höz:** `vision_model = qwen3.5:4b` · `vision_prompt` = az angol
+(„Describe what you see in one or two short sentences.") · `vision_timeout_s = 8` marad
+(a meleg max 1,3 s ×2 = 2,6 s, de az újratöltés 3,95 s-át is fedni kell) — **a `think=False`
+feltétellel**.
+
 ## 4. Architektúra
 
 ### 4.1 Hol fut a VLM — a MEGLÉVŐ felhős Ollamában, második modell-tagként
