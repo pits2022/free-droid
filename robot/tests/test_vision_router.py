@@ -55,6 +55,8 @@ NEM_LATAS = [
     "Sorold fel, hogy milyen hálózatokat látsz a Wi-Fi-n.",
     "Milyen wifit látsz?",
     "Látod a wifire kapcsolódó eszközöket?",
+    "Mit látsz a Wi-Fi-n?",                    # PR #136 review — Wi-Fi a „hálózat" szó NÉLKÜL
+    "Milyen SSID-ket látsz?",                  # PR #136 review — az ssid ág külön is
 ]
 
 
@@ -69,6 +71,12 @@ def test_a_parancsok_es_alkotas_keresek_NEM(kerdes):
     (pl. „van", „ez") bekerül a halmazba, MINDEN kérdés képet kérne — és a robot
     körönként 2-3 másodpercet veszítene a semmiért."""
     assert kell_e_kep(kerdes) is False, kerdes
+
+
+def test_lone_wi_token_does_not_block_vision():
+    """A `wi` csak a `fi`-vel PÁRBAN hálózati jel (PR #136 review): egy rövid STT-maradék
+    ne némítsa el a látást."""
+    assert kell_e_kep("Wi, mit látsz?") is True
 
 
 def test_az_ures_kerdes_nem_ker_kepet():

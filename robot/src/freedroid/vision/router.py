@@ -116,12 +116,17 @@ _LATAS_KIFEJEZESEK = (
 # illeszkedik. Mérve 2026-09-15: „Mit látsz a hálózaton?" és „…milyen hálózatokat látsz a
 # Wi-Fi-n" a `látsz` miatt képet kért, és a robot a wifik helyett a szobát írta le (a
 # Teremtő: „a router ezt szűrje ki"). Előtag-illesztés a `wifi`-re, mert a rövid ragozott
-# alakok (`wifit`, `wifire`) nem tövezhetők (MIN_STEM); a `Wi-Fi` két tokenre esik.
-_HALOZATI_TOKENEK = frozenset({"halozat", "wi", "ssid"})
+# alakok (`wifit`, `wifire`) nem tövezhetők (MIN_STEM). A `Wi-Fi` két tokenre esik
+# (`wi`, `fi`) — PÁRBAN kell, mert egy magányos `wi` bármilyen rövid STT-maradék lehet
+# (PR #136 review). A kifejezések a KÖZÖS tokenizálón mennek át, mint a látás-listáé,
+# hogy egy tövező-változás a kettőt ne vigye szét.
+_NETWORK_TOKENS = frozenset(t for k in ("hálózat", "ssid") for t in tokenize(k))
+_WI_FI = frozenset(tokenize("Wi-Fi"))
 
 # Tuple of token-tuples: EGY elem = EGY kifejezés tokenjei EGYÜTT kellenek.
 _LATAS_TOKENEK: tuple[tuple[str, ...], ...] = tuple(
     tuple(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
+_VISION_TOKEN_SETS = tuple(frozenset(t) for t in _LATAS_TOKENEK)
 
 
 def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
@@ -146,7 +151,7 @@ _ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _LATAS_TOKENEK)
 def kell_e_kep(kerdes: str) -> bool:
     """Igaz, ha a kérdés a kamerakép nélkül nem válaszolható meg becsületesen."""
     kerdes_tokenek = set(tokenize(kerdes))
-    if kerdes_tokenek & _HALOZATI_TOKENEK or any(t.startswith("wifi") for t in kerdes_tokenek):
+    if (not kerdes_tokenek.isdisjoint(_NETWORK_TOKENS) or _WI_FI <= kerdes_tokenek
+            or any(t.startswith("wifi") for t in kerdes_tokenek)):
         return False
-    return any(set(kifejezes_tokenek) <= kerdes_tokenek
-               for kifejezes_tokenek in _LATAS_TOKENEK)
+    return any(token_set <= kerdes_tokenek for token_set in _VISION_TOKEN_SETS)
