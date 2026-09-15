@@ -117,47 +117,49 @@ _LATAS_KIFEJEZESEK = (
 # Hálózati „látás" — ha a kérdés ezek bármelyikét tartalmazza, NEM kér képet, akármi más
 # illeszkedik. Mérve 2026-09-15: „Mit látsz a hálózaton?" és „…milyen hálózatokat látsz a
 # Wi-Fi-n" a `látsz` miatt képet kért, és a robot a wifik helyett a szobát írta le (a
-# Teremtő: „a router ezt szűrje ki"). Előtag-illesztés a `wifi`-re, mert a rövid ragozott
-# alakok (`wifit`, `wifire`) nem tövezhetők (MIN_STEM). A `Wi-Fi` két tokenre esik
-# (`wi`, `fi`) — PÁRBAN kell, mert egy magányos `wi` bármilyen rövid STT-maradék lehet
-# (PR #136 review). A kifejezések a KÖZÖS tokenizálón mennek át, mint a látás-listáé,
-# hogy egy tövező-változás a kettőt ne vigye szét.
-# Ugyanaz a részhalmaz-illesztés, mint a látás-listán (PR #136 review 4): egy elem = egy
-# kifejezés tokenjei, EGYÜTT kellenek. Így a `Wi-Fi` (`wi`, `fi`) párban kell külön őr
-# nélkül, és egy jövőbeli többszavas tiltókifejezés („helyi hálózat") sem tüzel egyetlen
-# szavára — egy lapos unió ezt nem tudná.
+# Teremtő: „a router ezt szűrje ki"). Ugyanaz a részhalmaz-illesztés, mint a látás-listán
+# (PR #136 review 4): a `Wi-Fi` két tokenje (`wi`, `fi`) PÁRBAN kell — egy magányos `wi`
+# bármilyen rövid STT-maradék lehet —, és egy jövőbeli többszavas tiltókifejezés („helyi
+# hálózat") sem tüzel egyetlen szavára. A rövid ragozott alakokra (`wifit`, `wifire`) —
+# ezek nem tövezhetők (MIN_STEM) — a `_is_network_question` előtag-illesztése felel.
 _NETWORK_EXPRESSIONS = ("hálózat", "ssid", "Wi-Fi")
-_NETWORK_TOKEN_SETS: tuple[frozenset[str], ...] = tuple(
-    frozenset(tokenize(k)) for k in _NETWORK_EXPRESSIONS)
-
-# EGY elem = EGY kifejezés tokenjei, EGYÜTT kellenek (részhalmaz-illesztés).
-_VISION_TOKEN_SETS: tuple[frozenset[str], ...] = tuple(
-    frozenset(tokenize(kifejezes)) for kifejezes in _LATAS_KIFEJEZESEK)
 
 
 def _ellenorzi_uresek_ellen(kifejezesek: Sequence[str],
-                            tokenek: Sequence[Collection[str]]) -> None:
+                            tokenek: Sequence[Collection[str]],
+                            context: str = "látás") -> None:
     """I7 (végső review): a részhalmaz-illesztésben egy ÜRES tokenlistájú kifejezés
-    (`set() <= barmi`) MINDEN kérdésre illeszkedne — azaz minden kérdés képet kérne.
+    (`set() <= barmi`) MINDEN kérdésre illeszkedne.
 
-    Ma egyik kifejezés sem üres — de a spec saját "kell-e kép" listája TARTALMAZZA a
-    "mi ez"-t, ami `tokenize()`-on üresre esik (mindkét szó stopszó), és aki "a spec
-    szerint" pótolja a hiányzó tételeket, pont ebbe fut bele. Ez a hívás importkor fut,
-    tehát a hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen piros teszt."""
+    A kár a listától függ, ezért a `context` a hibaüzenetben (PR #136 review 5): a
+    látás-listán minden kérdés képet kérne, a hálózati tiltólistán a látás csendben
+    megszűnne. Ma egyik kifejezés sem üres — de a spec saját "kell-e kép" listája
+    TARTALMAZZA a "mi ez"-t, ami `tokenize()`-on üresre esik (mindkét szó stopszó). Ez a
+    hívás importkor fut, tehát a hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen
+    piros teszt."""
     # `strict=True`: eltérő hosszúságnál a sima `zip` a rövidebbnél némán megállna, és a
     # maradék kifejezést sosem ellenőrizné (PR #136 review 3 — pont ez történt az `ssid`-del).
     for kifejezes, tok in zip(kifejezesek, tokenek, strict=True):
         if not tok:
             raise ValueError(
-                f"vision.router: {kifejezes!r} üres tokenlistára tövez — a "
-                f"részhalmaz-illesztésben ez MINDEN kérdést látás-kérdésnek jelölné")
+                f"vision.router ({context}): {kifejezes!r} üres tokenlistára tövez — a "
+                f"részhalmaz-illesztésben ez minden kérdésre tévesen illeszkedne")
 
 
-_ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _VISION_TOKEN_SETS)
+def _build_token_sets(expressions: Sequence[str], context: str) -> tuple[frozenset[str], ...]:
+    """Kifejezésenként EGY token-halmaz (egy elem tokenjei EGYÜTT kellenek), importkor
+    ellenőrizve. Építés és ellenőrzés egy helyen: a kifejezés- és a halmazlista így
+    szerkezetileg nem csúszhat szét (PR #136 review 5)."""
+    token_sets = tuple(frozenset(tokenize(k)) for k in expressions)
+    _ellenorzi_uresek_ellen(expressions, token_sets, context)
+    return token_sets
+
+
+_VISION_TOKEN_SETS = _build_token_sets(_LATAS_KIFEJEZESEK, "látás")
 # 🔴 A tiltó oldalon a csapda FORDÍTVA ugyanaz (PR #136 review 2): egy üresre eső
 # kifejezés (`frozenset() <= barmi`) MINDEN kérdést hálózatinak jelölne — és a látás
-# csendben megszűnne. Kifejezésenként, importkor bukik.
-_ellenorzi_uresek_ellen(_NETWORK_EXPRESSIONS, _NETWORK_TOKEN_SETS)
+# csendben megszűnne.
+_NETWORK_TOKEN_SETS = _build_token_sets(_NETWORK_EXPRESSIONS, "hálózat")
 
 
 def _is_network_question(tokens: set[str]) -> bool:

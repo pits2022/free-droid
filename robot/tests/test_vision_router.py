@@ -103,8 +103,15 @@ def test_a_tobbszavas_kifejezes_MINDEN_tokenje_kell():
 def test_empty_guard_rejects_length_mismatch():
     """PR #136 review 3: két kifejezés, egy halmaz — a sima `zip` a második kifejezést
     sosem nézte volna meg. Hosszeltérésnél importkor, hangosan bukjon."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="shorter"):
         _ellenorzi_uresek_ellen(("hálózat", "ssid"), (frozenset({"halozat"}),))
+
+
+def test_empty_guard_names_its_context():
+    """PR #136 review 5: a hálózati listán egy üres kifejezés a látást némítaná el, nem
+    mindent képnek jelölne — a hibaüzenet mondja meg, melyik listáról van szó."""
+    with pytest.raises(ValueError, match=r"\(hálózat\)"):
+        _ellenorzi_uresek_ellen(("mi ez",), ((),), "hálózat")
 
 
 def test_az_ures_tokenlistaju_kifejezes_HANGOSAN_bukik():
