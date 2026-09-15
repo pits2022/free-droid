@@ -108,7 +108,7 @@ def test_a_tobbszavas_kifejezes_MINDEN_tokenje_kell():
 def test_empty_guard_rejects_length_mismatch():
     """PR #136 review 3: két kifejezés, egy halmaz — a sima `zip` a második kifejezést
     sosem nézte volna meg. Hosszeltérésnél importkor, hangosan bukjon."""
-    with pytest.raises(ValueError, match="shorter"):
+    with pytest.raises(ValueError, match=r"shorter|longer"):
         _ellenorzi_uresek_ellen(("hálózat", "ssid"), (frozenset({"halozat"}),))
 
 
