@@ -166,20 +166,22 @@ _VISION_TOKEN_SETS = _build_token_sets(_LATAS_KIFEJEZESEK, "látás")
 _NETWORK_TOKEN_SETS = _build_token_sets(_NETWORK_EXPRESSIONS, "hálózat")
 
 
-def _is_network_question(question: str) -> bool:
+def _is_network_question(question: str, tokens: set[str]) -> bool:
     """Hálózati „látás" — ilyenkor SOHA nincs kép (a Teremtő, 2026-09-15).
 
     Az előtag a kötőjel NÉLKÜLI nyers szavakon fut, nem a tokeneken (PR #136 review 8):
     a „Wi-Fit"/„Wi-Fire" tokenje `wi` + `fit`, amit sem a `Wi-Fi` pár, sem a `wifi`
-    előtag nem fogna — a `wifit` nyers alak viszont igen."""
-    tokens = set(tokenize(question))
+    előtag nem fogna — a `wifit` nyers alak viszont igen. A `tokens` a hívóé: a kérdést
+    egyszer tokenizáljuk (PR #136 review 9)."""
     return (any(token_set <= tokens for token_set in _NETWORK_TOKEN_SETS)
             or any(w.replace("-", "").startswith(_NETWORK_PREFIXES) for w in words(question)))
 
 
 def kell_e_kep(kerdes: str) -> bool:
     """Igaz, ha a kérdés a kamerakép nélkül nem válaszolható meg becsületesen."""
-    if _is_network_question(kerdes):
-        return False
     kerdes_tokenek = set(tokenize(kerdes))
-    return any(token_set <= kerdes_tokenek for token_set in _VISION_TOKEN_SETS)
+    # Előbb a látás-jel (a kérdések túlnyomó többsége nem látás-kérdés, azoknál a hálózati
+    # próba és a nyers szavak kinyerése el sem indul), aztán a hálózati tiltás.
+    if not any(token_set <= kerdes_tokenek for token_set in _VISION_TOKEN_SETS):
+        return False
+    return not _is_network_question(kerdes, kerdes_tokenek)
