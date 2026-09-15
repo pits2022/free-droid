@@ -32,7 +32,9 @@ akkor talál, ha VALAMELYIK kifejezés ÖSSZES tokenje jelen van a kérdésben
 
 from __future__ import annotations
 
-from freedroid.rag.normalize import tokenize
+from dataclasses import dataclass
+
+from freedroid.rag.normalize import _TOKEN, _fold, tokenize
 
 # SZŰK lista, szándékosan. Bővíteni csak úgy szabad, hogy a
 # `test_a_parancsok_es_alkotas_keresek_NEM` teszt zöld marad: egy hétköznapi tő
@@ -160,9 +162,72 @@ def _is_network_question(tokens: set[str]) -> bool:
             or any(t.startswith("wifi") for t in tokens))
 
 
+@dataclass(frozen=True)
+class Station:
+    """A nézési terv egy állomása. `None` szög = maradjon az aktuális póz; `None` címke =
+    a sor címke nélkül kerül a `[LÁTVÁNY]` blokkba (spec §3.4/5)."""
+
+    label: str | None
+    pan_deg: float | None
+    tilt_deg: float | None
+
+
+# Körbenézés — a „nézz körül" már a látás-kifejezések közt van; ezek a TÖBB-állomásos ág.
+_LOOK_AROUND_PHRASES = ("nézz körül", "nézz körbe", "nézz szét", "nézzél körül",
+                        "nézzél szét", "pásztázz körbe")
+_LOOK_AROUND_TOKEN_SETS = tuple(frozenset(tokenize(p)) for p in _LOOK_AROUND_PHRASES)
+_ellenorzi_uresek_ellen(_LOOK_AROUND_PHRASES, _LOOK_AROUND_TOKEN_SETS)
+
+# 🔴 Az irány a stopszó-szűrés ELŐTTI szavakon dől el: a „fel" és a „le" STOPSZÓ, a
+# `tokenize("nézz fel")` és a `tokenize("nézz le")` egyaránt `['nezz']` (mérve,
+# 2026-09-15). Az ékezetfosztás a `rag.normalize` segédjeivel megy, nem egy másodikkal.
+_LOOK_VERBS = frozenset({"nezz", "nezzel"})
+_DIRECTION_WORDS = {
+    "up": frozenset({"fel", "felfele", "plafonra", "mennyezetre"}),
+    "down": frozenset({"le", "lefele", "foldre"}),
+    "left": frozenset({"balra"}),
+    "right": frozenset({"jobbra"}),
+}
+# Az irányszó legfeljebb ennyi szóval követheti az igét: „nézz a földre" (a névelő
+# átugorható), de „Nézz rám és írd le" NEM lefelé nézés.
+_DIRECTION_WINDOW = 2
+
+
+def _direction(question: str) -> str | None:
+    words = _TOKEN.findall(_fold(question))
+    for i, word in enumerate(words):
+        if word not in _LOOK_VERBS:
+            continue
+        for following in words[i + 1:i + 1 + _DIRECTION_WINDOW]:
+            for direction, direction_words in _DIRECTION_WORDS.items():
+                if following in direction_words:
+                    return direction
+    return None
+
+
+def vision_plan(question: str, *, side_deg: float = 45.0, up_deg: float = 30.0,
+                down_deg: float = 30.0) -> tuple[Station, ...] | None:
+    """A kérdés nézési terve, vagy `None`, ha nem kell kép (spec §3.1).
+
+    Prioritás: hálózati kérdés → `None`; körbenézés → három állomás; irány + látás-jel →
+    egy címkézett állomás; sima látás-kérdés → egy állomás az aktuális pózból.
+    """
+    tokens = set(tokenize(question))
+    if _is_network_question(tokens):
+        return None
+    if any(s <= tokens for s in _LOOK_AROUND_TOKEN_SETS):
+        return (Station("Előre", 0.0, 0.0), Station("Balra", side_deg, 0.0),
+                Station("Jobbra", -side_deg, 0.0))
+    if not any(s <= tokens for s in _VISION_TOKEN_SETS):
+        return None
+    poses = {"up": Station("Fent", 0.0, up_deg), "down": Station("Lent", 0.0, -down_deg),
+             "left": Station("Balra", side_deg, 0.0), "right": Station("Jobbra", -side_deg, 0.0)}
+    direction = _direction(question)
+    if direction is not None:
+        return (poses[direction],)
+    return (Station(None, None, None),)
+
+
 def kell_e_kep(kerdes: str) -> bool:
     """Igaz, ha a kérdés a kamerakép nélkül nem válaszolható meg becsületesen."""
-    kerdes_tokenek = set(tokenize(kerdes))
-    if _is_network_question(kerdes_tokenek):
-        return False
-    return any(token_set <= kerdes_tokenek for token_set in _VISION_TOKEN_SETS)
+    return vision_plan(kerdes) is not None

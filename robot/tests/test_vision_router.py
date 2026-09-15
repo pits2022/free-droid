@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from freedroid.vision.router import _ellenorzi_uresek_ellen, kell_e_kep
+from freedroid.vision.router import Station, _ellenorzi_uresek_ellen, kell_e_kep, vision_plan
 
 LATAS = [
     "Mit látsz?",
@@ -107,3 +107,64 @@ def test_az_ures_tokenlistaju_kifejezes_HANGOSAN_bukik():
     hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen piros teszt."""
     with pytest.raises(ValueError, match="mi ez"):
         _ellenorzi_uresek_ellen(("mi ez",), ((),))
+
+
+LOOK_AROUND = (Station("Előre", 0.0, 0.0), Station("Balra", 45.0, 0.0),
+               Station("Jobbra", -45.0, 0.0))
+
+
+@pytest.mark.parametrize("question", [
+    "Nézz körül és mondd el, mit látsz.",
+    "Nézz körül a kameráddal!",
+    "Nézz szét a szobában!",
+    "Nézzél körül!",
+    "Pásztázz körbe a kameráddal!",
+    "Nézz körbe!",
+])
+def test_look_around_is_three_stations(question):
+    assert vision_plan(question) == LOOK_AROUND
+
+
+@pytest.mark.parametrize("question, station", [
+    ("Nézz fel és mondd el, mit látsz.", Station("Fent", 0.0, 30.0)),
+    ("Nézz felfelé, mit látsz?", Station("Fent", 0.0, 30.0)),
+    ("Nézz a plafonra, mit látsz?", Station("Fent", 0.0, 30.0)),
+    ("Nézz le és mondd el, mit látsz.", Station("Lent", 0.0, -30.0)),
+    ("Nézz a földre, és mondd el, mit látsz előtted.", Station("Lent", 0.0, -30.0)),
+    ("Nézz lefelé és mond el, mit látsz.", Station("Lent", 0.0, -30.0)),
+    ("Nézz balra, mit látsz?", Station("Balra", 45.0, 0.0)),
+    ("Nézz jobbra és mondd el, mit látsz!", Station("Jobbra", -45.0, 0.0)),
+])
+def test_direction_with_vision_cue_is_one_labelled_station(question, station):
+    assert vision_plan(question) == (station,)
+
+
+def test_bare_look_up_is_NOT_a_vision_question():
+    """A csupasz „Nézz fel!" kamera-parancs a modelltől, nem látás-kör (spec §3.1)."""
+    assert vision_plan("Nézz fel!") is None
+    assert vision_plan("Nézz balra!") is None
+
+
+def test_direction_word_must_follow_the_verb():
+    """„Nézz rám és írd le, mit látsz" — a `le` az „írd le" része, nem irány."""
+    assert vision_plan("Nézz rám és írd le, mit látsz!") == (Station(None, None, None),)
+
+
+def test_plain_vision_question_keeps_the_current_pose():
+    assert vision_plan("Mit látsz?") == (Station(None, None, None),)
+
+
+def test_angles_come_from_the_caller():
+    plan = vision_plan("Nézz körül!", side_deg=30.0)
+    assert [s.pan_deg for s in plan] == [0.0, 30.0, -30.0]
+    assert vision_plan("Nézz fel, mit látsz?", up_deg=20.0) == (Station("Fent", 0.0, 20.0),)
+
+
+def test_network_block_applies_to_every_branch():
+    assert vision_plan("Nézz körül a wifin!") is None
+    assert vision_plan("Nézz fel és mondd, milyen hálózatot látsz!") is None
+
+
+@pytest.mark.parametrize("question", LATAS + NEM_LATAS)
+def test_kell_e_kep_is_a_thin_wrapper(question):
+    assert kell_e_kep(question) == (vision_plan(question) is not None)
