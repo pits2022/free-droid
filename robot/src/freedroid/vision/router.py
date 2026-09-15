@@ -124,8 +124,9 @@ _LATAS_KIFEJEZESEK = (
 # hálózat") sem tüzel egyetlen szavára. A rövid, kötőjel NÉLKÜL ragozott alakokra
 # (`wifit`, `wifire`, `ssidet`, `ssidt`, `wlant` — nem tövezhetők, MIN_STEM) a
 # `_is_network_question` előtag-illesztése felel (PR #136 review 6: az `ssid` és a
-# `wlan` ugyanúgy átcsúszott, mint korábban a `wifi`).
-_NETWORK_EXPRESSIONS = ("hálózat", "ssid", "Wi-Fi", "wlan")
+# `wlan` ugyanúgy átcsúszott, mint korábban a `wifi`). Ami előtaggal fogható, az CSAK
+# ott szerepel (PR #136 review 7) — a kifejezéslista a tövezendő és a többtokenes elemeké.
+_NETWORK_EXPRESSIONS = ("hálózat", "Wi-Fi")
 _NETWORK_PREFIXES = ("wifi", "ssid", "wlan")
 
 
