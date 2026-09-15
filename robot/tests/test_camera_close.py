@@ -12,23 +12,23 @@ import types
 from freedroid.camera import PanTiltCamera
 
 
-def test_a_close_NEM_irja_full_offra_a_szervocsatornakat():
+def test_close_does_not_release_servo_channels():
     k = object.__new__(PanTiltCamera)
-    irasok: list[tuple[int, object]] = []
+    writes: list[tuple[int, object]] = []
 
-    class Csatorna:
+    class Channel:
         def __init__(self, i: int) -> None:
             self.i = i
 
-        def __setattr__(self, nev, ertek):
-            if nev == "duty_cycle":
-                irasok.append((self.i, ertek))
-            object.__setattr__(self, nev, ertek)
+        def __setattr__(self, name, value):
+            if name == "duty_cycle":
+                writes.append((self.i, value))
+            object.__setattr__(self, name, value)
 
-    hivasok: list[str] = []
-    k._pca = types.SimpleNamespace(channels=[Csatorna(i) for i in range(16)],
-                                   deinit=lambda: hivasok.append("pca"))
-    k._i2c = types.SimpleNamespace(deinit=lambda: hivasok.append("i2c"))
+    calls: list[str] = []
+    k._pca = types.SimpleNamespace(channels=[Channel(i) for i in range(16)],
+                                   deinit=lambda: calls.append("pca"))
+    k._i2c = types.SimpleNamespace(deinit=lambda: calls.append("i2c"))
     k.close()
-    assert irasok == [], "a close() hozzányúlt a szervócsatornákhoz — a tilt hanyatt esne"
-    assert hivasok == ["pca", "i2c"]
+    assert writes == [], "a close() hozzányúlt a szervócsatornákhoz — a tilt hanyatt esne"
+    assert calls == ["pca", "i2c"]
