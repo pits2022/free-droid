@@ -312,7 +312,25 @@ class PanTiltCamera:
             time.sleep(reszlet / self._cfg.scan_deg_per_s)
 
     def close(self) -> None:
-        """Leállás: a szervók elengednek (a kamera lebillen). Ez a helyes kilépés —
-        egy folyamat után tovább feszülő szervó órákig veszi az áramot."""
-        self._pca.deinit()
-        self._i2c.deinit()
+        """Leállás: az I2C elengedése. A szervók TARTVA MARADNAK — szándékosan.
+
+        🔴 A korábbi docstring az ellenkezőjét állította („a szervók elengednek"), és ez
+        MÉRVE nem igaz (2026-09-15, a Pi-n): a `PCA9685.deinit()` csak a MODE1-et
+        állítja vissza (adafruit: `mode1_reg = 0x00`), a csatornákhoz nem nyúl, tehát a
+        chip a kilépés után is hajtja a szervókat az utolsó pulzussal.
+
+        És ez a HELYES viselkedés: kézzel full-off-ra állítva a tilt a gimbal súlyától
+        HANYATT ESETT. A tartott jel az ára annak, hogy a fej álljon.
+
+        ⚠️ Ha álló fej mellett a tilt rángat, először a KÁBELT nézd: 2026-09-15-én egy
+        kilazult csatlakozó okozta, nem a táp és nem a kód.
+
+        ⚠️ A tartott jel ÁRA (PR #138 review): leállított folyamat mellett is áramot vesz,
+        és egy fizikailag akadályozott fej ellen szoftveres őr nélkül küzd. A védelem a
+        szervó-táp kapcsolója (LM2596), nem a kód — hosszabb állásnál azt kell lekapcsolni.
+        """
+        # `try/finally`: egy I2C-hiba a PCA9685 lezárásában ne hagyja nyitva a buszt.
+        try:
+            self._pca.deinit()
+        finally:
+            self._i2c.deinit()
