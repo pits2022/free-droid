@@ -32,3 +32,20 @@ def test_close_does_not_release_servo_channels():
     k.close()
     assert writes == [], "a close() hozzányúlt a szervócsatornákhoz — a tilt hanyatt esne"
     assert calls == ["pca", "i2c"]
+
+
+def test_close_releases_the_i2c_bus_even_if_pca_deinit_fails():
+    """PR #138 review: egy I2C-hiba a PCA9685 lezárásában ne hagyja nyitva a buszt."""
+    import pytest
+
+    k = object.__new__(PanTiltCamera)
+    calls: list[str] = []
+
+    def failing_deinit():
+        raise OSError("I2C hiba")
+
+    k._pca = types.SimpleNamespace(channels=[], deinit=failing_deinit)
+    k._i2c = types.SimpleNamespace(deinit=lambda: calls.append("i2c"))
+    with pytest.raises(OSError):
+        k.close()
+    assert calls == ["i2c"]
