@@ -515,7 +515,7 @@ def main() -> int:
     ap.add_argument("--speak-ok", default="Felálltam, Teremtőm. Minden rendben.",
                     help="amit hiba nélküli önteszt után mond")
     ap.add_argument("--speak-fail",
-                    default="Felálltam, Teremtőm, de valami nem stimmel. Nézd meg a naplót.",
+                    default="Felálltam, Teremtőm, de valami nincs rendben. Nézd meg a naplót.",
                     help="amit bukott önteszt után mond")
     args = ap.parse_args()
 

@@ -23,7 +23,7 @@ Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') 
 # A mozgó próbát kézzel kell kérni, felpolcolt robotnál.
 # `--skip orchestrator_service`: ez az egység `Before=freedroid.service`, tehát az
 # orchestrátor ITT MINDIG inaktív — a check nélküle minden bootkor és restartkor a
-# „valami nem stimmel" szöveget mondatta ki, hibátlan roboton (mérve 2026-09-03, 20:01:
+# „valami nincs rendben" szöveget mondatta ki, hibátlan roboton (mérve 2026-09-03, 20:01:
 # 23 OK + ez az egy BUKÁS). A health-timerben a check marad CRITICAL, ott jogos.
 ExecStart={{ robot_venv_bin }}/python {{ robot_src_dir }}/scripts/self_check.py \
   --skip orchestrator_service \
