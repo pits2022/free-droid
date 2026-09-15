@@ -254,3 +254,8 @@ def test_preverb_adjacent_and_unambiguous_word_in_window_still_work(question, st
 ])
 def test_felé_forms_of_left_and_right(question, station):
     assert vision_plan(question) == (station,)
+
+
+def test_after_the_verb_wins_over_a_preverb_before_it():
+    """PR #137 review 7: „Írd le, nézz fel" — a megelőző „le" az „írd le"-hez tartozik."""
+    assert vision_plan("Írd le, nézz fel, mit látsz!") == (Station("Fent", 0.0, 30.0),)

@@ -243,7 +243,9 @@ def _direction(question: str) -> str | None:
         before = raw[max(0, i - _DIRECTION_BEFORE):i]
         after = raw[i + 1:i + 1 + _DIRECTION_WINDOW]
         adjacent = {raw[j] for j in (i - 1, i + 1) if 0 <= j < len(raw)}
-        for candidate in before + after:
+        # Előbb az ige UTÁNI szavak (PR #137 review 7): a „nézz fel" az alap szórend, és egy
+        # megelőző tagmondat igekötője („Írd le, nézz fel") ne előzze meg.
+        for candidate in after + before:
             if candidate in _PREVERBS and candidate not in adjacent:
                 continue
             if candidate in _WORD_TO_DIRECTION:

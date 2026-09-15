@@ -167,6 +167,8 @@ class Orchestrator:
         # Az ÁLLJ jelzője a látás-körnek (spec 2026-09-15-nezz-korul §5): a hurok a kör
         # előtt adja át és utána `None`-ra állítja. Nem `ask()`-paraméter, mert a tesztek
         # tíz helyen egyargumentumos lambdára cserélik az `ask`-ot. `None` = szöveges út.
+        # ⚠️ Emiatt az `ask()` NEM újrahívható párhuzamosan (PR #137 review 7) — ma egyetlen
+        # hurok hívja; egy több szálú hívónak előbb ezt kell paraméterré tennie.
         self._stop_event: threading.Event | None = None
         self._akku_gyenge = False
         # Státusz-gyűrű (spec §6). Húzó modell: a rajzoló szál a `_led_scene()`-t kérdezi
