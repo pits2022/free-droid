@@ -65,6 +65,9 @@ NEM_LATAS = [
     # PR #136 review 8 — kötőjellel ragozva a `Wi-Fi` tokenje `wi` + `fit`:
     "Látsz Wi-Fit?",
     "Mit látsz a Wi-Fire?",
+    # PR #136 review 10 — a képzett „hálózati" alakot a tövező nem vágja vissza:
+    "Milyen hálózati eszközöket látsz?",
+    "Mit látsz a hálózati eszközökön?",
 ]
 
 
