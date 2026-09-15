@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import types
 
+import pytest
+
 from freedroid.camera import PanTiltCamera
 
 
@@ -36,8 +38,6 @@ def test_close_does_not_release_servo_channels():
 
 def test_close_releases_the_i2c_bus_even_if_pca_deinit_fails():
     """PR #138 review: egy I2C-hiba a PCA9685 lezárásában ne hagyja nyitva a buszt."""
-    import pytest
-
     k = object.__new__(PanTiltCamera)
     calls: list[str] = []
 
