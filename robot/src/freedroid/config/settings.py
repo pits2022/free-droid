@@ -711,6 +711,16 @@ class VisionSettings:
 
     timeout_s: float = 8.0
     probe_timeout_s: float = 0.5      # ld. `LLMEndpoints.probe_timeout_s` — ugyanaz az érv
+
+    # 🔴 A HIDEGINDULÁS a `timeout_s` sokszorosa (WP0, mérve 2026-09-15, qwen3.5:4b):
+    # lemezről az első betöltés 29,75 s, a lapcache-ből újratöltés 3,95 s, melegen
+    # 0,8-1,3 s. Az Ollama alap `keep_alive`-ja 5 perc — két „Mit látsz?" között ennyi
+    # simán eltelik, és akkor a második kérdés a 3,95 s-ot fizeti, a felhő friss
+    # indulása utáni első pedig a 29,75-öt, azaz időtúllépést -> negatív blokk.
+    # Ezért: bemelegítés induláskor (külön, hosszú korláttal) + a `llm.cloud_keep_alive`
+    # értéke. Ugyanaz a `keep_alive_ertek` validálja — a `"-1"` sztring 400-at ad.
+    keep_alive: str = "30m"
+    warmup_timeout_s: float = 60.0
     jpeg_quality: int = 85
     device: str = ""                  # "" = próbálja /dev/video0..3-at (ld. camera/frame.py)
 
@@ -719,9 +729,13 @@ class VisionSettings:
             raise ValueError(
                 "vision: enabled=True, de a model üres — a látás csendben sosem "
                 "látna semmit. Add meg a TELJES tagot (névtérrel együtt).")
-        for nev in ("timeout_s", "probe_timeout_s"):
+        for nev in ("timeout_s", "probe_timeout_s", "warmup_timeout_s"):
             if getattr(self, nev) <= 0:
                 raise ValueError(f"vision.{nev} must be > 0")
+        try:
+            keep_alive_ertek(self.keep_alive)
+        except ValueError as e:
+            raise ValueError(f"vision.keep_alive: {e}") from None
         if not 1 <= self.jpeg_quality <= 100:
             raise ValueError("vision.jpeg_quality must be 1..100")
 

@@ -17,6 +17,7 @@ import base64
 import logging
 from typing import TYPE_CHECKING, Callable, Protocol
 
+from freedroid.config.settings import keep_alive_ertek
 from freedroid.health.probe import http_get, jelold_elerhetetlennek, korben_elerhetetlen
 
 if TYPE_CHECKING:
@@ -73,11 +74,19 @@ class CloudVLM:
             return None
         try:
             kliens = self._factory(self._cfg.url, self._cfg.timeout_s)
+            # 🔴 `think=False` NEM hangolás: a qwen3.5 alapból gondolkodik, és egy
+            # mondatos leírásért 575-1572 tokent ír, melegen is 6-10 s-ot — a 8 s-os
+            # `timeout_s` mellett rendszeres negatív blokk. Kikapcsolva 36 token, 0,96 s
+            # (WP0, mérve 2026-09-15). Nem gondolkodó modellen (gemma4:e4b) ártalmatlan.
             valasz = kliens.generate(
                 model=self._cfg.model,
                 prompt=self._cfg.prompt,
                 images=[base64.b64encode(jpeg).decode("ascii")],
-                stream=False)
+                stream=False,
+                think=False,
+                # A valódi híváson is, nem csak a bemelegítésen — ld. `llm._generate_on`:
+                # enélkül minden kérés 5 percre állítja vissza a modell TTL-jét.
+                keep_alive=keep_alive_ertek(self._cfg.keep_alive))
             # A válasz-kinyerés IS az őrzött ágban van: egy nem-sztring `response` mező
             # (pl. hibás VLM-kliens, ami számot ad vissza) a `.strip()`-en dobna, és a
             # modul EGYETLEN szabálya, hogy a `describe()` SOSEM dob — a kör akkor is
@@ -117,6 +126,29 @@ class CloudVLM:
         log.info("látvány kész: %d karakter", len(szoveg))
         log.debug("látvány: %r", szoveg)
         return szoveg
+
+    def warmup(self) -> bool:
+        """Betölteti a VLM-et, MIELŐTT az első „Mit látsz?" elhangzik. Sosem dob.
+
+        Üres prompt, kép nélkül: az Ollama erre csak betölt, nem generál. A korlát a
+        `warmup_timeout_s`, NEM a `timeout_s` — a lemezről betöltés 29,75 s (mérve),
+        egy 8 s-os korláttal a bemelegítés maga is időtúllépne.
+        """
+        if not self._cfg.enabled:
+            return False
+        elerheto, indok = self.elerheto()
+        if not elerheto:
+            log.warning("VLM bemelegítés kihagyva: %s", indok)
+            return False
+        keep = keep_alive_ertek(self._cfg.keep_alive)
+        try:
+            kliens = self._factory(self._cfg.url, self._cfg.warmup_timeout_s)
+            kliens.generate(model=self._cfg.model, prompt="", keep_alive=keep)
+        except Exception as e:  # noqa: BLE001 — a bemelegítés sosem buktathat indulást
+            log.warning("VLM bemelegítés sikertelen (%s: %s)", type(e).__name__, e)
+            return False
+        log.info("VLM bemelegítve (%s, keep_alive=%s)", self._cfg.model, keep)
+        return True
 
 
 __all__ = ["CloudVLM"]

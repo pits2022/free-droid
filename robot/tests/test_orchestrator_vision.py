@@ -165,3 +165,18 @@ def test_a_kikapcsolt_latas_NEM_ragad_kepkockat(monkeypatch):
     o.ask("Mit látsz?")
     assert grab_hivasok == [], "kikapcsolt látással grab_jpeg nem futhat le"
     assert LATVANY_NINCS in o.llm.promptok[0]
+
+
+def test_a_start_a_VLM_et_is_bemelegiti(monkeypatch):
+    """Lemezről 29,75 s a VLM betöltése (WP0) — nem eshet a demó első „Mit látsz?"-jára."""
+    class MelegVLM(HamisVLM):
+        melegitve = False
+
+        def warmup(self) -> bool:
+            self.melegitve = True
+            return True
+
+    vlm = MelegVLM()
+    o = orch(monkeypatch, vlm)
+    o.start()
+    assert vlm.melegitve is True
