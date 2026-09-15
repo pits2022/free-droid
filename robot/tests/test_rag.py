@@ -22,7 +22,7 @@ from freedroid.rag import (
 )
 from freedroid.rag.context import KIFEJTOS_MONDAT
 from freedroid.rag.corpus import DEFAULT_SOURCES
-from freedroid.rag.normalize import tokenize
+from freedroid.rag.normalize import tokenize, words
 
 # robot/tests/test_rag.py -> parents[2] = repo root
 MD = Path(__file__).resolve().parents[2] / "training" / "rag" / "yotengrit.md"
@@ -489,3 +489,11 @@ def test_a_latvany_es_a_FORRAS_egyutt_is_jol_all_ossze(retriever):
     p = build_prompt("Mit látsz?", hits, latvany="A room.")
     assert "[FORRÁS]" in p and "[LÁTVÁNY]" in p
     assert p.index("[LÁTVÁNY]") < p.index("[FORRÁS]"), "az érzékelés a tudás ELŐTT áll"
+
+
+def test_words_keeps_stopwords_and_hyphenated_words():
+    """A `words()` épp azt őrzi meg, amit a `tokenize()` eldob (PR #136 review 9): a
+    stopszó („fel") és a kötőjeles szó egyben („wi-fit") marad; ékezetfosztva, kisbetűvel."""
+    res = words("Nézz FEL a Wi-Fit keresve!")
+    assert res == ["nezz", "fel", "a", "wi-fit", "keresve"]
+    assert "fel" not in tokenize("Nézz FEL a Wi-Fit keresve!")
