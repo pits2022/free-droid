@@ -204,7 +204,13 @@ def words(text: str) -> list[str]:
     A kötőjeles szó egyben marad (`wi-fit`). Arra való, ahol a `tokenize()` épp azt
     dobná el, amit keresünk: a „fel"/„le" stopszó, a „Wi-Fit" pedig `wi` + `fit` lesz.
     """
-    return _TOKEN.findall(_fold(text))
+    # Az STT a kötőjel helyett gyakran gondolatjelet ír („Wi–Fit"): azok is kötőjelnek
+    # számítanak, különben a szó szétesne (`wi`, `fit`) — PR #137 review 6.
+    return _TOKEN.findall(_fold(text.translate(_DASHES)))
+
+
+_DASHES = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-",
+                         "\u2014": "-", "\u2212": "-"})
 
 
 def tokenize(text: str) -> list[str]:
