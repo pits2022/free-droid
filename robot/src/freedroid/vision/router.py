@@ -120,7 +120,9 @@ _LATAS_KIFEJEZESEK = (
 # (`wi`, `fi`) — PÁRBAN kell, mert egy magányos `wi` bármilyen rövid STT-maradék lehet
 # (PR #136 review). A kifejezések a KÖZÖS tokenizálón mennek át, mint a látás-listáé,
 # hogy egy tövező-változás a kettőt ne vigye szét.
-_NETWORK_TOKENS = frozenset(t for k in ("hálózat", "ssid") for t in tokenize(k))
+_NETWORK_WORDS = ("hálózat", "ssid")
+_NETWORK_TOKEN_SETS = tuple(frozenset(tokenize(k)) for k in _NETWORK_WORDS)
+_NETWORK_TOKENS = frozenset().union(*_NETWORK_TOKEN_SETS)
 _WI_FI = frozenset(tokenize("Wi-Fi"))
 
 # EGY elem = EGY kifejezés tokenjei, EGYÜTT kellenek (részhalmaz-illesztés).
@@ -137,7 +139,9 @@ def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
     "mi ez"-t, ami `tokenize()`-on üresre esik (mindkét szó stopszó), és aki "a spec
     szerint" pótolja a hiányzó tételeket, pont ebbe fut bele. Ez a hívás importkor fut,
     tehát a hiba egy NEVEZETT `ValueError`, nem tizenegy rejtélyesen piros teszt."""
-    for kifejezes, tok in zip(kifejezesek, tokenek):
+    # `strict=True`: eltérő hosszúságnál a sima `zip` a rövidebbnél némán megállna, és a
+    # maradék kifejezést sosem ellenőrizné (PR #136 review 3 — pont ez történt az `ssid`-del).
+    for kifejezes, tok in zip(kifejezesek, tokenek, strict=True):
         if not tok:
             raise ValueError(
                 f"vision.router: {kifejezes!r} üres tokenlistára tövez — a "
@@ -145,10 +149,11 @@ def _ellenorzi_uresek_ellen(kifejezesek: tuple[str, ...],
 
 
 _ellenorzi_uresek_ellen(_LATAS_KIFEJEZESEK, _VISION_TOKEN_SETS)
-# 🔴 A tiltó oldalon a csapda FORDÍTVA ugyanaz (PR #136 review 3): egy üresre eső
+# A tiltószavakat EGYENKÉNT: az uniójuk akkor sem lenne üres, ha az egyik szó üresre tövez.
+_ellenorzi_uresek_ellen(_NETWORK_WORDS, _NETWORK_TOKEN_SETS)
+# 🔴 A tiltó oldalon a csapda FORDÍTVA ugyanaz (PR #136 review 2): egy üresre eső
 # `_WI_FI` (`frozenset() <= barmi`) MINDEN kérdést hálózatinak jelölne — és a látás
 # csendben megszűnne. Egy tokenre eső `Wi-Fi` pedig a párban-illesztést rontaná el.
-_ellenorzi_uresek_ellen(("hálózat", "ssid"), (_NETWORK_TOKENS,))
 if len(_WI_FI) != 2:
     raise ValueError(f"vision.router: a 'Wi-Fi' {sorted(_WI_FI)!r} tokenre esett — "
                      f"pontosan kettő kell (wi, fi), különben a párban-illesztés elromlik")

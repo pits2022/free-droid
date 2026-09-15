@@ -100,6 +100,13 @@ def test_a_tobbszavas_kifejezes_MINDEN_tokenje_kell():
     assert kell_e_kep("Nézz körül a szobában!") is True
 
 
+def test_empty_guard_rejects_length_mismatch():
+    """PR #136 review 3: két kifejezés, egy halmaz — a sima `zip` a második kifejezést
+    sosem nézte volna meg. Hosszeltérésnél importkor, hangosan bukjon."""
+    with pytest.raises(ValueError):
+        _ellenorzi_uresek_ellen(("hálózat", "ssid"), (frozenset({"halozat"}),))
+
+
 def test_az_ures_tokenlistaju_kifejezes_HANGOSAN_bukik():
     """I7 (végső review): a spec saját "kell-e kép" listája tartalmazza a "mi ez"-t,
     ami `tokenize()`-on ÜRES listát ad (mindkét szó stopszó) — a részhalmaz-illesztésben
