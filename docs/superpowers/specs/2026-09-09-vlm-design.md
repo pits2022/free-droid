@@ -95,11 +95,14 @@ szíjakkal, **letakart lencse**, arc, behúzott függönyös szoba, cserépkály
      kivágva, MIELŐTT a `[LÁTVÁNY]` blokkba kerül. Determinisztikus, a prompt nem változik,
      tehát a papagájozás-kockázat itt nem áll fenn.
   2. **Engedélylista a látás-körökben:** ha a router képet kért (`vision.router.kell_e_kep`),
-     csak a `LATAS_KORBEN_ENGEDETT` = {`stop`, `camera`} fut. Eredetileg tiltólista volt
+     csak a `LATAS_KORBEN_ENGEDETT` = {`stop`} fut. Eredetileg tiltólista volt
      (`move`, `turn`) — a PR #133 review 3 kérdésére a `handlers.py`-ban mérve: a `set_speed`
      és a `set_mode` MEGMARADÓ állapotot ír, tehát egy tábla a sebességet átállítva a
      KÖVETKEZŐ, már nem látás-kör `move`-ját gyorsítaná. Engedélylistával egy új tool alapból
-     tiltott. Ma nincs olyan legitim parancs, ami egy körben lát ÉS mozog vagy állapotot vált
+     tiltott. A `camera` is kikerült (PR #134 review 2): a képkocka az LLM ELŐTT készül, tehát
+     egy látás-körben kiadott fejfordítás az adott kör látványán nem segít, egy tábla viszont
+     lefelé fordíthatná a kamerát. Az elhárítás a transcriptben is látszik (`kapu_eldobott`).
+     Ma nincs olyan legitim parancs, ami egy körben lát ÉS mozog vagy állapotot vált
      (`approach_speaker`/`follow_speaker`: `NotImplementedError`); ha lesz, a lista tudatosan
      bővítendő.
 
