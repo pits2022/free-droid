@@ -88,3 +88,12 @@ def test_too_large_look_settings_fail_at_startup(field, value):
 def test_look_settings_defaults():
     v = Settings().vision
     assert (v.look_side_deg, v.look_up_deg, v.look_down_deg, v.settle_s) == (45.0, 30.0, 30.0, 0.5)
+
+
+def test_move_to_tolerates_float_drift():
+    """PR #137 review: a relatív mozdulatok float-összeadással halmoznak — egy 1e-9 fokos
+    eltérés ne okozzon holtjáték-rándulást és fölösleges beállást."""
+    k, outputs = camera()
+    k._szog["pan"] = G.PAN_LEFT_SIGN * 45.0 + 1e-9
+    assert k.move_to(45.0, 0.0) is False
+    assert outputs == []

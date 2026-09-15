@@ -272,3 +272,38 @@ def test_no_description_at_all_gives_the_negative_block(monkeypatch):
     o, _ = build(monkeypatch, rec, FakeVLM(rec, [None]))
     o.ask("Nézz a földre, mit látsz?")
     assert LATVANY_NINCS in o.llm.prompts[0]
+
+
+def test_vlm_exception_keeps_earlier_lines_and_recentres(monkeypatch):
+    """PR #137 review: egy VLM-kivétel a 2. állomáson ne dobja el az 1. leírását, és ne
+    hagyja a fejet kitekerve."""
+    rec = Recorder()
+
+    class RaisingVLM(FakeVLM):
+        def describe(self, jpeg):
+            if len(self.answers) == 2:          # a 2. hívás
+                rec.events.append(("describe", jpeg))
+                raise TimeoutError("VLM")
+            return super().describe(jpeg)
+
+    o, _ = build(monkeypatch, rec, RaisingVLM(rec, ["egy ajtó", "soha", "soha"]))
+    o.ask("Nézz körül!")
+    assert "Előre: egy ajtó" in o.llm.prompts[0]
+    assert "Balra:" not in o.llm.prompts[0]
+    assert rec.events[-1] == ("move_to", 0.0, 0.0), "kivétel után is vissza középre"
+
+
+def test_grab_exception_is_a_missing_frame_and_the_tour_goes_on(monkeypatch):
+    rec = Recorder()
+    o, _ = build(monkeypatch, rec, FakeVLM(rec, ["egy ajtó", "egy polc"]))
+    frames = iter([b"f1", RuntimeError("cv2"), b"f3"])
+
+    def grab(*a, **kw):
+        item = next(frames)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr("freedroid.camera.frame.grab_jpeg", grab)
+    o.ask("Nézz körül!")
+    assert "Előre: egy ajtó\nBalra: nem adott képet a kamera.\nJobbra: egy polc" in o.llm.prompts[0]

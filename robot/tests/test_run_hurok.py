@@ -170,6 +170,21 @@ def test_egy_kor_atadja_a_stop_eventet_a_latas_kornek(monkeypatch):
     o._egy_kor(stt, tts, vad, busz)
 
     assert latott == [True]
+    assert o._stop_event is None, "a kör után a jelző nem maradhat a következő ask()-ra"
+
+
+def test_egy_kor_utan_a_stop_event_akkor_is_nullazodik_ha_az_ask_dob(monkeypatch):
+    """PR #137 review: a jelző CSAK a körre él — egy elhasalt `ask()` után sem marad ott."""
+    vad, stt, tts = HamisVAD(), HamisSTT("Ki vagy te?"), HamisTTS()
+    tts.engedd.set()
+    o = robot(stt=stt, tts=tts, vad=vad)
+
+    def dobo(k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(o, "ask", dobo)
+    o._egy_kor(stt, tts, vad, TriggerBusz())
+    assert o._stop_event is None
 
 
 def test_ures_atirat_eseten_NEM_kerdezunk_es_NEM_beszelunk(monkeypatch):

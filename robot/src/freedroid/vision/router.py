@@ -177,9 +177,16 @@ class Station:
     """A nézési terv egy állomása. `None` szög = maradjon az aktuális póz; `None` címke =
     a sor címke nélkül kerül a `[LÁTVÁNY]` blokkba (spec §3.4/5)."""
 
-    label: str | None
-    pan_deg: float | None
-    tilt_deg: float | None
+    label: str | None = None
+    pan_deg: float | None = None
+    tilt_deg: float | None = None
+
+    def __post_init__(self) -> None:
+        # A két szög EGYÜTT van vagy EGYÜTT hiányzik: a végrehajtó a `pan_deg`-ből dönti el,
+        # kell-e póz, és a `move_to` mindkettőt várja. Egy félig megadott póz hangosan
+        # bukjon, ne csendben maradjon ki a tilt (PR #137 review).
+        if (self.pan_deg is None) != (self.tilt_deg is None):
+            raise ValueError("Station: a pan_deg és a tilt_deg együtt adandó meg (vagy egyik sem)")
 
 
 # Körbenézés — a „nézz körül" már a látás-kifejezések közt van; ezek a TÖBB-állomásos ág.
@@ -193,13 +200,13 @@ _LOOK_AROUND_TOKEN_SETS = _build_token_sets(_LOOK_AROUND_PHRASES, "körbenézés
 _LOOK_VERBS = frozenset({"nezz", "nezzel"})
 _DIRECTION_WORDS = {
     "up": frozenset({"fel", "felfele", "plafonra", "mennyezetre"}),
-    "down": frozenset({"le", "lefele", "foldre"}),
+    "down": frozenset({"le", "lefele", "foldre", "padlora"}),
     "left": frozenset({"balra"}),
     "right": frozenset({"jobbra"}),
 }
 # Az irányszó legfeljebb ennyi szóval követheti az igét: „nézz a földre" (a névelő
 # átugorható), de „Nézz rám és írd le" NEM lefelé nézés.
-_DIRECTION_WINDOW = 2
+_DIRECTION_WINDOW = 3
 
 
 def _direction(question: str) -> str | None:

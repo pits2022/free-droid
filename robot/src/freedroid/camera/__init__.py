@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# A `move_to` ennyin belül „már ott van"-nak veszi a fejet. Jóval a szervó felbontása alatt.
+POSE_TOLERANCE_DEG = 0.05
+
 
 class CameraAction(str, Enum):
     """`camera(action=...)` — composite gestures."""
@@ -254,7 +257,9 @@ class PanTiltCamera:
             if target != sign * requested:
                 log.warning("%s: %.1f fok a határon kívül, vágva %.1f fokra",
                             axis.nev, sign * requested, target)
-            if self._szog[axis.nev] == target:
+            # Tűréssel: a relatív `pan`/`tilt` float-összeadással halmoz, és egy 1e-14 fokos
+            # eltérés miatt ne legyen holtjáték-rándulás + fölösleges beállás (PR #137 review).
+            if math.isclose(self._szog[axis.nev], target, abs_tol=POSE_TOLERANCE_DEG):
                 continue
             self._beall_holtjatek_nelkul(axis, target)
             moved = True

@@ -187,3 +187,20 @@ def test_network_block_applies_to_every_branch():
 @pytest.mark.parametrize("question", LATAS + NEM_LATAS)
 def test_kell_e_kep_is_a_thin_wrapper(question):
     assert kell_e_kep(question) == (vision_plan(question) is not None)
+
+
+@pytest.mark.parametrize("question, station", [
+    ("Nézz kérlek a földre, mit látsz?", Station("Lent", 0.0, -30.0)),   # PR #137 review: 2 töltelékszó
+    ("Nézz egy kicsit balra, mit látsz?", Station("Balra", 45.0, 0.0)),
+    ("Nézz a padlóra, mit látsz?", Station("Lent", 0.0, -30.0)),
+])
+def test_direction_window_and_padlora(question, station):
+    assert vision_plan(question) == (station,)
+
+
+def test_half_specified_station_fails_loudly():
+    """PR #137 review: a végrehajtó a `pan_deg`-ből dönti el a pózt — egy félig megadott
+    állomás ne hagyja ki csendben a tiltet."""
+    with pytest.raises(ValueError, match="együtt"):
+        Station("Fent", None, 30.0)
+    assert Station() == Station(None, None, None)
