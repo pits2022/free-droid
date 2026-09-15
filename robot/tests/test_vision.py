@@ -73,6 +73,58 @@ def test_a_kep_base64_kodolva_megy_fel():
     assert hivas["stream"] is False
 
 
+def test_a_hivas_NEM_gondolkodik_es_bent_tartja_a_modellt():
+    """🔴 `think=False` nélkül a qwen3.5 egy mondatért 6-10 s-ot gondolkodik (WP0) — a
+    8 s-os korlát mellett rendszeres negatív blokk. A `keep_alive` SZÁMKÉNT/durationként
+    megy (a `"-1"` sztring 400-at ad), és a valódi híváson is, nem csak a bemelegítésen."""
+    halo = Halo()
+    v = CloudVLM(settings=beallitas(keep_alive="-1"), client_factory=halo.gyar)
+    v.describe(JPEG)
+    (hivas,) = halo.peldanyok[0].hivasok
+    assert hivas["think"] is False
+    assert hivas["keep_alive"] == -1
+
+
+def test_a_bemelegites_HOSSZU_korlattal_kep_nelkul_tolt(monkeypatch):
+    """A lemezről betöltés 29,75 s — a 8 s-os `timeout_s`-sel a bemelegítés maga is
+    időtúllépne. Üres prompt, kép nélkül: az Ollama erre csak betölt."""
+    halo = Halo()
+    v = kliens(monkeypatch, halo, timeout_s=8.0, warmup_timeout_s=60.0)
+    assert v.warmup() is True
+    (p,) = halo.peldanyok
+    assert p.timeout == 60.0
+    (hivas,) = p.hivasok
+    assert hivas == {"model": "hamis-vlm:latest", "prompt": "", "stream": False,
+                     "keep_alive": "30m", "options": {"num_ctx": 2048}}
+
+
+def test_a_bemelegites_es_a_hivas_UGYANAZZAL_a_kontextussal_megy(monkeypatch):
+    """🔴 Eltérő `num_ctx`-re az Ollama újratölti a modellt (mérve 3,92 s) — a
+    bemelegítés akkor semmit sem érne. A 262K-s alap 12 GB VRAM, a 2048 3,1 GB."""
+    halo = Halo()
+    v = kliens(monkeypatch, halo, num_ctx=4096)
+    v.warmup()
+    v.describe(JPEG)
+    meleg, hivas = (p.hivasok[0] for p in halo.peldanyok)
+    assert meleg["options"] == hivas["options"] == {"num_ctx": 4096}
+
+
+def test_a_bemelegites_SOSEM_dob_es_kikapcsolva_meg_sem_hiv(monkeypatch):
+    halo = Halo(hiba=ConnectionError("boom"))
+    assert kliens(monkeypatch, halo).warmup() is False
+    ki = Halo()
+    assert kliens(monkeypatch, ki, enabled=False).warmup() is False
+    assert ki.peldanyok == []
+    halott = Halo(elerheto=False)
+    assert kliens(monkeypatch, halott).warmup() is False
+    assert halott.peldanyok == []
+
+
+def test_a_hibas_keep_alive_INDULASKOR_bukik():
+    with pytest.raises(ValueError, match="vision.keep_alive"):
+        VisionSettings(keep_alive="soha")
+
+
 def test_a_leiras_visszajon_tisztitva():
     halo = Halo(valasz="  A room with a table.\n")
     v = CloudVLM(settings=beallitas(), client_factory=halo.gyar)
@@ -182,3 +234,11 @@ def test_a_latvany_SZOVEGE_csak_DEBUG_szinten_megy(caplog):
     v.describe(JPEG)
     debug_uzenetek = " ".join(r.getMessage() for r in caplog.records)
     assert "Egy konkrét arc leírása" in debug_uzenetek
+
+
+@pytest.mark.parametrize("kw", [{"warmup_timeout_s": 0.0}, {"warmup_timeout_s": -5.0},
+                                {"num_ctx": 0}, {"num_ctx": -1024}])
+def test_a_nem_pozitiv_bemelegites_vagy_kontextus_INDULASKOR_bukik(kw):
+    """Egy 0-s `num_ctx` vagy `warmup_timeout_s` a hívásban bukna — induláskor bukjon."""
+    with pytest.raises(ValueError, match=r"vision\.\w+ must be > 0"):
+        VisionSettings(**kw)
