@@ -270,3 +270,27 @@ def test_a_transcript_MEGMONDJA_mit_dobott_el_a_kapu(monkeypatch):
     assert esemeny.toolok == ["move", "stop"]
     assert esemeny.latas_kapu_eldobott == ["move"]
     assert o.motion.hivasok == []
+
+
+def test_a_start_a_VLM_et_is_bemelegiti(monkeypatch):
+    """Lemezről 29,75 s a VLM betöltése (WP0) — nem eshet a demó első „Mit látsz?"-jára."""
+    class MelegVLM(HamisVLM):
+        melegitve = False
+
+        def warmup(self) -> bool:
+            self.melegitve = True
+            return True
+
+    vlm = MelegVLM()
+    o = orch(monkeypatch, vlm)
+    o.start()
+    assert vlm.melegitve is True
+
+
+def test_a_start_NEM_dob_ha_nincs_vlm_vagy_nincs_warmupja(monkeypatch):
+    """A `vlm` lehet `None` (a `_vlm()` példányosítása elhasalt), és egy VLM-kliensnek
+    nem kötelező bemelegítenie — egyik sem akaszthatja meg az indulást."""
+    for vlm in (None, HamisVLM()):
+        o = orch(monkeypatch, HamisVLM())
+        o.vlm = vlm
+        o.start()

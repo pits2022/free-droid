@@ -280,9 +280,12 @@ class Orchestrator:
         pont az első kérdésre esne.
         """
         self.watchdog.start()
-        bemelegit = getattr(self.llm, "warmup", None)
-        if bemelegit is not None:
-            bemelegit()
+        # A VLM is: lemezről 29,75 s a betöltése (WP0, mérve 2026-09-15), és az a
+        # demó első „Mit látsz?"-jára esne, időtúllépéssel. Kikapcsolt látásnál no-op.
+        for modell in (self.llm, self.vlm):
+            bemelegit = getattr(modell, "warmup", None)
+            if bemelegit is not None:
+                bemelegit()
 
     def close(self) -> None:
         # A gyűrű is itt: a `close()` a `run()` nélkül is hívható (teszt, szöveges
