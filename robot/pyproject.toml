@@ -16,7 +16,7 @@ dependencies = [
     "lgpio ; platform_machine == 'aarch64'",  # GPIO/PWM: Cytron HAT-MDD10, HC-SR04P
     "adafruit-circuitpython-pca9685",      # PCA9685 servo PWM (I2C) — camera pan/tilt
     "adafruit-circuitpython-neopixel-spi", # WS2812 status ring over SPI (spec: SPI mode → avoids PWM/DMA conflict, so not rpi_ws281x)
-    "ollama",                              # cloud/edge LLM client
+    "ollama>=0.5.1",                       # cloud/edge LLM client; 0.5.1: a `think` paraméter (a VLM-nek kell)
     "opencv-python-headless",              # camera frames
 ]
 

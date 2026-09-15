@@ -721,6 +721,14 @@ class VisionSettings:
     # értéke. Ugyanaz a `keep_alive_ertek` validálja — a `"-1"` sztring 400-at ad.
     keep_alive: str = "30m"
     warmup_timeout_s: float = 60.0
+
+    # A qwen3.5 alap-kontextusa 262K, és az Ollama a KV-cache-t ez alapján foglalja:
+    # 12 GB VRAM egy képért. Egy 640×480-as kép + a prompt 325 token, a válasz ~43
+    # (mérve 2026-09-15) — a 2048 négyszeres tartalék, és a VLM így 3,1 GB. A 8B +
+    # whisper + VLM együtt 10,7 GB, tehát a 20 GB-os RTX 4000 Ada-n is elfér.
+    # 🔴 EGY mező a bemelegítésnek ÉS a hívásnak: eltérő `num_ctx`-re az Ollama
+    # ÚJRATÖLTI a modellt (mérve: 3,92 s) — a bemelegítés hatása elveszne.
+    num_ctx: int = 2048
     jpeg_quality: int = 85
     device: str = ""                  # "" = próbálja /dev/video0..3-at (ld. camera/frame.py)
 
@@ -729,7 +737,7 @@ class VisionSettings:
             raise ValueError(
                 "vision: enabled=True, de a model üres — a látás csendben sosem "
                 "látna semmit. Add meg a TELJES tagot (névtérrel együtt).")
-        for nev in ("timeout_s", "probe_timeout_s", "warmup_timeout_s"):
+        for nev in ("timeout_s", "probe_timeout_s", "warmup_timeout_s", "num_ctx"):
             if getattr(self, nev) <= 0:
                 raise ValueError(f"vision.{nev} must be > 0")
         try:

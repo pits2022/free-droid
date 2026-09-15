@@ -86,7 +86,8 @@ class CloudVLM:
                 think=False,
                 # A valódi híváson is, nem csak a bemelegítésen — ld. `llm._generate_on`:
                 # enélkül minden kérés 5 percre állítja vissza a modell TTL-jét.
-                keep_alive=keep_alive_ertek(self._cfg.keep_alive))
+                keep_alive=keep_alive_ertek(self._cfg.keep_alive),
+                options=self._opciok())
             # A válasz-kinyerés IS az őrzött ágban van: egy nem-sztring `response` mező
             # (pl. hibás VLM-kliens, ami számot ad vissza) a `.strip()`-en dobna, és a
             # modul EGYETLEN szabálya, hogy a `describe()` SOSEM dob — a kör akkor is
@@ -127,6 +128,11 @@ class CloudVLM:
         log.debug("látvány: %r", szoveg)
         return szoveg
 
+    def _opciok(self) -> dict:
+        # EGY hely a `describe()`-nek és a `warmup()`-nak: eltérő `num_ctx`-re az Ollama
+        # újratölti a modellt (mérve 3,92 s), és a bemelegítés hatása elveszne.
+        return {"num_ctx": self._cfg.num_ctx}
+
     def warmup(self) -> bool:
         """Betölteti a VLM-et, MIELŐTT az első „Mit látsz?" elhangzik. Sosem dob.
 
@@ -143,7 +149,8 @@ class CloudVLM:
         try:
             keep = keep_alive_ertek(self._cfg.keep_alive)
             kliens = self._factory(self._cfg.url, self._cfg.warmup_timeout_s)
-            kliens.generate(model=self._cfg.model, prompt="", stream=False, keep_alive=keep)
+            kliens.generate(model=self._cfg.model, prompt="", stream=False, keep_alive=keep,
+                            options=self._opciok())
         except Exception as e:  # noqa: BLE001 — a bemelegítés sosem buktathat indulást
             log.warning("VLM bemelegítés sikertelen (%s: %s)", type(e).__name__, e)
             return False

@@ -95,7 +95,18 @@ def test_a_bemelegites_HOSSZU_korlattal_kep_nelkul_tolt(monkeypatch):
     assert p.timeout == 60.0
     (hivas,) = p.hivasok
     assert hivas == {"model": "hamis-vlm:latest", "prompt": "", "stream": False,
-                     "keep_alive": "30m"}
+                     "keep_alive": "30m", "options": {"num_ctx": 2048}}
+
+
+def test_a_bemelegites_es_a_hivas_UGYANAZZAL_a_kontextussal_megy(monkeypatch):
+    """🔴 Eltérő `num_ctx`-re az Ollama újratölti a modellt (mérve 3,92 s) — a
+    bemelegítés akkor semmit sem érne. A 262K-s alap 12 GB VRAM, a 2048 3,1 GB."""
+    halo = Halo()
+    v = kliens(monkeypatch, halo, num_ctx=4096)
+    v.warmup()
+    v.describe(JPEG)
+    meleg, hivas = (p.hivasok[0] for p in halo.peldanyok)
+    assert meleg["options"] == hivas["options"] == {"num_ctx": 4096}
 
 
 def test_a_bemelegites_SOSEM_dob_es_kikapcsolva_meg_sem_hiv(monkeypatch):
