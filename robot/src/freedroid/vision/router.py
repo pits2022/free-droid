@@ -182,8 +182,7 @@ class Station:
 # Körbenézés — a „nézz körül" már a látás-kifejezések közt van; ezek a TÖBB-állomásos ág.
 _LOOK_AROUND_PHRASES = ("nézz körül", "nézz körbe", "nézz szét", "nézzél körül",
                         "nézzél szét", "pásztázz körbe")
-_LOOK_AROUND_TOKEN_SETS = tuple(frozenset(tokenize(p)) for p in _LOOK_AROUND_PHRASES)
-_ellenorzi_uresek_ellen(_LOOK_AROUND_PHRASES, _LOOK_AROUND_TOKEN_SETS)
+_LOOK_AROUND_TOKEN_SETS = _build_token_sets(_LOOK_AROUND_PHRASES, "körbenézés")
 
 # 🔴 Az irány a stopszó-szűrés ELŐTTI szavakon dől el: a „fel" és a „le" STOPSZÓ, a
 # `tokenize("nézz fel")` és a `tokenize("nézz le")` egyaránt `['nezz']` (mérve,
