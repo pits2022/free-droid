@@ -97,3 +97,16 @@ def test_move_to_tolerates_float_drift():
     k._szog["pan"] = G.PAN_LEFT_SIGN * 45.0 + 1e-9
     assert k.move_to(45.0, 0.0) is False
     assert outputs == []
+
+
+def test_home_after_a_non_zero_move_to_really_moves():
+    """PR #137 review 6 felvetése: a `move_to` után a `home()` a „tiszta" őr miatt kimaradna.
+    Nem marad ki — a `_beall_holtjatek_nelkul` nem nulla célnál kiveszi a tengelyt a
+    `_tiszta` halmazból. Ez a teszt rögzíti."""
+    k, outputs = camera()
+    k.move_to(0.0, -30.0)
+    assert "tilt" not in k._tiszta
+    outputs.clear()
+    k.home()
+    assert ("tilt", 0.0) in outputs
+    assert k._szog == {"pan": 0.0, "tilt": 0.0}

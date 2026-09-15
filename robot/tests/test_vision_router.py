@@ -148,6 +148,7 @@ LOOK_AROUND = (Station("Előre", 0.0, 0.0), Station("Balra", 45.0, 0.0),
     "Nézz körbe!",
     "Nézzél körbe!",                     # PR #137 review 5
     "Pásztázd körbe a szobát!",
+    "Pásztázz körül a kameráddal!",       # PR #137 review 6
 ])
 def test_look_around_is_three_stations(question):
     assert vision_plan(question) == LOOK_AROUND
