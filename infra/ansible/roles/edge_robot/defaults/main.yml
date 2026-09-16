@@ -131,6 +131,17 @@ robot_alsa_capture_card: "Device"        # a csíptethető vezeték nélküli mi
 # Elgépelésre a betöltő figyelmeztet (stderr -> journald), de nem áll le tőle.
 robot_env: {}
 
+# A LÁTÁS a szolgáltatásban (2026-09-16, mérve): a `systemctl start freedroid` alatt
+# „látás kihagyva — vision.enabled=False", mert a kézi menet a látást CSAK a parancssori
+# env-ből kapta. A modell-tag NEM másolat: a felhő `ai_stack` role `cloud_vision_model`-je,
+# tehát amit a felhő húz, pontosan azt kéri a Pi (egy elcsúszott tag = csendes vakság).
+# Kikapcsolás: `-e robot_vision_enabled=false`. A `robot_env` felülírja, ha mindkettő ad.
+robot_vision_enabled: true
+robot_env_effective: >-
+  {{ ({'FREEDROID_VISION_ENABLED': 'igen', 'FREEDROID_VISION_MODEL': cloud_vision_model}
+      if robot_vision_enabled | bool and (cloud_vision_model | default('', true)) else {})
+     | combine(robot_env) }}
+
 # Fusson-e az orchestrátor SZOLGÁLTATÁSKÉNT. Alapból igen: enélkül a `freedroid-health`
 # `check_orchestrator_service`-e bukik, és a robot safe-mode-ban áll.
 #
