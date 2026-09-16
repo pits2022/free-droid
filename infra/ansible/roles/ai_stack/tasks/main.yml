@@ -131,6 +131,16 @@
   # PR #129 review: nem egyedi hanyagság, a két pull-taszk konzisztensen viselkedik.
   changed_when: true
 
+# Ugyanaz az ok, mint a base modellnél: a pull sikere nem bizonyítja, hogy a Pi által
+# hívott példányban ott a tag. Friss lista kell — a fenti `ollama_tags` a pull ELŐTTI.
+- name: Verify the vision model is listed by the cloud Ollama
+  when: ollama_is_cloud and cloud_vision_model != '' and not ansible_check_mode
+  uri:
+    url: "http://{{ ollama_bind }}/api/tags"
+    return_content: true
+  register: ollama_vision_tags
+  failed_when: cloud_vision_model.split(':')[0] not in ollama_vision_tags.content
+
 # A felhő inferencia-végpontnak SOHA nem szabad a publikus interfészen lógnia.
 # Ez a 2026-07-29-i mérésen validált invariáns (H200-tests.md, 4. szakasz).
 - name: Assert the cloud API is not exposed on the public interface
