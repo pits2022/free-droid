@@ -301,3 +301,42 @@ def test_ismeretlen_hatterre_HANGOSAN_bukik_a_keep_alive(monkeypatch):
     c = kliens(monkeypatch, halo)
     with pytest.raises(KeyError):
         c._keep_alive("nincs-ilyen-hatter")
+
+
+def test_a_LED_forrasa_a_FOLYAMATBAN_levo_hatter_nem_a_legutobb_sikeres(monkeypatch):
+    """Élő menet 2026-09-16: a felhő visszatérése után a gondolkodás-pörgés még LILA
+    volt, és csak a válasz után váltott kékre. Generálás KÖZBEN a felhőt kell mutatni."""
+    from freedroid.health.probe import uj_kor
+
+    halo = Halo({EDGE})
+    c = kliens(monkeypatch, halo)
+    c.generate("első")
+    assert c.current_backend() is Backend.EDGE
+
+    kozben: list[Backend | None] = []
+    eredeti = halo.gyar
+
+    def figyelo_gyar(host, timeout):
+        p = eredeti(host, timeout)
+        gen = p.generate
+        p.generate = lambda **kw: (kozben.append((c.current_backend(), c.active_backend())),
+                                   gen(**kw))[1]
+        return p
+
+    halo.gyar = figyelo_gyar
+    c._factory = figyelo_gyar
+    halo.elerheto.add(CLOUD)
+    uj_kor()
+    c.generate("második")
+    # LED: már a felhő; transcript: még a legutóbb SIKERES edge (PR #143 review 3).
+    assert kozben == [(Backend.CLOUD, Backend.EDGE)]
+    assert c.current_backend() is Backend.CLOUD
+
+
+def test_bukott_felho_utan_a_forras_visszaall_az_edge_re(monkeypatch):
+    """A felhő próbája él, de a generálás bukik -> az edge felel; a „folyamatban" nem
+    ragadhat a felhőn (a LED különben kéket mutatna egy edge-válaszra)."""
+    halo = Halo({CLOUD, EDGE}, **{CLOUD: {"hiba": RuntimeError("500")}})
+    c = kliens(monkeypatch, halo)
+    c.generate("kérdés")
+    assert c.current_backend() is Backend.EDGE

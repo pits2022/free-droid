@@ -73,6 +73,7 @@ class FallbackLLMClient:
         self._cfg: LLMEndpoints = (settings or load_settings()).llm
         self._factory = client_factory or _ollama_client
         self._backend: Backend | None = None
+        self._folyamatban: Backend | None = None
         self._indok = ""
 
     # --- a hátterek leírása egy helyen ---
@@ -108,6 +109,16 @@ class FallbackLLMClient:
     def active_backend(self) -> Backend | None:
         """A LEGUTÓBB sikeres háttér. `None`, amíg nem volt sikeres hívás."""
         return self._backend
+
+    def current_backend(self) -> Backend | None:
+        """Amelyik háttéren a generálás ÉPPEN fut, különben a legutóbb sikeres.
+
+        A LED-nek (spec §6: gondolkodás közben a FORRÁS színe) ez kell, nem az
+        `active_backend()`: élő menet 2026-09-16 — a felhő visszatérése után a pörgés
+        még LILA maradt, és csak a válasz után váltott kékre, mert a legutóbbi SIKERES
+        háttér még az edge volt. A transcript viszont a sikereset akarja, az marad.
+        """
+        return self._folyamatban or self._backend
 
     def active_model(self) -> str | None:
         """A LEGUTÓBB sikeres háttér MODELLNEVE — a naplóban a háttérnél többet mond:
@@ -146,13 +157,18 @@ class FallbackLLMClient:
                 # semmi: az összegző `LLM válasz:` sor ugyanezt az indokot INFO-n adja.
                 log.debug("LLM háttér kihagyva — %s: %s", backend.value, indok)
                 continue
+            self._folyamatban = backend
             try:
                 valasz = self._generate_on(backend, prompt)
+                # A `finally` ELŐTT: különben egy képkockányi ablakban a `current_backend()`
+                # a régi hátteret adná (a folyamatban már None, a sikeres még a régi).
+                self._backend = backend
             except Exception as e:  # noqa: BLE001 — bármi jön, a másik háttér a válasz
                 nyom.append(f"{backend.value}: {self._magyarazat(backend, e)}")
                 log.warning("LLM hívás sikertelen — %s: %s", backend.value, e)
                 continue
-            self._backend = backend
+            finally:
+                self._folyamatban = None
             nyom.append(f"{backend.value}: felelt ({model})")
             self._indok = " -> ".join(nyom)
             log.info("LLM válasz: %s", self._indok)
