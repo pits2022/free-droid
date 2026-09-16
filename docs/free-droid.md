@@ -1197,7 +1197,7 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [x] `voice/`: Whisper.cpp STT (magyar) integráció *(független)*
 - [x] `voice/`: Piper TTS (`hu_HU-anna-medium`) integráció, pitch/sebesség hangolás fiatalosabbra *(független)*
 - [x] `voice/`: VAD (mikor fejezte be a beszédet) *(független)*
-- [ ] `config/sounds/` — **NINCS** (nincs WAV a repóban; a jelzéseket ma a TTS, a LED és az akku-csipogó adja — eldöntendő, kell-e): mind a 6 előre renderelt WAV (ld. 4.1) — boot, wake-nyugtázás, akadály, safe mode, edge-váltás, STT-kudarc; lejátszás `aplay`-jel, a TTS-pipeline megkerülésével *(független — Piper kell hozzá, de csak build-időben)*
+- [ ] `config/sounds/` — **NINCS** (nincs WAV a repóban; a jelzéseket ma a TTS, a LED és az akku-csipogó adja — a Teremtő 2026-09-16: élőben nem hiányzott, csak akkor kell, ha a próbákon gond lesz): mind a 6 előre renderelt WAV (ld. 4.1) — boot, wake-nyugtázás, akadály, safe mode, edge-váltás, STT-kudarc; lejátszás `aplay`-jel, a TTS-pipeline megkerülésével *(független — Piper kell hozzá, de csak build-időben)*
 - [x] systemd unit a boot-üdvözléshez (`freedroid-selfcheck.service`, az orchestrátortól független), ami NEM függ az orchestratortól *(függ: config/sounds)*
 - [ ] Debounce a reflex-hangokra — **nem találtam a kódban**, a WAV-okkal együtt dől el: „Akadály." és „Nem értettem." újrajátszása előtt min. 3 s némaság *(függ: config/sounds, safety/)*
 
