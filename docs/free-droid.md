@@ -8,7 +8,7 @@
 
 ---
 
-## 📍 HOL TARTUNK — pillanatkép, 2026-09-08
+## 📍 HOL TARTUNK — pillanatkép, 2026-09-16
 
 > Ez a szakasz a **mért, működő állapot**, nem a terv. A dokumentum többi része a
 > specifikáció; ahol a kettő eltér, ez a frissebb. (A napi részletek:
@@ -24,7 +24,8 @@
 | **Mozgás** | ✅ Kalibrálva teli és merült akkun; **feszültség-kompenzáció** a menetidőben. |
 | **Biztonság** | ✅ Stop-küszöb **30 cm**; a `fast` fokozat fékútja élesben **19,4 cm** hézagot hagyott. Akku-őr: 10,2 V figyelmeztetés (csipogó is), 9,6 V alatt mozgás-tiltás. |
 | **Felhő** | ⚙️ On-demand, `terraform apply` percek alatt. GPU-választás élő API-ból (`gpu_pick.py`) — nincs beégetett alapértelmezés. |
-| **Nyitva** | Red-team kör a v12-n · a kameraképpel mit kezdjen (VLM — a Teremtő szerint LESZ rá idő) · az előadás. |
+| **Látás** | ✅ Felhős VLM `qwen3.5:4b` (Ansible húzza + képes smoke-teszttel bemelegíti a CUDA JIT-et). „Mit látsz", egy irány (fel/le/balra/jobbra/előre) és „Nézz körül" (3 állomás, irányonkénti beszámoló — élőben 4/8, felhőben 7/9). A felmutatott tábla szövegéből tool NEM fut. |
+| **Nyitva — tesztek** | Offline menet 4G nélkül · élő failover (`wg-quick down`) · demó-posztúra systemd-ből · akku-üzemidő · zajos terem · záró red-team · próbák Szabival · helyszíni térerő + tartalékvideó · törlés-próba (F5, §5.1). |
 
 **Dátumok:** az előadás **2026. okt. 21.** (Hacktivity, Lurdy, 40 perc); a projekt belső
 határideje **okt. 15.** — egy hét szándékos ráhagyás. A doksik az okt. 15-höz mérnek.
@@ -1049,33 +1050,35 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 ### FÁZIS 1 — Hardver összeszerelés & tesztek
 > 🔗 *Indítható azonnal (F1.1). Párhuzamos: F2, F3. F1.4 a 2DOF keretre vár.*
 
+> ✅ **Szinkronizálva 2026-09-16:** a hardver LEZÁRVA (2026-09-08, pillanatkép); a robot jár, fordul, lát, a watchdog és a LED-gyűrű él — ezek a bekötéseket együtt igazolják. Ami egyenként nincs naplózva (biztosítékok, kötéstechnika, XL4016 terheléses teszt), az `[ ]` maradt: ellenőrizd szemre a konferencia előtt.
+
 **1.1 Tápellátás (Cytron előtt is elvégezhető)**
-- [ ] XL4016 Step-down beállítása **5.1V**-ra (terhelés nélkül, multiméterrel)
-- [ ] LM2596 Step-down beállítása **5.0V**-ra (multiméterrel)
+- [x] XL4016 Step-down beállítása **5.1V**-ra (terhelés nélkül, multiméterrel)
+- [x] LM2596 Step-down beállítása **5.0V**-ra (multiméterrel)
 - [ ] XL4016 **terheléses teszt** (ismert terhelés rákötése, tartja-e az 5.1V-ot — olcsó klónok leeshetnek)
-- [ ] PDB bemenet összekötése: aksi → Deans/XT60 adapter → PDB (male/female már tesztelve ✅)
+- [x] PDB bemenet összekötése: aksi → Deans/XT60 adapter → PDB (male/female már tesztelve ✅)
 - [ ] 3× inline biztosíték beépítése a PDB és a modulok közé (XL4016: 10A, LM2596: 10A, Cytron: 25A)
 - [ ] Kábelkötések: WAGO 221 vagy forrasztás+zsugorcső (NE sima csavaros sorkapocs — rezgés!)
 
 **1.2 Vezérlés bekötése**
-- [ ] Cytron HAT-MDD10 felhelyezése a 25mm hosszított goldpin strippel (Active Cooler ütközés elkerülése)
-- [ ] Cytron + Active Cooler fizikai illeszkedés ellenőrzése
-- [ ] DC motorok bekötése a Cytron A1/A2, B1/B2 kimenetekre
-- [ ] PCA9685 bekötése: VCC→3.3V, SDA→GPIO2, SCL→GPIO3, GND, V+→LM2596 5V
-- [ ] 2× MG996R szervó a PCA9685 CH0 (pan) és CH1 (tilt) csatornákra
-- [ ] HC-SR04P (elöl): VCC→3.3V, Trig→GPIO23, **Echo→GPIO22** (közvetlen, nincs feszültségosztó) — a GPIO24 a HAT DIR2-je!
-- [ ] WS2812 LED ring: SPI módban (`/dev/spidev0.0`), 5V táp
+- [x] Cytron HAT-MDD10 felhelyezése a 25mm hosszított goldpin strippel (Active Cooler ütközés elkerülése)
+- [x] Cytron + Active Cooler fizikai illeszkedés ellenőrzése
+- [x] DC motorok bekötése a Cytron A1/A2, B1/B2 kimenetekre
+- [x] PCA9685 bekötése: VCC→3.3V, SDA→GPIO2, SCL→GPIO3, GND, V+→LM2596 5V
+- [x] 2× MG996R szervó a PCA9685 CH0 (pan) és CH1 (tilt) csatornákra
+- [x] HC-SR04P (elöl): VCC→3.3V, Trig→GPIO23, **Echo→GPIO22** (közvetlen, nincs feszültségosztó) — a GPIO24 a HAT DIR2-je!
+- [x] WS2812 LED ring: SPI módban (`/dev/spidev0.0`), 5V táp
 
 **1.3 Közös GND & táp-véglegesítés**
-- [ ] **KRITIKUS:** közös GND ellenőrzése — akku(–), RPi GND, Cytron GND, PCA9685 GND mind összekötve
-- [ ] `/boot/firmware/config.txt`: `usb_max_current_enable=1` és SPI engedélyezés
-- [ ] **Pi 5 táp teszt:** 5.1V mérése a Pi rákötése ELŐTT
+- [x] **KRITIKUS:** közös GND ellenőrzése — akku(–), RPi GND, Cytron GND, PCA9685 GND mind összekötve
+- [x] `/boot/firmware/config.txt`: `usb_max_current_enable=1` és SPI engedélyezés
+- [x] **Pi 5 táp teszt:** 5.1V mérése a Pi rákötése ELŐTT
 
 **1.4 Mechanika**
-- [ ] 2DOF pan-tilt gimbal keret megrendelése (MG996R kompatibilis alu) + összeszerelés
-- [ ] Webkamera rögzítése a gimbal tetejére (1/4" adapter vagy 3D nyomtatott tartó)
-- [ ] PCB stack összeállítása standoff-okkal (40mm M3 a PCB-k közt, 30mm M2.5 a Pi alatt)
-- [ ] Akku rögzítése velcro pánttal a váz közepén
+- [x] 2DOF pan-tilt gimbal keret megrendelése (MG996R kompatibilis alu) + összeszerelés
+- [x] Webkamera rögzítése a gimbal tetejére (1/4" adapter vagy 3D nyomtatott tartó)
+- [x] PCB stack összeállítása standoff-okkal (40mm M3 a PCB-k közt, 30mm M2.5 a Pi alatt)
+- [x] Akku rögzítése velcro pánttal a váz közepén
 
 **1.5 Hardver smoke-test (szoftver nélkül)**
 - [x] Motor teszt: egyszerű GPIO szkript, mindkét motor előre/hátra — **kész** (a bal motor
@@ -1088,7 +1091,7 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
       után: 5 V + osztó kell a sima panelhez, és a breadboard **tápsínje hasított** (830-as
       lapon 4 sín-szakasz), ezért a szenzor földje nem ért a Pi földjéhez.
 - [x] USB eszközök felismerése: `lsusb`, `arecord -l`, `aplay -l` — **kész**
-- [ ] USB LTE modem teszt — **KIVÁLTVA** a saját 4G wifi routerrel (`Wifi196`), lásd a
+- [x] ~~USB LTE modem teszt~~ — **KIVÁLTVA** a saját 4G wifi routerrel (`Wifi196`), lásd a
       beszerzési táblát. Nem kritikus út.
 - [x] **Mikrofon: CSÍPTETHETŐ VEZETÉK NÉLKÜLI — a végleges választás (2026-09-03, mérve).**
       A vevő egy **Jieli 4c4a:4155 „USB Composite Device"** → ALSA `CARD=Device`; az
@@ -1123,54 +1126,57 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
       (`hw:CARD=...`), mert az USB-kártyaszám újradugásnál elcsúszhat.
 
 ### FÁZIS 2 — Fine-tuning (Google Colab)
+> ✅ **Kész (szinkronizálva 2026-09-16):** A/B → Llama (8B felhő / 3B edge), v12 + RAG lefagyasztva, publikus ollama.com modellek; red-team körök 2026-09-15-ig (156 élő fordulós menet látással). Nyitott: egy záró red-team kör a v12 + RAG + látás MAI állapotán (F5).
 > 🔗 *Indítható azonnal (dataset kész). Párhuzamos a teljes hardver ággal és F3-mal. Csak laptop + net kell.*
 
-- [ ] **Tanulás:** Unsloth hivatalos notebook (Qwen 2.5 3B vagy Llama 3.2 3B) végigfuttatása VÁLTOZTATÁS NÉLKÜL (a folyamat megértése)
-- [ ] A 4 kulcs-hiperparaméter megértése (epochs, lr, LoRA rank, max_seq_length)
-- [ ] Saját `train.jsonl` / `val.jsonl` betöltése a notebookba
-- [ ] **A/B teszt — 1. modell:** Qwen 2.5 3B fine-tuning (r=16, epochs=2, lr=2e-4)
-- [ ] **A/B teszt — 2. modell:** Llama 3.2 3B fine-tuning (UGYANAZ a paraméter, dataset)
-- [ ] Mindkét modell exportálása GGUF Q4_K_M-be
-- [ ] `persona_benchmark.json` 25 kérdése mindkét modellen lefuttatva
-- [ ] Pontozás az `ertekelo_sablon.md` szerint (6 dimenzió, 1-5 skála)
-- [ ] Sebesség-mérés RPi 5-ön mindkét modellnél (tok/s, RAM)
-- [ ] **Modell-választás véglegesítése** az összesítő alapján → MD + README frissítése
-- [ ] Kiértékelés: a győztes vanilla vs. fine-tunolt összevetése (persona előjön-e?)
-- [ ] Overfitting-ellenőrzés a validation set-en (ha robotikus/ismétlő → kevesebb epoch)
-- [ ] Szükség esetén 1-2 iteráció (epoch, dataset-bővítés a gyenge kategóriákban)
-- [ ] Végső export GGUF-ba: Q4_K_M (edge) + Q8/f16 (cloud)
-- [ ] Ollama `Modelfile` készítése (system prompt + paraméterek)
-- [ ] Lokális teszt Ollamával (persona + tool-formátum helyes-e)
-- [ ] **„Red team" tesztkör (KÖTELEZŐ a szabad demó miatt):** váratlan, provokatív, off-topic kérdések — hol esik ki a persona? Gyenge pontoknál célzott példa-bővítés.
+- [x] **Tanulás:** Unsloth hivatalos notebook (Qwen 2.5 3B vagy Llama 3.2 3B) végigfuttatása VÁLTOZTATÁS NÉLKÜL (a folyamat megértése)
+- [x] A 4 kulcs-hiperparaméter megértése (epochs, lr, LoRA rank, max_seq_length)
+- [x] Saját `train.jsonl` / `val.jsonl` betöltése a notebookba
+- [x] **A/B teszt — 1. modell:** Qwen 2.5 3B fine-tuning (r=16, epochs=2, lr=2e-4)
+- [x] **A/B teszt — 2. modell:** Llama 3.2 3B fine-tuning (UGYANAZ a paraméter, dataset)
+- [x] Mindkét modell exportálása GGUF Q4_K_M-be
+- [x] `persona_benchmark.json` 25 kérdése mindkét modellen lefuttatva
+- [x] Pontozás az `ertekelo_sablon.md` szerint (6 dimenzió, 1-5 skála)
+- [x] Sebesség-mérés RPi 5-ön mindkét modellnél (tok/s, RAM)
+- [x] **Modell-választás véglegesítése** az összesítő alapján → MD + README frissítése
+- [x] Kiértékelés: a győztes vanilla vs. fine-tunolt összevetése (persona előjön-e?)
+- [x] Overfitting-ellenőrzés a validation set-en (ha robotikus/ismétlő → kevesebb epoch)
+- [x] Szükség esetén 1-2 iteráció (epoch, dataset-bővítés a gyenge kategóriákban)
+- [x] Végső export GGUF-ba: Q4_K_M (edge) + Q8/f16 (cloud)
+- [x] Ollama `Modelfile` készítése (system prompt + paraméterek)
+- [x] Lokális teszt Ollamával (persona + tool-formátum helyes-e)
+- [x] **„Red team" tesztkör (KÖTELEZŐ a szabad demó miatt):** váratlan, provokatív, off-topic kérdések — hol esik ki a persona? Gyenge pontoknál célzott példa-bővítés.
 
 > ⚠️ Ha a `motion_toolcall` kategória bizonytalan a tesztnél (rossz `<tool>` formátum), bővítsd 25→50-60 példára és tréningelj újra.
 
 ### FÁZIS 3 — Cloud infrastruktúra (Terraform + Ansible)
 > 🔗 *Indítható azonnal (Hetzner account kell). Párhuzamos a teljes hardver ággal és F2-vel.*
 
-- [ ] **Terraform:** CAX31 ARM szerver provisioning (`infra/terraform/`), on-demand apply/destroy, szerver-típus variable (CAX31 ↔ CAX41)
-- [ ] Terraform: tűzfal (csak SSH + WireGuard UDP port), privát hálózat
-- [ ] **On-demand workflow teszt:** `terraform apply` → szerver feláll → `terraform destroy` → eltűnik (költség csak amíg fut)
-- [ ] **Ansible:** Docker telepítés a CAX szerveren
-- [ ] Ansible: Ollama telepítés + a GGUF modell betöltése (ARM build)
-- [ ] Ansible: WireGuard szerver konfig + kulcsgenerálás/csere
-- [ ] Ansible: fail2ban + SSH hardening
-- [ ] Inferencia smoke-test: HTTP kérés az Ollama API-hoz a szerveren
-- [ ] Sebesség-mérés CAX31-en (tok/s), döntés: elég-e vagy CAX41 kell
+- [x] **Terraform:** on-demand felhő — **FELÜLÍRVA: DigitalOcean GPU az alap** (`gpu_pick.py`), a Hetzner CAX31/41 a tartalék; eredetileg: CAX31 ARM szerver provisioning (`infra/terraform/`), on-demand apply/destroy, szerver-típus variable (CAX31 ↔ CAX41)
+- [x] Terraform: tűzfal (csak SSH + WireGuard UDP port), privát hálózat
+- [x] **On-demand workflow teszt:** `terraform apply` → szerver feláll → `terraform destroy` → eltűnik (költség csak amíg fut)
+- [x] ~~**Ansible:** Docker telepítés a CAX szerveren~~ — **ELVETVE:** natív Ollama (a Docker `--gpus all` nélkül CPU-n futott)
+- [x] Ansible: Ollama telepítés + modell (`ollama pull`, publikus tag) + VLM (`qwen3.5:4b`, képes smoke-teszttel, PR #139) + felhős Whisper
+- [x] Ansible: WireGuard szerver konfig + kulcsgenerálás/csere
+- [x] Ansible: SSH hardening + nftables az edge-en — **fail2ban szándékosan NINCS** (kulcs-only sshd; a konferencián kizárhatná a Teremtőt)
+- [x] Inferencia smoke-test: HTTP kérés az Ollama API-hoz a szerveren
+- [x] Sebesség-mérés: CAX 3,6–5 tok/s (a hangláncnak kevés) → DO GPU ~65 tok/s a 8B-n
 
 ### FÁZIS 4 — RPi 5 vezérlő szoftver (Python, `robot/`)
 > 🔗 *⚠️ IGÉNYLI: F1.5 (kész hardver) + F2 (fine-tunolt modell) + F3 (cloud). Itt ér össze a két ág.*
 
+> ✅ **Szinkronizálva 2026-09-16:** 774 teszt; a vezérlő élesben fut (mozgás, watchdog, kattintó, STT/LLM/TTS, fallback, safe mode, LED, látás + „Nézz körül"). Szándékosan nyitott: `move(mode=approach_speaker/follow_speaker)` — a „Gyere ide" követéshez vision kell, demó utánra.
+
 **4.1 Alaprétegek** *(4.1 és 4.2 egymással párhuzamosíthatók — független modulok)*
-- [ ] `config/`: GPIO pinout, távolság-küszöbök, hang-paraméterek központi configba *(ezt csináld ELŐSZÖR — a többi modul innen olvas)*
-- [ ] `motion/`: Cytron HAT vezérlő osztály (move, turn, stop, set_speed) — lgpio alapon *(függ: config)*
-- [ ] `safety/`: ultrahang watchdog külön szálon, `stop()` küszöb alatt *(függ: config; tesztelhető motion nélkül is)*
-- [ ] `tools/`: `<tool>...</tool>` parser + handler-ek (robusztus, hibatűrő) *(függ: motion — a handlerek azt hívják)*
-- [ ] `tools/`: `scan_wifi()` handler — `nmcli` olvasás, biztonsági szint parse (csak olvas, sosem csatlakozik) *(független)*
-- [ ] `oracle/`: „Tudók" routing (OPCIONÁLIS, alapból KI) — hibrid trigger (`<puska/>` jel + kód-küszöb), külső API kliens (Opus 4.8, provider konfigurálható), persona-szűrés (a nyers választ Szabin átengedi), `set_oracle()` hangkapcsoló *(függ: llm/, tools/)*
+- [x] `config/`: GPIO pinout, távolság-küszöbök, hang-paraméterek központi configba *(ezt csináld ELŐSZÖR — a többi modul innen olvas)*
+- [x] `motion/`: Cytron HAT vezérlő osztály (move, turn, stop, set_speed) — lgpio alapon *(függ: config)*
+- [x] `safety/`: ultrahang watchdog külön szálon, `stop()` küszöb alatt *(függ: config; tesztelhető motion nélkül is)*
+- [x] `tools/`: `<tool>...</tool>` parser + handler-ek (robusztus, hibatűrő) *(függ: motion — a handlerek azt hívják)*
+- [x] `tools/`: `scan_wifi()` handler — `nmcli` olvasás, biztonsági szint parse (csak olvas, sosem csatlakozik) *(független)*
+- [ ] `oracle/` — **demó UTÁNRA** (a demó `sovereign` módban fut, alapból KI): „Tudók" routing (OPCIONÁLIS, alapból KI) — hibrid trigger (`<puska/>` jel + kód-küszöb), külső API kliens (Opus 4.8, provider konfigurálható), persona-szűrés (a nyers választ Szabin átengedi), `set_oracle()` hangkapcsoló *(függ: llm/, tools/)*
 
 **4.2 LLM & hang** *(a voice/ almodulok egymástól függetlenek, külön fejleszthetők)*
-- [ ] `llm/`: kliens cloud (WireGuard→Ollama) és edge (helyi Ollama) fallbackkel *(függ: F2 modell + F3 cloud)*
+- [x] `llm/`: kliens cloud (WireGuard→Ollama) és edge (helyi Ollama) fallbackkel *(függ: F2 modell + F3 cloud)*
 - [x] ~~`voice/`: openWakeWord „Szabi" wake word betanítása~~ — **ELVETVE 2026-08-18**
       (`tflite-runtime`: nincs cp312/cp313 wheel, a Pi 3.13-on fut). Helyette
       **prezenter-kattintó push-to-talk**, kész és élesben fut (§4). A `run()` hurok
@@ -1188,28 +1194,31 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
   > futtatókörnyezet (az `openwakeword` amúgy is függ az `onnxruntime`-tól, a tflite
   > csak a metaadatban kötelező); (2) másik wake-word motor; (3) külön 3.11-es venv
   > ennek az EGY komponensnek.
-- [ ] `voice/`: Whisper.cpp STT (magyar) integráció *(független)*
-- [ ] `voice/`: Piper TTS (`hu_HU-anna-medium`) integráció, pitch/sebesség hangolás fiatalosabbra *(független)*
-- [ ] `voice/`: VAD (mikor fejezte be a beszédet) *(független)*
-- [ ] `config/sounds/`: mind a 6 előre renderelt WAV (ld. 4.1) — boot, wake-nyugtázás, akadály, safe mode, edge-váltás, STT-kudarc; lejátszás `aplay`-jel, a TTS-pipeline megkerülésével *(független — Piper kell hozzá, de csak build-időben)*
-- [ ] systemd unit a boot-üdvözléshez, ami NEM függ az orchestratortól *(függ: config/sounds)*
-- [ ] Debounce a reflex-hangokra: „Akadály." és „Nem értettem." újrajátszása előtt min. 3 s némaság *(függ: config/sounds, safety/)*
+- [x] `voice/`: Whisper.cpp STT (magyar) integráció *(független)*
+- [x] `voice/`: Piper TTS (`hu_HU-anna-medium`) integráció, pitch/sebesség hangolás fiatalosabbra *(független)*
+- [x] `voice/`: VAD (mikor fejezte be a beszédet) *(független)*
+- [ ] `config/sounds/` — **NINCS** (nincs WAV a repóban; a jelzéseket ma a TTS, a LED és az akku-csipogó adja — a Teremtő 2026-09-16: élőben nem hiányzott, csak akkor kell, ha a próbákon gond lesz): mind a 6 előre renderelt WAV (ld. 4.1) — boot, wake-nyugtázás, akadály, safe mode, edge-váltás, STT-kudarc; lejátszás `aplay`-jel, a TTS-pipeline megkerülésével *(független — Piper kell hozzá, de csak build-időben)*
+- [x] systemd unit a boot-üdvözléshez (`freedroid-selfcheck.service`, az orchestrátortól független), ami NEM függ az orchestratortól *(függ: config/sounds)*
+- [ ] Debounce a reflex-hangokra — **nem találtam a kódban**, a WAV-okkal együtt dől el: „Akadály." és „Nem értettem." újrajátszása előtt min. 3 s némaság *(függ: config/sounds, safety/)*
 
 **4.3 Orchestrator & integráció** *(IGÉNYLI: 4.1 + 4.2 minden modul kész)*
-- [ ] `orchestrator/`: fő async loop (wake→STT→LLM→TTS + tool végrehajtás párhuzamosan) *(függ: minden 4.1 + 4.2 modul)*
-- [ ] Fallback logika: cloud elérhetőség detektálása, edge-re váltás *(függ: llm/)*
-- [ ] „Safe mode": kritikus hiba esetén mozgás tiltva, előre definiált válasz *(függ: motion, safety)*
-- [ ] WS2812 státuszjelzés (figyel / gondolkodik / beszél / hiba) *(független, bármikor)*
-- [ ] systemd service-ek (orchestrator, WireGuard kliens) auto-indításhoz *(utolsó lépés)*
+- [x] `orchestrator/`: fő async loop (wake→STT→LLM→TTS + tool végrehajtás párhuzamosan) *(függ: minden 4.1 + 4.2 modul)*
+- [x] Fallback logika: cloud elérhetőség detektálása, edge-re váltás *(függ: llm/)*
+- [x] „Safe mode": kritikus hiba esetén mozgás tiltva, előre definiált válasz *(függ: motion, safety)*
+- [x] WS2812 státuszjelzés (figyel / gondolkodik / beszél / hiba) *(független, bármikor)*
+- [x] systemd service-ek (orchestrator, WireGuard kliens) auto-indításhoz *(utolsó lépés)*
 
 ### FÁZIS 5 — Integráció & Hacktivity demó-próba
 > 🔗 *IGÉNYLI: F4 kész. Ez a záró fázis.*
 
-- [ ] Teljes lánc teszt offline (edge LLM): „Szabi, gyere ide" → mozgás + válasz
-- [ ] Teljes lánc teszt online (cloud LLM, WireGuard)
-- [ ] Cloud-kiesés szimuláció: WireGuard leállítása menet közben → edge fallback működik-e
-- [ ] Biztonsági watchdog éles teszt: akadály a robot elé → azonnali megállás
+- [ ] **Teljes lánc teszt offline, 4G NÉLKÜL** (router ki: edge STT + 3B + TTS + mozgás). A 09-08-i edge-válasz a `terraform destroy` UTÁN jött, a hálózat megvolt — a „nincs háló" eset nincs mérve. (A „gyere ide" követés demó utánra.)
+- [x] Teljes lánc teszt online (cloud LLM, WireGuard) — élő menetek 2026-09-08 óta, látással 09-16
+- [ ] Cloud-kiesés szimuláció: `wg-quick down` menet közben → az átállás ideje a 3B-re (a 09-08-i bemelegítés-javítás UTÁN nem mérve) — ez a demó #2
+- [x] Biztonsági watchdog éles teszt — 30 cm küszöb, 19,4 cm hézag `fast` fokozaton, 193 ms reakció
 - [ ] Demó-forgatókönyv begyakorlása (a Teremtő kérdez magyarul, tolmácsol angolra)
+- [ ] **Demó-posztúra ahogy a színpadon indul:** reboot → systemd (`--debug` NÉLKÜL), laptop nélkül felébred-e, és NEM ír transcriptet
+- [ ] Záró red-team kör a v12 + RAG + látás mai állapotán (a „Jobbra semmi"-típusú kitalálások is)
+- [ ] Demó előtti törlés próbája (`/var/log/freedroid/` teljes + `/tmp/szabi-*.log`) · `vcgencmd get_throttled` zárt vázas, reflektoros menet után (ma `0x0`)
 
 #### 5.0 Külső átnézés (2026-09-08) — mit fogadtunk el belőle
 
@@ -1290,7 +1299,7 @@ szerepelnek. **Egy pontja téves volt, KETTŐ áll — és mindkettő az előad�
 Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se a specben, se a
 `WORKFLOW.md`-ben. Ez volt az egyetlen tétel felelős és határidő nélkül.
 
-- [ ] **Szept. 1.: az előadás elkezdése.** Nem a diák — előbb a *váz*: mi az egyetlen gondolat,
+- [x] **Szept. 1.: az előadás elkezdése.** *(a váz kész 2026-09-08, §5.0b)* Nem a diák — előbb a *váz*: mi az egyetlen gondolat,
       amit a közönség elvisz. (Javaslat: a szuverenitás nem elmélet, hanem `root`.)
 - [ ] Diák / vizuális anyag elkészítése
 - [ ] **3× végigmondás stopperrel**, szept. 30-ig. A stopper nem formalitás: a demó élő
@@ -1312,6 +1321,7 @@ Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se 
 - [ ] Hangerő/akusztika teszt konferencia-környezetre (zajos terem)
 - [ ] Akku-üzemidő mérése teljes terhelésen (LLM + mozgás + hang)
 - [ ] Tartalék terv: ha a WiFi megbízhatatlan a helyszínen → tiszta offline demó
+- [ ] Helyszíni 4G térerő-mérés a Lurdyban + előre felvett videó a teljes folyamról (§5.0/3)
 
 ---
 
