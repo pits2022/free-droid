@@ -48,6 +48,10 @@ _KORBENEZES_INSTRUKCIO = (
     "Amit nem látsz rajta, arról ne állíts semmit.")
 # Egy címkés sor eleje („Balra: "). A címkéket a `vision.router` adja — onnan nem
 # importálható (a router a `rag.normalize`-t húzza be, körkörös lenne).
+# Szándékosan általános (PR #140 review 1): egy VLM-leírás sosem lehet több soros, mert
+# az `idegen_szoveg_tisztit` a soremelést is szóközre cseréli — állomásonként pontosan
+# egy sor van, tehát a >1 találat csak több állomásból jöhet. Egy címkelista másolata
+# viszont egy új állomásnál (pl. „Hátra") némán elcsúszna.
 _CIMKES_SOR = re.compile(r"^\w+: ", re.MULTILINE)
 
 
