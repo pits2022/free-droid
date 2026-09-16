@@ -6,6 +6,7 @@ hand the bare query through so the persona's own "nincs rá biztos adatom" kicks
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 from freedroid.rag.retriever import Hit
@@ -33,6 +34,21 @@ LATVANY_NINCS = "A kamerád most nem ad képet."
 _LATVANY_INSTRUKCIO = (
     "Ezt látod MOST a kamerádon. A magad szavaival mondd el. "
     "Amit nem látsz rajta, arról ne állíts semmit.")
+
+# Körbenézésnél (több címkés sor: „Előre: …", „Balra: …") a fenti utasításra a 8B a
+# három leírást egy-két mondatba sűríti, és az irányokat elhagyja. MÉRVE 2026-09-16 a
+# v12-n, a 14:03-as élő kör valódi látványán: a fenti utasítással 0/3 irányonkénti
+# válasz (egyszer „három laptop" invencióval), ezzel 7/9. Rosszabb volt: az utasítás
+# kiegészítése (2/3), a „csak a leírásban szereplőt" tiltás (3/6), és az „Előttem:"
+# címke (2/8 — a modell a címkét szó szerint másolja, a tartalmat nem javítja).
+# ponytail: prompt-kar, ~78% plafon; ha kevés, állomásonként külön LLM-hívás kell.
+_KORBENEZES_INSTRUKCIO = (
+    "Körbenéztél: ezt láttad a kamerádon, irányonként. Minden irányról mondj egy rövid "
+    "mondatot, és nevezd meg az irányt (előttem, balra, jobbra). "
+    "Amit nem látsz rajta, arról ne állíts semmit.")
+# Egy címkés sor eleje („Balra: "). A címkéket a `vision.router` adja — onnan nem
+# importálható (a router a `rag.normalize`-t húzza be, körkörös lenne).
+_CIMKES_SOR = re.compile(r"^\w+: ", re.MULTILINE)
 
 
 def build_context(hits: Sequence[Hit]) -> str:
@@ -75,8 +91,9 @@ def build_prompt(query: str, hits: Sequence[Hit], *,
     """
     latvany_blokk = ""
     if latvany:
-        latvany_blokk = (f"[LÁTVÁNY]\n{latvany}\n[/LÁTVÁNY]\n\n"
-                         f"{_LATVANY_INSTRUKCIO}\n\n")
+        instrukcio = (_KORBENEZES_INSTRUKCIO if len(_CIMKES_SOR.findall(latvany)) > 1
+                      else _LATVANY_INSTRUKCIO)
+        latvany_blokk = f"[LÁTVÁNY]\n{latvany}\n[/LÁTVÁNY]\n\n{instrukcio}\n\n"
     if not hits:
         return f"{latvany_blokk}{query}" if latvany_blokk else query
     n = KIFEJTOS_MONDAT if mondatok is None else mondatok

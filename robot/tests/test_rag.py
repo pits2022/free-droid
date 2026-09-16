@@ -468,6 +468,18 @@ def test_latvany_nelkul_a_prompt_VALTOZATLAN():
     assert build_prompt("Ki vagy?", [], latvany=None) == "Ki vagy?"
 
 
+def test_korbenezesnel_IRANYONKENTI_utasitas_megy():
+    """Élő kör 2026-09-16: a 3 címkés leírásból a 8B egy mondatot csinált, irány nélkül.
+    Több címkés sor -> irányonkénti utasítás; egy állomás (címkével is) -> a régi."""
+    from freedroid.rag.context import _KORBENEZES_INSTRUKCIO, _LATVANY_INSTRUKCIO, build_prompt
+
+    tura = "Előre: A room.\nBalra: A chair.\nJobbra: A shelf."
+    assert _KORBENEZES_INSTRUKCIO in build_prompt("Nézz körül!", [], latvany=tura)
+    for egy in ("Jobbra: A chair.", "A room with a table."):
+        p = build_prompt("Mit látsz?", [], latvany=egy)
+        assert _LATVANY_INSTRUKCIO in p and _KORBENEZES_INSTRUKCIO not in p
+
+
 def test_a_latas_HIANYA_is_kimondott_blokk():
     """🔴 A néma kihagyás PONTOSAN a mai állapot, amiben a modell konfabulált egy
     képleírást (2026-08-28: „a kamera szürke, feketéje áthatolhatatlan"). A negatív
