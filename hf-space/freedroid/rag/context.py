@@ -44,6 +44,10 @@ _LATVANY_INSTRUKCIO = (
 # ponytail: prompt-kar, ~78% plafon; ha kevés, állomásonként külön LLM-hívás kell.
 # ⚠️ Az utasítás a 3 irányú tervhez kötött (előttem, balra, jobbra) — ha a `vision_plan`
 # új állomást kap (pl. „Hátra"), EZT is bővíteni kell, és újra mérni (PR #140 review).
+# Két sornál (a 3. állomáson elhasalt a VLM) is EZ megy, a fix listával — MÉRVE
+# (PR #140 review 3, n=8): 5/8 irányonkénti, a hiányzó jobbra „semmit nem látok" lett,
+# kitalált tárgy nem. A csak a meglévő irányokat felsoroló változat ROSSZABB volt (2/8),
+# és a jobbra irányt ugyanúgy emlegette.
 _KORBENEZES_INSTRUKCIO = (
     "Körbenéztél: ezt láttad a kamerádon, irányonként. Minden irányról mondj egy rövid "
     "mondatot, és nevezd meg az irányt (előttem, balra, jobbra). "
