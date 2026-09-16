@@ -160,13 +160,15 @@ class FallbackLLMClient:
             self._folyamatban = backend
             try:
                 valasz = self._generate_on(backend, prompt)
+                # A `finally` ELŐTT: különben egy képkockányi ablakban a `current_backend()`
+                # a régi hátteret adná (a folyamatban már None, a sikeres még a régi).
+                self._backend = backend
             except Exception as e:  # noqa: BLE001 — bármi jön, a másik háttér a válasz
                 nyom.append(f"{backend.value}: {self._magyarazat(backend, e)}")
                 log.warning("LLM hívás sikertelen — %s: %s", backend.value, e)
                 continue
             finally:
                 self._folyamatban = None
-            self._backend = backend
             nyom.append(f"{backend.value}: felelt ({model})")
             self._indok = " -> ".join(nyom)
             log.info("LLM válasz: %s", self._indok)

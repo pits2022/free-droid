@@ -438,8 +438,8 @@ class Orchestrator:
         if self.state is State.RECORDING:
             return led_mod.Scene(led_mod.Pattern.PULSE, led_mod.GREEN)
         # A FOLYAMATBAN lévő háttér, nem a legutóbb sikeres (2026-09-16, `current_backend`).
-        forras = getattr(self.llm, "current_backend",
-                         getattr(self.llm, "active_backend", lambda: None))()
+        lekero = getattr(self.llm, "current_backend", None) or getattr(self.llm, "active_backend", None)
+        forras = lekero() if callable(lekero) else None
         szin = led_mod.SOURCE_COLOR.get(getattr(forras, "value", forras), led_mod.WHITE)
         if self.state is State.THINKING:
             return led_mod.Scene(led_mod.Pattern.SPIN, szin)

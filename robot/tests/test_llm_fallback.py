@@ -319,7 +319,8 @@ def test_a_LED_forrasa_a_FOLYAMATBAN_levo_hatter_nem_a_legutobb_sikeres(monkeypa
     def figyelo_gyar(host, timeout):
         p = eredeti(host, timeout)
         gen = p.generate
-        p.generate = lambda **kw: (kozben.append(c.current_backend()), gen(**kw))[1]
+        p.generate = lambda **kw: (kozben.append((c.current_backend(), c.active_backend())),
+                                   gen(**kw))[1]
         return p
 
     halo.gyar = figyelo_gyar
@@ -327,7 +328,8 @@ def test_a_LED_forrasa_a_FOLYAMATBAN_levo_hatter_nem_a_legutobb_sikeres(monkeypa
     halo.elerheto.add(CLOUD)
     uj_kor()
     c.generate("második")
-    assert kozben == [Backend.CLOUD]
+    # LED: már a felhő; transcript: még a legutóbb SIKERES edge (PR #143 review 3).
+    assert kozben == [(Backend.CLOUD, Backend.EDGE)]
     assert c.current_backend() is Backend.CLOUD
 
 
