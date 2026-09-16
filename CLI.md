@@ -116,7 +116,7 @@ ansible-playbook -i inventory.ini site.yml                 # minden
 ansible-playbook -i inventory.ini site.yml --limit cloud   # csak a felhő
 ansible-playbook -i inventory.ini site.yml --limit edge    # csak a Pi
 ansible-playbook -i inventory.ini site.yml --tags robot    # csak az edge_robot role
-ansible-playbook -i inventory.ini site.yml --limit cloud --tags ai   # felhő újraépítés után: modell + VLM (képes smoke-teszt = CUDA JIT bemelegítés) + Whisper
+ansible-playbook -i inventory.ini site.yml --limit cloud --tags ai   # csak a felhő AI-rétege újra (modell + VLM smoke-teszt/JIT + Whisper); a `terraform apply` ezt magától futtatja (`--limit cloud`, tag nélkül)
 ansible-playbook -i inventory.ini site.yml --limit edge --tags robot --ask-vault-pass  # a systemd-unitok (pl. a self-check SZÖVEGE) — a `git pull` a Pi-n ezeket NEM frissíti
 ansible-playbook -i inventory.ini site.yml -e edge_ollama_model=llama3.2:3b  # modell-csere
 ```
