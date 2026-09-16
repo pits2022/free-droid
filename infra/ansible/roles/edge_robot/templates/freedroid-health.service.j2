@@ -17,7 +17,7 @@ Environment=FREEDROID_ASSUME_PI=1
      - a `%` viszont SPECIFIKÁTOR: a `%h` némán a home könyvtárra cserélődik, azaz az
        érték csendben MÁSSÁ válik. Ezért kell a `%%`.
    A sorrend kötött: előbb a backslash, különben a saját escape-jeinket escape-elnénk. #}
-{% for kulcs, ertek in robot_env.items() %}
-Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
+{% for kulcs, ertek in robot_env_effective.items() %}
+Environment="{{ kulcs }}={{ ertek | string | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
 {% endfor %}
 ExecStart={{ robot_venv_bin }}/freedroid-health

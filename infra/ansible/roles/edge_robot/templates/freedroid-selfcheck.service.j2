@@ -14,8 +14,8 @@ User={{ robot_user }}
 Group={{ robot_user }}
 WorkingDirectory={{ robot_src_dir }}
 
-{% for kulcs, ertek in robot_env.items() %}
-Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
+{% for kulcs, ertek in robot_env_effective.items() %}
+Environment="{{ kulcs }}={{ ertek | string | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
 {% endfor %}
 
 # `--live-motion` SZÁNDÉKOSAN NINCS. Bekapcsoláskor a robot lehet asztalon, táskában vagy

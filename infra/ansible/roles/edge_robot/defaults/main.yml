@@ -129,7 +129,26 @@ robot_alsa_capture_card: "Device"        # a csíptethető vezeték nélküli mi
 #     FREEDROID_RAG_TOP_K: "1"                      # gyorsabb edge-válasz
 #
 # Elgépelésre a betöltő figyelmeztet (stderr -> journald), de nem áll le tőle.
+# 🔴 TITOK IDE SOSEM KERÜL: az értékek a 0644-es unit-fájlokba íródnak (`systemctl show`
+# bárkinek kiadja), és egy ellopott SD-kártyán amúgy is olvashatók (CLAUDE.md, fizikai
+# biztonság). Egy külső LLM-kulcs a felhőre tartozik, nem a Pi-re (PR #142 review 3).
 robot_env: {}
+
+# A LÁTÁS a szolgáltatásban (2026-09-16, mérve): a `systemctl start freedroid` alatt
+# „látás kihagyva — vision.enabled=False", mert a kézi menet a látást CSAK a parancssori
+# env-ből kapta. A modell-tag NEM másolat: a felhő `ai_stack` role `cloud_vision_model`-je,
+# tehát amit a felhő húz, pontosan azt kéri a Pi (egy elcsúszott tag = csendes vakság).
+# Kikapcsolás: `-e robot_vision_enabled=false`. A `robot_env` felülírja, ha mindkettő ad.
+# ⚠️ A `cloud_vision_model` az `ai_stack` role ALAPÉRTÉKE, és azért látszik itt, mert a
+# `site.yml` edge-playje UGYANABBAN a playben futtatja az `ai_stack`-et (mérve, `--tags robot`
+# mellett is: a role-defaultok a play betöltésekor élnek, a tag csak a taszkokat szűri).
+# Ha az `edge_robot` valaha az `ai_stack` NÉLKÜL fut, a látás csendben kimarad. Itt NE
+# deklaráld üresen (PR #142 review): egy későbbi role defaultja elfedné a felhőét.
+robot_vision_enabled: true
+robot_env_effective: >-
+  {{ ({'FREEDROID_VISION_ENABLED': 'true', 'FREEDROID_VISION_MODEL': cloud_vision_model}
+      if robot_vision_enabled | bool and (cloud_vision_model | default('', true)) else {})
+     | combine(robot_env) }}
 
 # Fusson-e az orchestrátor SZOLGÁLTATÁSKÉNT. Alapból igen: enélkül a `freedroid-health`
 # `check_orchestrator_service`-e bukik, és a robot safe-mode-ban áll.

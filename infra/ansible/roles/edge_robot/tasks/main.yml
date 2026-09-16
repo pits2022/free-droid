@@ -7,6 +7,19 @@
 # `uv sync` fails creating .venv. We therefore pin user/home explicitly rather
 # than relying on ansible_env.HOME (which is /root under become).
 
+# A látás-env a felhő `ai_stack` role `cloud_vision_model`-jéből jön (defaults/main.yml).
+# Ha az `edge_robot` valaha az `ai_stack` NÉLKÜL fut, a változó nem létezik, és a látás
+# CSENDBEN kimaradna — ezért hangosan bukunk (PR #142 review 2). Az ÜRES érték nem hiba:
+# az a szándékos kikapcsolás (`-e cloud_vision_model=`).
+- name: Fail when vision is on but the cloud vision model is not visible to this play
+  assert:
+    that: not (robot_vision_enabled | bool) or cloud_vision_model is defined
+    fail_msg: >-
+      robot_vision_enabled=true, de a `cloud_vision_model` nincs definiálva ebben a playben
+      (az `ai_stack` role nem fut vele). Add meg `-e cloud_vision_model=...`-lal, vagy
+      kapcsold ki: `-e robot_vision_enabled=false`.
+    quiet: true
+
 # ── Hardver-interfészek engedélyezése ────────────────────────────────────────
 # MÉRT hiány (2026-08-14, a szervó-teszt előtt): a role telepítette a teljes
 # szoftver-stacket, de az I2C és az SPI KERNEL-oldalon nem volt bekapcsolva —
