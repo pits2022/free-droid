@@ -40,7 +40,7 @@ WorkingDirectory={{ robot_src_dir }}
 {# Ugyanaz az idézés/escape-elés, mint a health-unitban, és ugyanazért: idézés nélkül a
    systemd a SZÓKÖZNÉL vág, a `%` pedig NÉMÁN specifikátorrá válna (`%h` -> home). #}
 {% for kulcs, ertek in robot_env_effective.items() %}
-Environment="{{ kulcs }}={{ ertek | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
+Environment="{{ kulcs }}={{ ertek | string | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
 {% endfor %}
 
 # ⚠️ `--debug` SZÁNDÉKOSAN NINCS. A szolgáltatás az ÜZEMI posztúra: bőbeszédű napló és

@@ -136,9 +136,14 @@ robot_env: {}
 # env-ből kapta. A modell-tag NEM másolat: a felhő `ai_stack` role `cloud_vision_model`-je,
 # tehát amit a felhő húz, pontosan azt kéri a Pi (egy elcsúszott tag = csendes vakság).
 # Kikapcsolás: `-e robot_vision_enabled=false`. A `robot_env` felülírja, ha mindkettő ad.
+# ⚠️ A `cloud_vision_model` az `ai_stack` role ALAPÉRTÉKE, és azért látszik itt, mert a
+# `site.yml` edge-playje UGYANABBAN a playben futtatja az `ai_stack`-et (mérve, `--tags robot`
+# mellett is: a role-defaultok a play betöltésekor élnek, a tag csak a taszkokat szűri).
+# Ha az `edge_robot` valaha az `ai_stack` NÉLKÜL fut, a látás csendben kimarad. Itt NE
+# deklaráld üresen (PR #142 review): egy későbbi role defaultja elfedné a felhőét.
 robot_vision_enabled: true
 robot_env_effective: >-
-  {{ ({'FREEDROID_VISION_ENABLED': 'igen', 'FREEDROID_VISION_MODEL': cloud_vision_model}
+  {{ ({'FREEDROID_VISION_ENABLED': 'true', 'FREEDROID_VISION_MODEL': cloud_vision_model}
       if robot_vision_enabled | bool and (cloud_vision_model | default('', true)) else {})
      | combine(robot_env) }}
 
