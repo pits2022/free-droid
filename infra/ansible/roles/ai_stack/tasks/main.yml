@@ -122,7 +122,7 @@
   command: ollama pull {{ cloud_vision_model }}
   environment:
     OLLAMA_HOST: "{{ ollama_bind }}"
-  when: ollama_is_cloud and cloud_vision_model != ''
+  when: ollama_is_cloud and cloud_vision_model | default('', true) | length > 0
   register: ollama_vision_pull
   until: ollama_vision_pull.rc == 0
   retries: 5
@@ -130,6 +130,59 @@
   # `changed_when: true` szándékosan egyezik a fenti "Pull base model" taszkkal —
   # PR #129 review: nem egyedi hanyagság, a két pull-taszk konzisztensen viselkedik.
   changed_when: true
+
+# Egy VALÓDI képes hívás, nem tag-lista — két okból (2026-09-16, mérve):
+#  1. Pontos ellenőrzés: rossz/hiányzó tagra az Ollama 404-et ad, és az `uri` a nem-200-on
+#     bukik. Egy `/api/tags` részsztring-keresés `qwen3.5:7b` mellett is átengedne.
+#  2. BEMELEGÍTÉS: friss GPU-gépen az ELSŐ képes kérés helyben JIT-fordítja a
+#     képkódoló CUDA-kerneleit (`~ollama/.nv/ComputeCache`) — ez 7,25 s prompt-feldolgozás
+#     volt 325 tokenre, és a Pi 8 s-os `vision.timeout_s`-e mellett az első „Nézz körül"
+#     vakon futott. A cache LEMEZEN van, gépenként egyszeri, túléli a runner-újraindítást
+#     (utána 0,59 s) — tehát ide tartozik, nem a Pi bemelegítésébe (az kép nélküli).
+#     Az eldobható felhő miatt MINDEN újraépítés után újra kell.
+# ⚠️ A JIT ALAKFÜGGŐ (mérve): egy 1280×720-as kép (936 token, 2 batch) a bemelegített
+# gépen ÚJRA 7,25 s-ot fordított. A kép ezért 640×480, mint a kameráé (a
+# `cv2.VideoCapture` alapja, `camera/frame.py`) — 325 token, 1 batch. Ha a kamera
+# felbontása változik, EZT a képet is cserélni kell.
+- name: Smoke-test and warm up the cloud VLM
+  when:
+    - ollama_is_cloud
+    - cloud_vision_model | default('', true) | length > 0
+    - not ansible_check_mode
+  block:
+    - name: Read the vision smoke-test image
+      slurp:
+        src: "{{ role_path }}/files/vision_smoke.jpg"
+      delegate_to: localhost
+      become: false
+      register: vision_smoke_image
+
+    - name: Smoke-test the VLM with a REAL image (also compiles its CUDA kernels once)
+      uri:
+        url: "http://{{ ollama_bind }}/api/generate"
+        method: POST
+        body_format: json
+        body:
+          model: "{{ cloud_vision_model }}"
+          prompt: "Describe what you see in one short sentence."
+          images: ["{{ vision_smoke_image.content }}"]
+          stream: false
+          think: false
+          # Ugyanaz, mint a Pi `vision.num_ctx`-e: eltérőre az Ollama újratölti a modellt.
+          options: {num_ctx: 2048, num_predict: 30}
+        timeout: 180   # hidegen: lemezről betöltés (~30 s) + JIT
+      register: ollama_vision_smoke
+      # Ellenőrzés, nem konfiguráció — a POST alapból `changed`, ami minden futást
+      # változásnak mutatna (PR #139 review 2). A JIT-cache írása mellékhatás, nem állapot.
+      changed_when: false
+
+    - name: Assert the VLM returned a non-empty description
+      assert:
+        that:
+          - ollama_vision_smoke.json.response is defined
+          - ollama_vision_smoke.json.response | trim | length > 0
+        fail_msg: "A(z) {{ cloud_vision_model }} válaszolt, de üres leírást adott."
+        success_msg: "VLM OK: {{ cloud_vision_model }} — {{ ollama_vision_smoke.elapsed }} s"
 
 # A felhő inferencia-végpontnak SOHA nem szabad a publikus interfészen lógnia.
 # Ez a 2026-07-29-i mérésen validált invariáns (H200-tests.md, 4. szakasz).

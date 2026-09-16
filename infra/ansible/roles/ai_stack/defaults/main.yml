@@ -30,8 +30,14 @@ edge_ollama_model: "csaba_ajtony/szabi-3b-v12"    # RPi 5 — offline fallback (
 
 # A felhős VLM (spec: docs/superpowers/specs/2026-09-09-vlm-design.md). ÜRESEN nem
 # húz semmit — a látás opcionális, és a Pi-re SOHA nem kerül VLM (a 3B már így is a
-# lassú ág). A tag TELJES, névtérrel: a rövidítés 404.
-cloud_vision_model: ""
+# lassú ág). A tag TELJES: saját modellnél névtérrel (`csaba_ajtony/...`), hivatalos
+# könyvtári modellnél `név:tag` — a rövidítés/hiányzó tag 404.
+#
+# 2026-09-16: az üres alapérték MÉRT hibát okozott — az újraépített felhőre nem került
+# VLM, a Pi `model 'qwen3.5:4b' not found (404)`-et kapott, Szabi vak volt. A WP0-ban
+# kiválasztott modell legyen az alap; kikapcsolni `-e cloud_vision_model=` üresen lehet.
+# A tag SZÓ SZERINT egyezzen a Pi `FREEDROID_VISION_MODEL`-jével.
+cloud_vision_model: "qwen3.5:4b"
 
 # ── whisper.cpp (STT) ─────────────────────────────────────────────────────────────
 #
