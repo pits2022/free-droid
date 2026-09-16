@@ -475,6 +475,9 @@ def test_korbenezesnel_IRANYONKENTI_utasitas_megy():
 
     tura = "Előre: A room.\nBalra: A chair.\nJobbra: A shelf."
     assert _KORBENEZES_INSTRUKCIO in build_prompt("Nézz körül!", [], latvany=tura)
+    # A határ (> 1): egy elhasalt 3. állomás után a két sor is körbenézés.
+    ket = "Előre: A room.\nBalra: A chair."
+    assert _KORBENEZES_INSTRUKCIO in build_prompt("Nézz körül!", [], latvany=ket)
     for egy in ("Jobbra: A chair.", "A room with a table."):
         p = build_prompt("Mit látsz?", [], latvany=egy)
         assert _LATVANY_INSTRUKCIO in p and _KORBENEZES_INSTRUKCIO not in p

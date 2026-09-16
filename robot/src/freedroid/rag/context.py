@@ -42,6 +42,8 @@ _LATVANY_INSTRUKCIO = (
 # kiegészítése (2/3), a „csak a leírásban szereplőt" tiltás (3/6), és az „Előttem:"
 # címke (2/8 — a modell a címkét szó szerint másolja, a tartalmat nem javítja).
 # ponytail: prompt-kar, ~78% plafon; ha kevés, állomásonként külön LLM-hívás kell.
+# ⚠️ Az utasítás a 3 irányú tervhez kötött (előttem, balra, jobbra) — ha a `vision_plan`
+# új állomást kap (pl. „Hátra"), EZT is bővíteni kell, és újra mérni (PR #140 review).
 _KORBENEZES_INSTRUKCIO = (
     "Körbenéztél: ezt láttad a kamerádon, irányonként. Minden irányról mondj egy rövid "
     "mondatot, és nevezd meg az irányt (előttem, balra, jobbra). "
