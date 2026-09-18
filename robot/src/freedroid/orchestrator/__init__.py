@@ -114,11 +114,27 @@ MUSZAKI_TOVEK = frozenset({
     "hardver", "hardware", "hardwa", "szoftver", "software", "softwa",
     "architektur", "architectu", "kernel", "processzor", "memori", "akku",
     "linux", "debian", "oprendszer", "operacios", "szenzor", "chip", "alaplap",
-    "raspberry", "lanctalp", "szerver", "kvantal", "parameter", "watt", "volt",
+    "raspberry", "szerver", "kvantal", "parameter", "watt", "voltos", "feszultseg",
 })
-# A 3 karakternél rövidebb kulcs CSAK pontosan egyezhet: előtagként a `ram` a
-# `rámegy` szótövére is illene („Rámegy a falra?"), és egy mozgásparancsot némítana el.
-MUSZAKI_ROVID = frozenset({"cpu", "ram", "gpu", "i2c", "pwm"})
+# ⛔ HÁROM KULCS, AMI KIKERÜLT — mind a három MÉRT fals pozitív (PR #147 review):
+#
+#   `volt`      -> a `lenni` múlt ideje. A puszta „volt" ugyan STOPWORD, de a ragozott
+#                  alak nem: „Hol voltál tegnap?" -> `voltal`, ami az előtagra illik.
+#                  Helyette `voltos` („hány voltos az akksi") és `feszultseg`.
+#   `ram`       -> a `rám` névmás ékezetfosztva UGYANEZ. „Nézz rám!", „Figyelj rám!",
+#                  „Büszke vagy rám, Teremtőm?" — mind kapuzott volna, vagyis a robot a
+#                  Teremtőjéhez intézett mondatra mondta volna, hogy nincs adata.
+#                  A saját tesztem MELLÉTRAFÁLT: a `Rámegy` szótöve `ramegy`, ami NEM
+#                  egyezik pontosan — a puszta `rám` viszont igen.
+#   `lanctalp`  -> a lánctalp aktuátor is: „Fordulj meg a lánctalpadon!" kapuzva a
+#                  `move` tool-hívást ölte volna meg, némán.
+#
+# Az elhagyásuk MÉRHETŐEN nem gyengít: mind a három kérdéskört fedi a korpusz, tehát
+# ott nem is üres a RAG, és a kapu eleve nem csukódna („Mennyi RAM van benned?" 14,5 ·
+# „Mi hajtja a lánctalpad?" 12,4 · „Hány voltos az akkumulátorod?" 8,4).
+#
+# A 3 karakternél rövidebb kulcs CSAK pontosan egyezhet.
+MUSZAKI_ROVID = frozenset({"cpu", "gpu", "i2c", "pwm"})
 
 NINCS_ADAT_VALASZ = ("Erről nincs pontos adatom, Teremtőm. Nem találgatok.")
 
