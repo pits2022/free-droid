@@ -609,6 +609,24 @@ class CameraSettings:
     scan_deg_per_s: float = 45.0
     scan_step_deg: float = 2.0      # ekkora lépésekben, hogy folyamatosnak lássék
 
+    # ALVÓ PÓZ — a leállás (`Orchestrator.close()`) előre-le billenti a fejet.
+    #
+    # Két haszna van, és egyik sem esztétika: (1) bekapcsoláskor a `home()` középre
+    # hajtás LÁTHATÓ mozdulat lesz — a fej felemelkedik, a robot „felébred"; (2) az
+    # előre billentett kamera szállításkor nem akad be.
+    #
+    # ⚠️ A -50 fok TIPP, nem mérés. A fizikai végállás a mért skálával -53,6 fok
+    # (ld. lentebb), tehát ez közel a padlóig billent — de hogy a gimbal ESZTÉTIKAILAG
+    # hol néz ki „alvónak", azt a roboton kell megnézni. Env-felülírható:
+    # `FREEDROID_CAMERA_SLEEP_TILT_DEG=-40`. Kód nem kell hozzá.
+    #
+    # A szervók a póz UTÁN is kapnak jelet — elengedve a tilt a gimbal súlyától hanyatt
+    # esik (mérve 2026-09-15, ld. `close()` docstringje). Az alvó póz egy MÁSIK tartott
+    # helyzet, nem elengedés.
+    sleep_pose_enabled: bool = True
+    sleep_pan_deg: float = 0.0
+    sleep_tilt_deg: float = -50.0
+
     def __post_init__(self) -> None:
         if self.pwm_frequency_hz <= 0:
             raise ValueError("pwm_frequency_hz must be > 0")
@@ -617,6 +635,30 @@ class CameraSettings:
         for nev, kozep in (("pan", self.pan_centre_ms), ("tilt", self.tilt_centre_ms)):
             if not self.min_ms < kozep < self.max_ms:
                 raise ValueError(f"min_ms < {nev}_centre_ms < max_ms kell legyen")
+        # 🔴 AZ ALVÓ PÓZNAK ELÉRHETŐNEK KELL LENNIE, és ezt SZÁMOLNI kell, nem tippelni:
+        # a `min_ms`/`max_ms` kommentje +-80 fokot mond a tiltre, de az a skála-javítás
+        # (0,0112 -> 0,0168) ELŐTTI szám — a valóság +-53,6. Egy -60 fokos alvó póz tehát
+        # NÉMÁN a határra vágódna (`vagott_szog`), és a fej nem oda állna, ahova ez a
+        # config mondja. Inkább hasaljon el indulásnál.
+        #
+        # Az előjel-egyezés nem véletlen: a `move_to` a `PAN_LEFT_SIGN`/`TILT_UP_SIGN`
+        # szorzót használja, és MINDKETTŐ +1 (`config/gpio.py`). Ha valaha -1 lesz,
+        # ez az ellenőrzés tükrözve hazudna — akkor ide is be kell hozni az előjelet.
+        #
+        # Kikapcsolt pózra NEM ellenőrzünk (PR #146 review): egy rögzített gimbalon vagy
+        # próbapadon a Teremtő épp azért kapcsolja ki, mert a fej nem tud oda billenni —
+        # egy sosem használt szög miatt ne hasaljon el az indulás.
+        if self.sleep_pose_enabled:
+            for nev, kozep, skala, szog in (
+                    ("pan", self.pan_centre_ms, self.pan_ms_per_deg, self.sleep_pan_deg),
+                    ("tilt", self.tilt_centre_ms, self.tilt_ms_per_deg, self.sleep_tilt_deg)):
+                ms = kozep + szog * skala
+                if not self.min_ms <= ms <= self.max_ms:
+                    hatar = ((self.min_ms - kozep) / skala, (self.max_ms - kozep) / skala)
+                    raise ValueError(
+                        f"az alvó póz {nev} szöge ({szog}) elérhetetlen: a tartomány "
+                        f"{hatar[0]:.1f}..{hatar[1]:.1f} fok")
+
         # A keretnél hosszabb pulzus értelmezhetetlen: 50 Hz-en a 20 ms a teljes periódus.
         if self.max_ms >= 1000.0 / self.pwm_frequency_hz:
             raise ValueError("max_ms nem érheti el a PWM-keretet (1000/frekvencia ms)")
