@@ -313,6 +313,20 @@
 # Bekapcsolás után, parancs kiadása NÉLKÜL is látszódjon (és HALLATSZÓDJON), hogy minden
 # felállt — a Teremtő kérése, 2026-08-28. A hang-hurok 1 kHz-es sípja a hallható jelzés,
 # ami képernyő nélkül is működik; a részletek a journalban.
+# A környezet EGY fájlban: a három unit `EnvironmentFile=`-lal olvassa, a kézi menet
+# `set -a; . /etc/freedroid.env; set +a`-val. Korábban a unitokban álltak `Environment=`
+# sorok, a kézi menet meg a parancssorból kapta az env-et — az igazság két helyen állt, és
+# MINDKÉT irányban elcsúszott már (2026-09-16 a szolgáltatás, 2026-09-18 a kézi menet:
+# „látás kihagyva — vision.enabled=False"). A unitok ELŐTT fut, hogy egy friss gépen a
+# fájl már ott legyen, mire az orchestrátor indul.
+- name: Install the shared environment file
+  when: robot_project.stat.exists
+  template:
+    src: freedroid.env.j2
+    dest: /etc/freedroid.env
+    mode: '0644'
+  notify: Reload systemd
+
 - name: Install the boot self-check systemd service
   when: robot_project.stat.exists
   template:
