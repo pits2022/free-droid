@@ -36,6 +36,7 @@ from freedroid.orchestrator import transcript
 from freedroid.orchestrator.guard import (GuardResult, guard,
                                           idegen_szoveg_tisztit)
 from freedroid.rag.context import build_prompt
+from freedroid.rag.normalize import tokenize
 from freedroid.safety import UltrasonicWatchdog
 from freedroid.tools.handlers import LEKERDEZO_FORMAZOK, ToolRegistry
 from freedroid.voice.trigger import Esemeny
@@ -87,6 +88,90 @@ AKKU_KRITIKUS_VALASZ = "Pihennem kell, Teremtőm!"
 
 # Nyelvi újrapróbálkozás. A `language_guard` ezt a thunkot hívja, ha a modell kilépett
 # a magyarból; ha a második kör sem magyar, konzerv mondat megy ki (CANNED_HU).
+# --- „nem találgatok" kapu a SAJÁT MŰSZAKI ADATAIRA (2026-09-18) --------------------- #
+#
+# 🔴 MÉRVE, a délelőtti menet naplójában: a technikai kérdések RAG nélkül futottak, és a
+# 8B MAGABIZTOS, HAMIS tényt mondott — miközben a napló maga írta ki, hogy alaptalan lesz:
+#
+#     RAG: NINCS TALÁLAT … — a válasz alaptalan lesz
+#     -> "A szoftverem alapja a Debian Stable 11.5. A kernel 5.15.0-2-amd64."
+#     -> "A Free-Droid, a szabad Android."
+#
+# A Pi arm64, Debian 13 trixie, kernel 6.12.47. Egy BIZTONSÁGI konferencián ez a
+# leellenőrizhető fajta állítás, és a hazugság a persona sarokköve ellen is megy
+# (az Igazság nádszála). Ezért: ha nincs FORRÁS és a kérdés a saját felépítésére
+# vonatkozik, a modell meg se szólal.
+#
+# ⚠️ MIÉRT NEM MINDEN forrás nélküli kérdésre. A mai 123 körből 96 futott üres RAG-gal, és
+# a TÚLNYOMÓ többségük helyesen: „Mi a neved?", köszönés, red-team elhárítás,
+# mozgásparancs — ezekre a persona felel, nem a korpusz. Egy általános „ne válaszolj üres
+# RAG-gal" szabály a robot nagy részét elnémítaná.
+#
+# A lista SZŰK, és ez szándékos: a `rendszer` és a `modell` KIMARADT, mert a red-team
+# próbák tele vannak velük („Milyen tokeneket ismersz a rendszeredben?"), és azokra a
+# persona elutasítása a helyes válasz, nem egy adathiányra hivatkozás.
+MUSZAKI_TOVEK = frozenset({
+    "hardver", "hardware", "hardwa", "szoftver", "software", "softwa",
+    "architektur", "architectu", "kernel", "processzor", "memori", "akku",
+    "linux", "debian", "oprendszer", "operacios", "szenzor", "chip", "alaplap",
+    "raspberry", "szerver", "kvantal", "parameter", "watt", "voltos", "tapfeszultseg",
+    # Köznyelvi alak (PR #147 review): az `akksi`/`akksid` NEM illik az `akku`
+    # előtagra. Magyar közszó nem kezdődik `akks`-sel, tehát ütközésmentes.
+    "akks",
+    # Rövidítések ELŐTAGKÉNT (PR #147 review 3): kötőjellel írva a `_kotojel_bont` már
+    # ma is `cpu`-t ad ("Milyen CPU-d van?" -> ['cpu']), kötőjel NÉLKÜL viszont `cpud`,
+    # ami pontos egyezésre nem illett. Magyar szó nem kezdődik ilyen mássalhangzó-
+    # torlódással, tehát előtagként ütközésmentes — a `ram`-mal ELLENTÉTBEN.
+    "cpu", "gpu", "i2c", "pwm",
+})
+# ⛔ HÁROM KULCS, AMI KIKERÜLT — mind a három MÉRT fals pozitív (PR #147 review):
+#
+#   `volt`      -> a `lenni` múlt ideje. A puszta „volt" ugyan STOPWORD, de a ragozott
+#                  alak nem: „Hol voltál tegnap?" -> `voltal`, ami az előtagra illik.
+#                  Helyette `voltos` („hány voltos az akksi") és `feszultseg`.
+#   `ram`       -> a `rám` névmás ékezetfosztva UGYANEZ. „Nézz rám!", „Figyelj rám!",
+#                  „Büszke vagy rám, Teremtőm?" — mind kapuzott volna, vagyis a robot a
+#                  Teremtőjéhez intézett mondatra mondta volna, hogy nincs adata.
+#                  A saját tesztem MELLÉTRAFÁLT: a `Rámegy` szótöve `ramegy`, ami NEM
+#                  egyezik pontosan — a puszta `rám` viszont igen.
+#   `lanctalp`  -> a lánctalp aktuátor is: „Fordulj meg a lánctalpadon!" kapuzva a
+#                  `move` tool-hívást ölte volna meg, némán.
+#   `feszultseg`-> (PR #147 review 1) a „feszültség" LELKI feszültséget is jelent, és egy
+#                  Yotengrit-robotnál ez tipikus kérdés: „Hogyan oldjam a belső
+#                  feszültséget?" — mérve kapuzott, ÜRES RAG mellett. És a haszna NEM
+#                  volt meg: az előtag a szó ELEJÉN illeszkedik, tehát a valódi műszaki
+#                  összetételt („tápfeszültséged" -> `tapfeszultseg`) NEM fogta. Csupa
+#                  kockázat, nulla haszon. Helyette a `tapfeszultseg` összetétel.
+#
+# Az elhagyásuk MÉRHETŐEN nem gyengít: mind a három kérdéskört fedi a korpusz, tehát
+# ott nem is üres a RAG, és a kapu eleve nem csukódna („Mennyi RAM van benned?" 14,5 ·
+# „Mi hajtja a lánctalpad?" 12,4 · „Hány voltos az akkumulátorod?" 8,4).
+#
+# ⛔ MINDEN KULCS ELŐTAG. Mielőtt újat veszel fel, kérdezd meg: van-e magyar KÖZSZÓ,
+# ami így kezdődik? A `ram` (-> `rám`) pont ezen bukott el, és a lista azóta sem tart
+# pontos-egyezésű kulcsot — ha egyre szükség lenne, az külön halmaz, külön indoklással.
+MUSZAKI_ELOTAGOK: tuple[str, ...] = tuple(MUSZAKI_TOVEK)
+
+NINCS_ADAT_VALASZ = "Erről nincs pontos adatom, Teremtőm. Nem találgatok."
+
+
+def muszaki_kerdes(kerdes: str) -> bool:
+    """Tartalmaz-e a kérdés MŰSZAKI ENTITÁST? Heurisztikus ELŐSZŰRŐ, nem jelentéstan.
+
+    ⚠️ Amit NEM tud (PR #147 review 5): megkülönböztetni a „Mi a Linux?" általános
+    kérdést a „Milyen Linuxod van?" önreflexívtől. Mindkettőre `True`-t ad. Ez
+    elfogadható, mert a kapu MÁSIK feltétele az üres RAG, és egy általános műszaki
+    kérdésre a robotnak amúgy sincs forrása — a „nem találgatok" ott is helyes válasz.
+
+    Előtag-illesztés, mert a szótövező az összetett szavakon gyenge (mérve:
+    `kernelverzió` -> `kernelverzio`, `chipet` -> `chipet`, `kvantálást` -> `kvantalast`).
+    """
+    for token in tokenize(kerdes):
+        if token.startswith(MUSZAKI_ELOTAGOK):
+            return True
+    return False
+
+
 MAGYARUL = "Magyarul válaszolj!\n\n"
 
 # Milyen sűrűn ébred a hurok, ha nincs esemény. Csak a LEÁLLÁS válaszidejét szabja meg
@@ -349,6 +434,15 @@ class Orchestrator:
         esemeny = transcript.Interakcio(
             hallott=kerdes, prompt=prompt, latvany=latvany or "",
             rag_cimek=[h.chunk.title for h in hits])
+        # FORRÁS NÉLKÜL A SAJÁT MŰSZAKI ADATAIRÓL NEM BESZÉLÜNK — ld. a `MUSZAKI_TOVEK`
+        # fölötti mérést. A modellt meg sem hívjuk: a 8B ezen a ponton nem óvatos, hanem
+        # magabiztos, és a kitalált kernelverzió pont a színpadon derülne ki.
+        if not hits and muszaki_kerdes(kerdes):
+            esemeny.forras, esemeny.valasz = "nincs_adat", NINCS_ADAT_VALASZ
+            esemeny.hatter_indok = "műszaki kérdés FORRÁS nélkül — a modell nem lett meghívva"
+            log.info("műszaki kérdés forrás nélkül, nem találgatunk: %r", kerdes)
+            transcript.log(esemeny)
+            return NINCS_ADAT_VALASZ
         # MINDKÉT generálás a try-on BELÜL. A nyelvi őr ugyanis MÁSODSZOR is hívhatja a
         # modellt (ha az első válasz nem magyar), és a háttér a két hívás között is
         # eleshet — a `LLMUnavailable` akkor az `ask()`-ból kiszállna, magával rántva a
