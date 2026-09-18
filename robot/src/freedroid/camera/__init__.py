@@ -38,6 +38,7 @@ class CameraController(Protocol):
     def action(self, action: CameraAction) -> None: ...
     def home(self) -> None: ...
     def move_to(self, pan_deg: float, tilt_deg: float) -> bool: ...
+    def sleep(self) -> None: ...
 
 
 # --- geometria: tiszta függvények, hardver nélkül is mérhetők -----------------------
@@ -310,6 +311,26 @@ class PanTiltCamera:
         for reszlet in lepesekre(fok, self._cfg.scan_step_deg):
             self.pan(irany, reszlet)
             time.sleep(reszlet / self._cfg.scan_deg_per_s)
+
+    def sleep(self) -> None:
+        """Alvó póz: a fej előre-le billen, és TARTVA marad. A `close()` ELŐTT fut.
+
+        MIÉRT LÁTVÁNYOS: a következő bekapcsolásnál a konstruktor és a kör eleji
+        `home()` középre hajtja a fejet — egy alvó pózból ez FELEMELKEDÉS, nem egy
+        észrevehetetlen rándulás középről középre. A robot „felébred".
+
+        MIÉRT HASZNOS: az előre billentett kamera szállításkor nem akad be.
+
+        🔴 NEM ELENGEDÉS. A szervók a póz után is kapnak jelet, mert elengedve a tilt a
+        gimbal súlyától hanyatt esik (mérve 2026-09-15 — ld. `close()`). Ez egy MÁSIK
+        tartott helyzet, és pontosan ezért nem szabad a `close()`-zal összevonni.
+
+        A `move_to`-t használja, nem a relatív `tilt()`-et: a póz ABSZOLÚT cél, és a
+        holtjáték-kompenzált út ugyanoda visz akárhonnan jött a fej.
+        """
+        if not self._cfg.sleep_pose_enabled:
+            return
+        self.move_to(self._cfg.sleep_pan_deg, self._cfg.sleep_tilt_deg)
 
     def close(self) -> None:
         """Leállás: az I2C elengedése. A szervók TARTVA MARADNAK — szándékosan.

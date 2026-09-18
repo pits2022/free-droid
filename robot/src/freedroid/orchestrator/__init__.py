@@ -311,6 +311,17 @@ class Orchestrator:
             self.watchdog.stop_monitoring()
         except Exception:  # noqa: BLE001 — a vezérlők lezárása ettől nem maradhat el
             log.exception("watchdog leállítása sikertelen")
+        # Alvó póz a busz lezárása ELŐTT: utána már nincs mivel mozgatni. Külön try,
+        # mert a póz KÉNYELEM, a lezárás KÖTELESSÉG — egy I2C-hiba a pózolásban nem
+        # hagyhatja nyitva a buszt és nem viheti el a motor lezárását.
+        # `getattr`, ugyanúgy mint a `close`-nál: egy `sleep()` nélküli kamera (teszt-
+        # dublőr, más vezérlő) ne buktassa a leállást.
+        alvas = getattr(self.camera, "sleep", None)
+        if alvas is not None:
+            try:
+                alvas()
+            except Exception:  # noqa: BLE001 — a lezárás ettől nem maradhat el
+                log.exception("az alvó póz beállítása elhasalt")
         for vezerlo in (self.motion, self.camera):
             zaras = getattr(vezerlo, "close", None)
             if zaras is not None:

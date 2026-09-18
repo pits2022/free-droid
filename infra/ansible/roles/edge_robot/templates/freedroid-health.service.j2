@@ -3,6 +3,23 @@ Description=Free-Droid vital-function health check (network / hardware / softwar
 After=network-online.target ollama.service
 Wants=network-online.target
 
+# 🔴 AZ ORCHESTRÁTOR UTÁN. Ez nem óvatosság, hanem MÉRT ütközés javítása (2026-09-18):
+# a timer `OnBootSec=60`-nál tüzel, a `freedroid-selfcheck` viszont 102 másodpercig fut
+# és `Before=freedroid.service` — vagyis a bootkori health-check MINDIG olyankor
+# érkezett, amikor az orchestrátor még el sem indult. A `check_orchestrator_service`
+# CRITICAL, tehát minden egyes bootnál safe módba tette a robotot, és a jelző a
+# KÖVETKEZŐ timer-ébredésig (10 perc) ott maradt.
+#
+# Az `After=` azért a helyes eszköz az `OnBootSec` emelése helyett, mert a selfcheck
+# hossza VÁLTOZIK (modellek, hardver), egy nagyobb konstans meg csak odébb tolná az
+# ütközést. Az `After=` akkor rendez, ha a `freedroid.service` ugyanabban a
+# tranzakcióban indul (bootkor mindig), a későbbi timer-ébredéseknél no-op.
+#
+# ⚠️ `Wants=` SZÁNDÉKOSAN NINCS mellé: a health-check ne INDÍTSA el az orchestrátort.
+# Egy kézi `systemctl stop freedroid` után a következő timer-ébredés visszakapcsolná —
+# és pont azt a „nem fut az orchestrátor" állapotot fedné el, amit mérnie kell.
+After=freedroid.service
+
 [Service]
 Type=oneshot
 # Runs as root: it may `systemctl restart` wg-quick@wg0 / ollama / freedroid

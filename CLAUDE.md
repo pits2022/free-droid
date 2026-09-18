@@ -432,6 +432,22 @@ Conscious gaps from the PR #4 review — not bugs, but things a future session s
   orchestrator service exists (Phase 4.3), a real Pi reports unhealthy and enters safe-mode. This is
   **accepted/intended** (no orchestrator = not functional). The review only removed the *restart churn*
   (`remediate` no-ops when the unit isn't installed); do **not** "fix" the severity/skip — it's a decision.
+
+  **The boot-time collision it caused is FIXED (2026-09-18, measured).** The health timer fires at
+  `OnBootSec=60`, but `freedroid-selfcheck` runs **102 s** and is `Before=freedroid.service` — so the
+  boot health-check always found the orchestrator `inactive`, went CRITICAL, and left
+  `/run/freedroid/safe_mode` in place until the next timer wake (10 min later). The fix is
+  `After=freedroid.service` on `freedroid-health.service` (**not** a bigger `OnBootSec`: the selfcheck's
+  duration varies). Deliberately **no `Wants=`** — the health check must not *start* the orchestrator,
+  or it would paper over the very state it measures.
+
+- **🔴 Nothing reads `/run/freedroid/safe_mode` (measured 2026-09-18).** `health/` writes the flag,
+  `State.SAFE_MODE` in the orchestrator is only an enum name, and `grep -rn safe_mode robot/src` outside
+  `health/` returns **one line**. So the "motion disabled" that safe mode promises **does not happen** —
+  the flag is a diagnostic today, next to `health.json`. This is a known, accepted state (the Creator,
+  2026-09-18), not an oversight. ⚠️ If anyone wires the flag up, fix the boot ordering **first** (above),
+  or every boot would leave the robot motionless for up to 10 minutes. The in-process safe reply
+  (`SAFE_MODE_VALASZ` on `LLMUnavailable`) is a *different*, working mechanism — don't conflate them.
 - **Unprivileged GPIO works — no sudo, no Ansible change needed (measured 2026-08-13).** `creator` is
   already in `gpio`, `spi`, `i2c` (and `ollama`), and `/dev/gpiochip0` is `root:gpio 0660`, so the
   Phase-4 orchestrator can drive motors as `creator` without privileges. This was an open worry when the
