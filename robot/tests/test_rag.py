@@ -236,6 +236,8 @@ def test_tokenize_drops_stopwords_and_shorts():
     "Milyen hardware-ed van?",
     "Milyen software fut rajtad?",
     "Mi az architecture-öd?",
+    "Milyen akksid van?",       # köznyelvi alak — RAG-gal VÁLASZOL, nem hallgat
+    "Meddig bírja az akksi?",
 ])
 def test_a_technikai_kerdesek_kapnak_kontextust(teljes_retriever, query):
     assert teljes_retriever.retrieve(query), (

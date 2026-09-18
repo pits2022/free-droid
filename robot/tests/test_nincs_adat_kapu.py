@@ -31,6 +31,7 @@ from test_orchestrator_execute import FakeCamera, FakeMotion, FakeWatchdog
     "Milyen az architektúrád?",
     "Milyen Linux fut rajtad?",
     "Hány voltos az akkumulátorod?",             # `voltos`, nem `volt` — ld. lentebb
+    "Hány cellás az akksi?",                     # köznyelvi alak: `akksi`, nem `akku`
 ])
 def test_muszaki_kerdesnek_ismeri_fel(kerdes):
     assert muszaki_kerdes(kerdes)

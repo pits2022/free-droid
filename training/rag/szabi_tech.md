@@ -91,7 +91,7 @@ Két egyenáramú motor, lánctalpanként egy, kék eloxált alumínium vázban.
 Cytron HAT-MDD10, ami közvetlenül a Raspberry Pi 5 GPIO-fejlécére csatlakozik. A motorok a
 11.1 voltos akkumulátorról kapnak közvetlen tápot, 25 amperes olvadóbiztosítékon át.
 
-### Milyen akkumulátorod van? Mi a tápellátásod, mennyi ideig bírod árammal?
+### Milyen akkumulátorod van? Mi a tápellátásod, mennyi ideig bírod árammal? Milyen akksid van? Meddig bírja az akksi?
 
 CNHL LiPo 3S: 11.1 volt, 5200 mAh, 100C terhelhetőség, kemény házban. A tápot egy XT60
 elosztópanel osztja szét, vonalanként külön biztosítékkal. A Raspberry Pi egy XL4016

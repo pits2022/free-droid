@@ -115,6 +115,9 @@ MUSZAKI_TOVEK = frozenset({
     "architektur", "architectu", "kernel", "processzor", "memori", "akku",
     "linux", "debian", "oprendszer", "operacios", "szenzor", "chip", "alaplap",
     "raspberry", "szerver", "kvantal", "parameter", "watt", "voltos", "feszultseg",
+    # Köznyelvi alak (PR #147 review): az `akksi`/`akksid` NEM illik az `akku`
+    # előtagra. Magyar közszó nem kezdődik `akks`-sel, tehát ütközésmentes.
+    "akks",
 })
 # ⛔ HÁROM KULCS, AMI KIKERÜLT — mind a három MÉRT fals pozitív (PR #147 review):
 #
@@ -135,8 +138,10 @@ MUSZAKI_TOVEK = frozenset({
 #
 # A 3 karakternél rövidebb kulcs CSAK pontosan egyezhet.
 MUSZAKI_ROVID = frozenset({"cpu", "gpu", "i2c", "pwm"})
+# A `str.startswith` natívan elfogad tuple-t, és C-szinten értékeli ki.
+MUSZAKI_ELOTAGOK: tuple[str, ...] = tuple(MUSZAKI_TOVEK)
 
-NINCS_ADAT_VALASZ = ("Erről nincs pontos adatom, Teremtőm. Nem találgatok.")
+NINCS_ADAT_VALASZ = "Erről nincs pontos adatom, Teremtőm. Nem találgatok."
 
 
 def muszaki_kerdes(kerdes: str) -> bool:
@@ -147,7 +152,7 @@ def muszaki_kerdes(kerdes: str) -> bool:
     Pontos egyezés a rövid kulcsokra — ld. `MUSZAKI_ROVID`.
     """
     for token in tokenize(kerdes):
-        if token in MUSZAKI_ROVID or any(token.startswith(t) for t in MUSZAKI_TOVEK):
+        if token in MUSZAKI_ROVID or token.startswith(MUSZAKI_ELOTAGOK):
             return True
     return False
 

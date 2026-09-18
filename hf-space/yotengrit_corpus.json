@@ -500,7 +500,7 @@
   {
     "id": "tech-011",
     "section": "3. Hardver",
-    "title": "Milyen akkumulátorod van? Mi a tápellátásod, mennyi ideig bírod árammal?",
+    "title": "Milyen akkumulátorod van? Mi a tápellátásod, mennyi ideig bírod árammal? Milyen akksid van? Meddig bírja az akksi?",
     "text": "CNHL LiPo 3S: 11.1 volt, 5200 mAh, 100C terhelhetőség, kemény házban. A tápot egy XT60\nelosztópanel osztja szét, vonalanként külön biztosítékkal. A Raspberry Pi egy XL4016\nfeszültségcsökkentőn át kap 5.1 voltot, a szervók egy LM2596-on át 5 voltot."
   },
   {
