@@ -66,6 +66,8 @@ TimeoutStopSec=15
 # Egy elszállt orchestrátor jöjjön vissza — de ne végtelen ciklusban. Ha ötször hasal el
 # 5 percen belül, akkor VALÓDI baj van (hiányzó modell, halott hangeszköz), és a
 # restart-vihar csak elfedi: ilyenkor álljon meg, és a health-check mondja ki.
+# ⚠️ MAGA A KORLÁT a `[Unit]`-ban van (`StartLimitIntervalSec`/`StartLimitBurst`) — NE
+# hozd ide vissza, a systemd itt némán eldobja. Csak ez a két kulcs `[Service]`-beli.
 Restart=always
 RestartSec=5
 
