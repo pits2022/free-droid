@@ -13,6 +13,14 @@ Wants=network-online.target ollama.service
 Wants=freedroid-selfcheck.service
 After=freedroid-selfcheck.service
 
+# ⚠️ EZ A KETTŐ `[Unit]`-KULCS, NEM `[Service]`. A `[Service]`-ben a systemd némán
+# eldobja („Unknown key 'StartLimitIntervalSec' in section [Service], ignoring" —
+# mérve a roboton 2026-09-18), tehát a korlát nem létezik, és egy elhasaló
+# orchestrátor 5 másodpercenként, VÉGTELENÜL indulna újra. A `Restart=`/`RestartSec=`
+# marad a `[Service]`-ben: azok viszont oda valók.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
 [Service]
 Type=simple
 # NEM root. A GPIO jogosultság nélkül megy: a `creator` benne van a `gpio`, `spi`, `i2c`
@@ -60,8 +68,6 @@ TimeoutStopSec=15
 # restart-vihar csak elfedi: ilyenkor álljon meg, és a health-check mondja ki.
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
