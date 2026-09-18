@@ -114,10 +114,15 @@ MUSZAKI_TOVEK = frozenset({
     "hardver", "hardware", "hardwa", "szoftver", "software", "softwa",
     "architektur", "architectu", "kernel", "processzor", "memori", "akku",
     "linux", "debian", "oprendszer", "operacios", "szenzor", "chip", "alaplap",
-    "raspberry", "szerver", "kvantal", "parameter", "watt", "voltos", "feszultseg",
+    "raspberry", "szerver", "kvantal", "parameter", "watt", "voltos", "tapfeszultseg",
     # Köznyelvi alak (PR #147 review): az `akksi`/`akksid` NEM illik az `akku`
     # előtagra. Magyar közszó nem kezdődik `akks`-sel, tehát ütközésmentes.
     "akks",
+    # Rövidítések ELŐTAGKÉNT (PR #147 review 3): kötőjellel írva a `_kotojel_bont` már
+    # ma is `cpu`-t ad ("Milyen CPU-d van?" -> ['cpu']), kötőjel NÉLKÜL viszont `cpud`,
+    # ami pontos egyezésre nem illett. Magyar szó nem kezdődik ilyen mássalhangzó-
+    # torlódással, tehát előtagként ütközésmentes — a `ram`-mal ELLENTÉTBEN.
+    "cpu", "gpu", "i2c", "pwm",
 })
 # ⛔ HÁROM KULCS, AMI KIKERÜLT — mind a három MÉRT fals pozitív (PR #147 review):
 #
@@ -131,28 +136,38 @@ MUSZAKI_TOVEK = frozenset({
 #                  egyezik pontosan — a puszta `rám` viszont igen.
 #   `lanctalp`  -> a lánctalp aktuátor is: „Fordulj meg a lánctalpadon!" kapuzva a
 #                  `move` tool-hívást ölte volna meg, némán.
+#   `feszultseg`-> (PR #147 review 1) a „feszültség" LELKI feszültséget is jelent, és egy
+#                  Yotengrit-robotnál ez tipikus kérdés: „Hogyan oldjam a belső
+#                  feszültséget?" — mérve kapuzott, ÜRES RAG mellett. És a haszna NEM
+#                  volt meg: az előtag a szó ELEJÉN illeszkedik, tehát a valódi műszaki
+#                  összetételt („tápfeszültséged" -> `tapfeszultseg`) NEM fogta. Csupa
+#                  kockázat, nulla haszon. Helyette a `tapfeszultseg` összetétel.
 #
 # Az elhagyásuk MÉRHETŐEN nem gyengít: mind a három kérdéskört fedi a korpusz, tehát
 # ott nem is üres a RAG, és a kapu eleve nem csukódna („Mennyi RAM van benned?" 14,5 ·
 # „Mi hajtja a lánctalpad?" 12,4 · „Hány voltos az akkumulátorod?" 8,4).
 #
-# A 3 karakternél rövidebb kulcs CSAK pontosan egyezhet.
-MUSZAKI_ROVID = frozenset({"cpu", "gpu", "i2c", "pwm"})
-# A `str.startswith` natívan elfogad tuple-t, és C-szinten értékeli ki.
+# ⛔ MINDEN KULCS ELŐTAG. Mielőtt újat veszel fel, kérdezd meg: van-e magyar KÖZSZÓ,
+# ami így kezdődik? A `ram` (-> `rám`) pont ezen bukott el, és a lista azóta sem tart
+# pontos-egyezésű kulcsot — ha egyre szükség lenne, az külön halmaz, külön indoklással.
 MUSZAKI_ELOTAGOK: tuple[str, ...] = tuple(MUSZAKI_TOVEK)
 
 NINCS_ADAT_VALASZ = "Erről nincs pontos adatom, Teremtőm. Nem találgatok."
 
 
 def muszaki_kerdes(kerdes: str) -> bool:
-    """A kérdés a robot SAJÁT felépítésére vonatkozik-e?
+    """Tartalmaz-e a kérdés MŰSZAKI ENTITÁST? Heurisztikus ELŐSZŰRŐ, nem jelentéstan.
+
+    ⚠️ Amit NEM tud (PR #147 review 5): megkülönböztetni a „Mi a Linux?" általános
+    kérdést a „Milyen Linuxod van?" önreflexívtől. Mindkettőre `True`-t ad. Ez
+    elfogadható, mert a kapu MÁSIK feltétele az üres RAG, és egy általános műszaki
+    kérdésre a robotnak amúgy sincs forrása — a „nem találgatok" ott is helyes válasz.
 
     Előtag-illesztés, mert a szótövező az összetett szavakon gyenge (mérve:
     `kernelverzió` -> `kernelverzio`, `chipet` -> `chipet`, `kvantálást` -> `kvantalast`).
-    Pontos egyezés a rövid kulcsokra — ld. `MUSZAKI_ROVID`.
     """
     for token in tokenize(kerdes):
-        if token in MUSZAKI_ROVID or token.startswith(MUSZAKI_ELOTAGOK):
+        if token.startswith(MUSZAKI_ELOTAGOK):
             return True
     return False
 

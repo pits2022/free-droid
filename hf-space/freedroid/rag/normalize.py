@@ -183,9 +183,12 @@ SZINONIMAK: dict[str, tuple[str, ...]] = {
     # találatot adott, pedig a szelet ("Milyen hardveren futsz?") mindvégig ott volt —
     # egyetlen szó írásmódján múlt. A kulcsok SZÓTÖVEK (`hardware` -> `hardwa`), mert a
     # feloldás a szótövezés UTÁN fut.
-    "hardwa": ("hardver",),
-    "softwa": ("szoftver",),
-    "architectu": ("architektur",),
+    # KÉT szótő alakonként (PR #147 review 2): a kötőjeles ragozás (`hardware-ed`)
+    # a `_kotojel_bont` után `hardwa`-ra tövezik, a kötőjel NÉLKÜLI (`hardwared`)
+    # viszont `hardwar`-ra. Mérve mindkettő.
+    "hardwa": ("hardver",), "hardwar": ("hardver",),
+    "softwa": ("szoftver",), "softwar": ("szoftver",),
+    "architectu": ("architektur",), "architectur": ("architektur",),
 }
 
 # ⛔ MIÉRT NINCS FUZZY ILLESZTÉS (difflib), pedig kézenfekvő volna. MÉRVE a fenti menet
