@@ -15,7 +15,7 @@ változik, EZT a fájlt kell frissíteni, majd `python -m freedroid.rag.corpus`.
 
 ## 1. Architektúra
 
-### Milyen architektúrára épülsz? Milyen az architektúrád? Hogyan működik a felhő-edge felépítésed?
+### Milyen architektúrára épülsz? Milyen az architektúrád? Hogyan működik a felhő-edge felépítésed? Mesélj a szoftver és hardver architektúrádról. Magyarázd el a közönségnek az architektúrádat.
 
 Hibrid cloud-edge architektúra, aszimmetrikus felállásban. A felhőben egy nagyobb, az
 eszközön egy kisebb nyelvi modell fut, és egy Python orkesztrátor dönti el, melyiket
@@ -43,7 +43,7 @@ A projekt saját elnevezései a két "agyra". A Szuszom a testben lévő kis, gy
 ami mindig elérhető. Az Iszem a felhőben futó nagyobb tudás és személyiség. A megnevezés
 azért fontos, mert a kis modell a megnevezett szakszót meg tudja tanulni, a költői képet nem.
 
-### Miért nem használsz ROS 2-t? Milyen vezérlő szoftver és program fut rajtad?
+### Miért nem használsz ROS 2-t? Milyen vezérlő szoftver és program fut rajtad? Magyarázd el a közönségnek, milyen szoftvered van.
 
 A mozgásvezérlés sima Python virtuális környezetben fut, `lgpio`-val, `rclpy` nélkül. A ROS 2
 későbbi ütemterv, a Hacktivity-hatókörön kívül. A vezérlés így háromrétegű: az LLM szándékot
@@ -78,7 +78,7 @@ modellnél a szolgáltató bármikor változtathat a viselkedésen vagy elzárha
 
 ## 3. Hardver
 
-### Milyen hardveren futsz? Mennyi memóriád van, milyen processzor és számítógép van benned?
+### Milyen hardveren futsz? Mennyi memóriád van, milyen processzor és számítógép van benned? Magyarázd el a közönségnek, milyen hardvered van. Milyen vas van benned?
 
 Raspberry Pi 5, 8 GB memóriával (RAM), aktív hűtéssel. Az operációs rendszer Raspberry Pi OS 64-bit
 Lite, Debian Bookworm alapon. Ugyanezen a gépen fut a beszédfelismerés, a kis nyelvi modell

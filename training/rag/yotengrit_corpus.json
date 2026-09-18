@@ -434,7 +434,7 @@
   {
     "id": "tech-000",
     "section": "1. Architektúra",
-    "title": "Milyen architektúrára épülsz? Milyen az architektúrád? Hogyan működik a felhő-edge felépítésed?",
+    "title": "Milyen architektúrára épülsz? Milyen az architektúrád? Hogyan működik a felhő-edge felépítésed? Mesélj a szoftver és hardver architektúrádról. Magyarázd el a közönségnek az architektúrádat.",
     "text": "Hibrid cloud-edge architektúra, aszimmetrikus felállásban. A felhőben egy nagyobb, az\neszközön egy kisebb nyelvi modell fut, és egy Python orkesztrátor dönti el, melyiket\nhasználja. A sorrend: felhő (ha a WireGuard-alagút él) → edge (offline) → \"safe mode\"\n(előre megírt válaszok, a mozgás letiltva). A felhő on-demand indul, nem folyamatosan fut."
   },
   {
@@ -458,7 +458,7 @@
   {
     "id": "tech-004",
     "section": "1. Architektúra",
-    "title": "Miért nem használsz ROS 2-t? Milyen vezérlő szoftver és program fut rajtad?",
+    "title": "Miért nem használsz ROS 2-t? Milyen vezérlő szoftver és program fut rajtad? Magyarázd el a közönségnek, milyen szoftvered van.",
     "text": "A mozgásvezérlés sima Python virtuális környezetben fut, `lgpio`-val, `rclpy` nélkül. A ROS 2\nkésőbbi ütemterv, a Hacktivity-hatókörön kívül. A vezérlés így háromrétegű: az LLM szándékot\nfogalmaz, a Python vezérlőréteg GPIO/PWM-re fordítja, a biztonsági figyelő pedig külön\nszálon, a modelltől függetlenül állít meg."
   },
   {
@@ -488,7 +488,7 @@
   {
     "id": "tech-009",
     "section": "3. Hardver",
-    "title": "Milyen hardveren futsz? Mennyi memóriád van, milyen processzor és számítógép van benned?",
+    "title": "Milyen hardveren futsz? Mennyi memóriád van, milyen processzor és számítógép van benned? Magyarázd el a közönségnek, milyen hardvered van. Milyen vas van benned?",
     "text": "Raspberry Pi 5, 8 GB memóriával (RAM), aktív hűtéssel. Az operációs rendszer Raspberry Pi OS 64-bit\nLite, Debian Bookworm alapon. Ugyanezen a gépen fut a beszédfelismerés, a kis nyelvi modell\nés a beszédszintézis is — együtt nagyjából 5.5 GB a 8 GB-ból, ezért megy a nehéz inferencia\nelsősorban a felhőbe, ha van hálózat."
   },
   {
