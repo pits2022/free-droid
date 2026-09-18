@@ -448,6 +448,23 @@ an unparseable one fails loudly (`bool("hamis")` is True in Python, so booleans 
 explicit word list); a **typo'd** `FREEDROID_*` name prints a warning rather than silently
 running the default. Ansible sets them per host via `edge_robot`'s `robot_env` dict.
 
+**One file, two readers (2026-09-18).** Ansible renders `robot_env_effective` to
+**`/etc/freedroid.env`**; all three units read it with `EnvironmentFile=-/etc/freedroid.env`,
+and a manual debug run must source the SAME file:
+
+```bash
+sudo systemctl stop freedroid          # two processes can't hold the gpiochip + audio device
+cd /opt/free-droid/robot
+set -a; . /etc/freedroid.env; set +a
+uv run freedroid --debug 2>&1 | tee -a /tmp/szabi-$(date +%Y-%m-%d-%H%M).log
+```
+
+Skip the `set -a` line and the run is **silently** degraded, not broken: `VisionSettings.enabled`
+defaults to `False`, so a missing env turns a feature OFF without an error. That is why the
+truth now lives in one file — it drifted in **both** directions before: 2026-09-16 the service
+was blind, 2026-09-18 the manual run was, with the identical log line
+`látás kihagyva — a látás ki van kapcsolva (vision.enabled=False)`.
+
 **Why this exists (2026-08-18, measured on the Pi):** editing `settings.py` on a host was the
 only way to change anything, and it bit twice — a locally edited `settings.py` blocked
 `git checkout`, the Pi sat on an **old branch for weeks**, and that evening's health check

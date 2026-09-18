@@ -13,6 +13,14 @@ Wants=network-online.target ollama.service
 Wants=freedroid-selfcheck.service
 After=freedroid-selfcheck.service
 
+# ⚠️ EZ A KETTŐ `[Unit]`-KULCS, NEM `[Service]`. A `[Service]`-ben a systemd némán
+# eldobja („Unknown key 'StartLimitIntervalSec' in section [Service], ignoring" —
+# mérve a roboton 2026-09-18), tehát a korlát nem létezik, és egy elhasaló
+# orchestrátor 5 másodpercenként, VÉGTELENÜL indulna újra. A `Restart=`/`RestartSec=`
+# marad a `[Service]`-ben: azok viszont oda valók.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
 [Service]
 Type=simple
 # NEM root. A GPIO jogosultság nélkül megy: a `creator` benne van a `gpio`, `spi`, `i2c`
@@ -37,11 +45,15 @@ WorkingDirectory={{ robot_src_dir }}
 # `systemctl stop freedroid` tehát elvinné a BIZTONSÁGI JELZŐT. A tulajdonlás egy
 # helyen dől el: a tmpfiles.d-ben.
 
-{# Ugyanaz az idézés/escape-elés, mint a health-unitban, és ugyanazért: idézés nélkül a
-   systemd a SZÓKÖZNÉL vág, a `%` pedig NÉMÁN specifikátorrá válna (`%h` -> home). #}
-{% for kulcs, ertek in robot_env_effective.items() %}
-Environment="{{ kulcs }}={{ ertek | string | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
-{% endfor %}
+# EGY forrás a szolgáltatásnak ÉS a kézi menetnek (`set -a; . /etc/freedroid.env`).
+# A `-` előtag SZÁNDÉKOS: ha a fájl hiányzik, a robot INDULJON EL (némán kevesebbet tud,
+# pl. látás nélkül) — egy néma robot a színpadon rosszabb, mint egy vak. Hogy a hiány ne
+# maradjon észrevétlen: az orchestrátor indulási sora mondja ki („látás kihagyva — a
+# látás ki van kapcsolva"), és a `freedroid-health` `vision` checkje ekkor zöld — a
+# CSÖKKENTETT képesség nem hiba. Ez a plafon: a hiányzó fájl csendben kevesebbet tudó
+# robotot ad, nem halottat. Külön check-et NEM ér meg: az Ansible mindig kiírja a fájlt,
+# és a kézi menet mostantól UGYANEZT olvassa — a két út nem tud elcsúszni egymástól.
+EnvironmentFile=-/etc/freedroid.env
 
 # ⚠️ `--debug` SZÁNDÉKOSAN NINCS. A szolgáltatás az ÜZEMI posztúra: bőbeszédű napló és
 # elhangzott-mondat rögzítés NÉLKÜL. A hibakereső menet kézzel indul
@@ -58,10 +70,10 @@ TimeoutStopSec=15
 # Egy elszállt orchestrátor jöjjön vissza — de ne végtelen ciklusban. Ha ötször hasal el
 # 5 percen belül, akkor VALÓDI baj van (hiányzó modell, halott hangeszköz), és a
 # restart-vihar csak elfedi: ilyenkor álljon meg, és a health-check mondja ki.
+# ⚠️ MAGA A KORLÁT a `[Unit]`-ban van (`StartLimitIntervalSec`/`StartLimitBurst`) — NE
+# hozd ide vissza, a systemd itt némán eldobja. Csak ez a két kulcs `[Service]`-beli.
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

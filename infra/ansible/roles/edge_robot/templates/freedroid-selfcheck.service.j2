@@ -14,9 +14,15 @@ User={{ robot_user }}
 Group={{ robot_user }}
 WorkingDirectory={{ robot_src_dir }}
 
-{% for kulcs, ertek in robot_env_effective.items() %}
-Environment="{{ kulcs }}={{ ertek | string | replace('\\', '\\\\') | replace('"', '\\"') | replace('%', '%%') }}"
-{% endfor %}
+# EGY forrás a szolgáltatásnak ÉS a kézi menetnek (`set -a; . /etc/freedroid.env`).
+# A `-` előtag SZÁNDÉKOS: ha a fájl hiányzik, a robot INDULJON EL (némán kevesebbet tud,
+# pl. látás nélkül) — egy néma robot a színpadon rosszabb, mint egy vak. Hogy a hiány ne
+# maradjon észrevétlen: az orchestrátor indulási sora mondja ki („látás kihagyva — a
+# látás ki van kapcsolva"), és a `freedroid-health` `vision` checkje ekkor zöld — a
+# CSÖKKENTETT képesség nem hiba. Ez a plafon: a hiányzó fájl csendben kevesebbet tudó
+# robotot ad, nem halottat. Külön check-et NEM ér meg: az Ansible mindig kiírja a fájlt,
+# és a kézi menet mostantól UGYANEZT olvassa — a két út nem tud elcsúszni egymástól.
+EnvironmentFile=-/etc/freedroid.env
 
 # `--live-motion` SZÁNDÉKOSAN NINCS. Bekapcsoláskor a robot lehet asztalon, táskában vagy
 # a Teremtő kezében — egy magától elinduló lánctalp ott nem diagnosztika, hanem baleset.
