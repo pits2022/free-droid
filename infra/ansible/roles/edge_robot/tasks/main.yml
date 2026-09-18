@@ -324,7 +324,9 @@
   template:
     src: freedroid.env.j2
     dest: /etc/freedroid.env
-    mode: '0644'
+    owner: root
+    group: "{{ robot_user }}"
+    mode: '0640'
   notify: Reload systemd
 
 - name: Install the boot self-check systemd service
