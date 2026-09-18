@@ -319,6 +319,17 @@
 # MINDKÉT irányban elcsúszott már (2026-09-16 a szolgáltatás, 2026-09-18 a kézi menet:
 # „látás kihagyva — vision.enabled=False"). A unitok ELŐTT fut, hogy egy friss gépen a
 # fájl már ott legyen, mire az orchestrátor indul.
+# Az aposztróf az EGYETLEN karakter, amit a fájl formátuma nem visel el: a shell `'\''`
+# trükkjét a systemd `EnvironmentFile`-ja nem érti, tehát a két olvasó MÁST kapna — épp
+# az a csendes elcsúszás, amit ez a fájl megszüntet. Inkább hasaljon el a telepítés.
+- name: Fail if an env value contains an apostrophe (the two readers would disagree)
+  when: robot_project.stat.exists
+  assert:
+    that: "robot_env_effective.values() | select('search', \"'\") | list | length == 0"
+    fail_msg: >-
+      /etc/freedroid.env nem tud aposztrófot tartalmazó értéket kezelni
+      (a systemd és a shell máshogy olvasná). Írd át az értéket a robot_env-ben.
+
 - name: Install the shared environment file
   when: robot_project.stat.exists
   template:
@@ -327,7 +338,11 @@
     owner: root
     group: "{{ robot_user }}"
     mode: '0640'
-  notify: Reload systemd
+  # ⚠️ `notify: Reload systemd` SZÁNDÉKOSAN NINCS (PR #145 review 4): a `daemon-reload`
+  # CSAK a unit-fájlokat olvassa újra, az `EnvironmentFile` tartalmát NEM — ott egy no-op
+  # lenne, ami azt a látszatot kelti, hogy a változás magától él. Az új env-et a lentebbi
+  # „Enable and (re)start the orchestrator" taszk viszi be (`state: restarted`), a
+  # health-check pedig a következő timer-ébredéskor. Kézzel: `systemctl restart freedroid`.
 
 - name: Install the boot self-check systemd service
   when: robot_project.stat.exists

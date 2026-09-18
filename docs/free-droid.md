@@ -1219,6 +1219,7 @@ A projekt **két fő ága párhuzamosan haladhat** (fontos a heti 2-5 órás ker
 - [ ] **Demó-posztúra ahogy a színpadon indul:** reboot → systemd (`--debug` NÉLKÜL), laptop nélkül felébred-e, és NEM ír transcriptet
 - [ ] Záró red-team kör a v12 + RAG + látás mai állapotán (a „Jobbra semmi"-típusú kitalálások is)
 - [ ] **Bekapcsolási sorrend a színpadon: ELŐBB a kattintó ÉS a csíptetős mikrofon, UTÁNA a `systemctl restart freedroid`.** Mérve 2026-09-18: mindkettő KI volt kapcsolva, és a napló ettől hibátlannak látszott — a vevő-dongle a kattintó nélkül is ott van (`kattintó él: … event-kbd`), a mikrofon meg csak néma. Egy néma robot a színpadon így nem hibát mutat, hanem semmit; ez a sor a diagnózis.
+- [ ] **Ha a színpadon hibát javítasz és azonnal indítanál: `sudo systemctl reset-failed freedroid` a restart ELŐTT.** Az 5 bukás / 300 s korlát (`StartLimit*`, PR #145) után a systemd a KÉZI `systemctl start`-ot is elutasítja, amíg az ablak le nem jár — „start request repeated too quickly". A korlát jó, de a próba közbeni ötödik indítás pont beleeshet.
 - [ ] Demó előtti törlés próbája (`/var/log/freedroid/` teljes + `/tmp/szabi-*.log`) · `vcgencmd get_throttled` zárt vázas, reflektoros menet után (ma `0x0`)
 
 #### 5.0 Külső átnézés (2026-09-08) — mit fogadtunk el belőle
