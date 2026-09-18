@@ -298,37 +298,44 @@ class Orchestrator:
             if bemelegit is not None:
                 bemelegit()
 
-    def close(self) -> None:
-        # A gyűrű is itt: a `close()` a `run()` nélkül is hívható (teszt, szöveges
-        # használat), és a rajzoló szál nem maradhat nyitva. (PR #105 review.)
-        self.led.close()
-        # A watchdog leállítása is try alatt: ha a szál-join elhasal, a motorok
-        # LEZÁRATLANUL maradnának — épp a legrosszabb kimenet (járó lánctalpak egy
-        # kilépő folyamat után). A lezárás sorrendje szándékos (előbb a watchdog, hogy
-        # ne állítson meg egy már lezárt vezérlőt), de egyik lépés sem előfeltétele a
-        # másiknak.
+    def _biztos(self, mit: str, muvelet) -> None:
+        """Egy lezárási lépés — a hibája SOHA nem viheti el a többit.
+
+        A `close()` minden lépése ezen megy át, mert a sorrend végén a MOTOROK
+        lezárása áll: egy korábbi lépés elszállása járó lánctalpakat hagyna egy kilépő
+        folyamat után. (PR #146 review: a `led.close()` őrizetlen volt, és pont ezt
+        tudta volna okozni.)
+        """
+        if muvelet is None:
+            return
         try:
-            self.watchdog.stop_monitoring()
-        except Exception:  # noqa: BLE001 — a vezérlők lezárása ettől nem maradhat el
-            log.exception("watchdog leállítása sikertelen")
-        # Alvó póz a busz lezárása ELŐTT: utána már nincs mivel mozgatni. Külön try,
-        # mert a póz KÉNYELEM, a lezárás KÖTELESSÉG — egy I2C-hiba a pózolásban nem
-        # hagyhatja nyitva a buszt és nem viheti el a motor lezárását.
-        # `getattr`, ugyanúgy mint a `close`-nál: egy `sleep()` nélküli kamera (teszt-
-        # dublőr, más vezérlő) ne buktassa a leállást.
-        alvas = getattr(self.camera, "sleep", None)
-        if alvas is not None:
-            try:
-                alvas()
-            except Exception:  # noqa: BLE001 — a lezárás ettől nem maradhat el
-                log.exception("az alvó póz beállítása elhasalt")
-        for vezerlo in (self.motion, self.camera):
-            zaras = getattr(vezerlo, "close", None)
-            if zaras is not None:
-                try:
-                    zaras()
-                except Exception:  # noqa: BLE001 — a másikat is le kell zárni
-                    log.exception("vezérlő lezárása sikertelen: %r", vezerlo)
+            muvelet()
+        except Exception:  # noqa: BLE001 — a lezárás többi lépése ettől nem maradhat el
+            log.exception("%s sikertelen", mit)
+
+    def close(self) -> None:
+        """Lezárás. A SORREND biztonsági döntés, nem kényelmi.
+
+        1. gyűrű — a rajzoló szál nem maradhat nyitva (`close()` a `run()` nélkül is
+           hívható: teszt, szöveges használat — PR #105 review).
+        2. watchdog — ELŐBB, mint a vezérlők, különben egy már lezárt motorvezérlőt
+           akarna megállítani.
+        3. 🔴 MOTOR — és ez a PR #146 review javítása. Korábban a kamera alvó pózja állt
+           itt, a motor lezárása előtt: a póz holtjáték-kompenzált, tehát tengelyenként
+           `step_s` (0,35 s) várakozást tartalmaz, egy beragadt I2C-busz pedig ennél
+           sokkal tovább is tarthat. Mindaddig a lánctalpak FUTHATNÁNAK, immár watchdog
+           NÉLKÜL. A `MotionController.close()` első dolga a `stop()` — a fizikai
+           biztonság megelőzi a kényelmi gesztust.
+        4. alvó póz — a kamerabusz lezárása ELŐTT, mert utána már nincs mivel mozgatni.
+        5. kamera — az I2C elengedése.
+        """
+        self._biztos("a gyűrű lezárása", getattr(self.led, "close", None))
+        self._biztos("a watchdog leállítása", self.watchdog.stop_monitoring)
+        self._biztos("a mozgásvezérlő lezárása", getattr(self.motion, "close", None))
+        # `getattr`, ugyanúgy mint a `close`-nál: egy `sleep()` nélküli kamera
+        # (teszt-dublőr, más vezérlő) ne buktassa a leállást.
+        self._biztos("az alvó póz beállítása", getattr(self.camera, "sleep", None))
+        self._biztos("a kamera lezárása", getattr(self.camera, "close", None))
 
     def ask(self, kerdes: str) -> str:
         """Egy teljes kör SZÖVEGBŐL: kérdés -> RAG -> LLM -> nyelvi őr -> tool-ok.

@@ -22,26 +22,53 @@ from freedroid.orchestrator import Orchestrator
 from test_orchestrator_execute import FakeCamera, FakeMotion, FakeWatchdog
 
 
-class AlvoKamera(FakeCamera):
-    """A `FakeCamera` + a leállás sorrendjének rögzítése."""
+def _naplozo_kamera_es_motor(naplo: list[str]):
+    class Kamera(FakeCamera):
+        def sleep(self) -> None:
+            naplo.append("kamera.sleep")
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.sorrend: list[str] = []
+        def close(self) -> None:
+            naplo.append("kamera.close")
 
-    def sleep(self) -> None:
-        self.sorrend.append("sleep")
+    class Motor(FakeMotion):
+        def close(self) -> None:
+            naplo.append("motor.close")
+            super().close()
 
-    def close(self) -> None:
-        self.sorrend.append("close")
+    return Kamera(), Motor()
 
 
-def test_close_poses_the_camera_before_releasing_the_bus():
-    """A sorrend a lényeg: lezárt I2C után már nem lehet pózolni."""
-    k = AlvoKamera()
-    o = Orchestrator(motion=FakeMotion(), camera=k, watchdog=FakeWatchdog())
+def test_close_stops_the_motors_before_the_camera_pose():
+    """🔴 BIZTONSÁGI SORREND (PR #146 review).
+
+    A póz holtjáték-kompenzált, tehát tengelyenként `step_s` (0,35 s) várakozás — egy
+    beragadt I2C-busz ennél sokkal tovább is tarthat. Ha a motor lezárása (ami `stop()`-pal
+    kezdődik) ezután jönne, a lánctalpak addig FUTHATNÁNAK, immár watchdog nélkül.
+    A póz kényelem, a megállás nem.
+
+    És a pózolás mégis a KAMERA lezárása előtt van: utána már nincs mivel mozgatni.
+    """
+    naplo: list[str] = []
+    k, m = _naplozo_kamera_es_motor(naplo)
+    Orchestrator(motion=m, camera=k, watchdog=FakeWatchdog()).close()
+    assert naplo == ["motor.close", "kamera.sleep", "kamera.close"]
+
+
+def test_a_failing_ring_close_does_not_strand_the_motors():
+    """PR #146 review: a `led.close()` őrizetlen volt. Egy hibája elvitte volna a
+    watchdogot, a motort ÉS a kamerát — járó lánctalpak egy kilépő folyamat után."""
+    naplo: list[str] = []
+    k, m = _naplozo_kamera_es_motor(naplo)
+    o = Orchestrator(motion=m, camera=k, watchdog=FakeWatchdog())
+
+    class RosszGyuru:
+        def close(self):
+            raise OSError("SPI hiba")
+
+    o.led = RosszGyuru()
     o.close()
-    assert k.sorrend == ["sleep", "close"]
+    assert m.closed, "a gyűrű hibája elvitte a motor lezárását"
+    assert naplo == ["motor.close", "kamera.sleep", "kamera.close"]
 
 
 def test_close_survives_a_camera_that_cannot_pose():
@@ -75,7 +102,7 @@ def test_a_failing_pose_still_closes_the_camera():
 # --- a póz maga -------------------------------------------------------------------
 
 
-def _kamera_dublorrel(cfg: CameraSettings):
+def _kamera_dublorrel(cfg: CameraSettings, valodi_iras: bool = False):
     """`PanTiltCamera` valódi geometriával, de I2C nélkül."""
     from freedroid.camera import PanTiltCamera
 
@@ -85,8 +112,15 @@ def _kamera_dublorrel(cfg: CameraSettings):
     k._szog = {"pan": 0.0, "tilt": 0.0}
     k._tiszta = {"pan", "tilt"}
     k.beallitasok = []
-    k._beall_holtjatek_nelkul = lambda t, szog: (
-        k.beallitasok.append((t.nev, szog)), k._szog.__setitem__(t.nev, szog))
+    if valodi_iras:
+        # A VALÓDI `_beall_holtjatek_nelkul` fut, csak a busz hamis: így a teszt azt méri,
+        # mit ír a kód a csatornákra, nem azt, hogy meghívott-e egy lambdát.
+        k._keret_ms = 1000.0 / cfg.pwm_frequency_hz
+        k._pca = types.SimpleNamespace(
+            channels=[types.SimpleNamespace(duty_cycle=SENTINEL) for _ in range(16)])
+    else:
+        k._beall_holtjatek_nelkul = lambda t, szog: (
+            k.beallitasok.append((t.nev, szog)), k._szog.__setitem__(t.nev, szog))
     return k
 
 
@@ -127,14 +161,19 @@ def test_an_unreachable_sleep_pose_is_rejected_at_startup(mezo, ertek):
         CameraSettings(**{mezo: ertek})
 
 
-def test_sleep_does_not_release_the_servo_channels():
-    """A póz tartott helyzet, nem elengedés — ld. `test_camera_close.py`."""
-    from freedroid.camera import PanTiltCamera
+SENTINEL = 12345        # se nem 0 (elengedve), se nem érvényes pulzus
 
-    k = _kamera_dublorrel(load_settings().camera)
-    k._pca = types.SimpleNamespace(
-        channels=[types.SimpleNamespace(duty_cycle=0) for _ in range(16)])
+
+def test_sleep_holds_the_servos_it_does_not_release_them():
+    """A póz tartott helyzet, nem elengedés — ld. `test_camera_close.py`.
+
+    ⚠️ EZ A TESZT A VALÓDI ÍRÁSI ÚTON MEGY (`_beall_holtjatek_nelkul` NINCS kicserélve).
+    Az első változata dublőrrel ment és 0-ról indította a csatornákat, majd 0-t várt —
+    vagyis akkor is átment volna, ha a `sleep()` full-off-fal ELENGEDI a szervókat
+    (PR #146 review). A sentinel kezdőérték és a nem-nulla elvárás ezt zárja ki.
+    """
+    k = _kamera_dublorrel(load_settings().camera, valodi_iras=True)
     k.sleep()
-    assert all(getattr(cs, "duty_cycle") == 0 for cs in k._pca.channels), \
-        "a sleep() közvetlenül a csatornákhoz nyúlt — a tilt hanyatt eshet"
-    assert PanTiltCamera.sleep is not None
+    tilt = k._pca.channels[k._tilt_t.csatorna].duty_cycle
+    assert tilt != SENTINEL, "a sleep() nem állította be a tiltet"
+    assert tilt > 0, "a sleep() ELENGEDTE a tiltet (duty_cycle 0) — a fej hanyatt esne"

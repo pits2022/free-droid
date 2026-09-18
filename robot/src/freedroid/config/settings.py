@@ -644,15 +644,20 @@ class CameraSettings:
         # Az előjel-egyezés nem véletlen: a `move_to` a `PAN_LEFT_SIGN`/`TILT_UP_SIGN`
         # szorzót használja, és MINDKETTŐ +1 (`config/gpio.py`). Ha valaha -1 lesz,
         # ez az ellenőrzés tükrözve hazudna — akkor ide is be kell hozni az előjelet.
-        for nev, kozep, skala, szog in (
-                ("pan", self.pan_centre_ms, self.pan_ms_per_deg, self.sleep_pan_deg),
-                ("tilt", self.tilt_centre_ms, self.tilt_ms_per_deg, self.sleep_tilt_deg)):
-            ms = kozep + szog * skala
-            if not self.min_ms <= ms <= self.max_ms:
-                hatar = ((self.min_ms - kozep) / skala, (self.max_ms - kozep) / skala)
-                raise ValueError(
-                    f"az alvó póz {nev} szöge ({szog}) elérhetetlen: a tartomány "
-                    f"{hatar[0]:.1f}..{hatar[1]:.1f} fok")
+        #
+        # Kikapcsolt pózra NEM ellenőrzünk (PR #146 review): egy rögzített gimbalon vagy
+        # próbapadon a Teremtő épp azért kapcsolja ki, mert a fej nem tud oda billenni —
+        # egy sosem használt szög miatt ne hasaljon el az indulás.
+        if self.sleep_pose_enabled:
+            for nev, kozep, skala, szog in (
+                    ("pan", self.pan_centre_ms, self.pan_ms_per_deg, self.sleep_pan_deg),
+                    ("tilt", self.tilt_centre_ms, self.tilt_ms_per_deg, self.sleep_tilt_deg)):
+                ms = kozep + szog * skala
+                if not self.min_ms <= ms <= self.max_ms:
+                    hatar = ((self.min_ms - kozep) / skala, (self.max_ms - kozep) / skala)
+                    raise ValueError(
+                        f"az alvó póz {nev} szöge ({szog}) elérhetetlen: a tartomány "
+                        f"{hatar[0]:.1f}..{hatar[1]:.1f} fok")
 
         # A keretnél hosszabb pulzus értelmezhetetlen: 50 Hz-en a 20 ms a teljes periódus.
         if self.max_ms >= 1000.0 / self.pwm_frequency_hz:
