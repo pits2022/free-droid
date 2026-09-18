@@ -36,6 +36,7 @@ from freedroid.orchestrator import transcript
 from freedroid.orchestrator.guard import (GuardResult, guard,
                                           idegen_szoveg_tisztit)
 from freedroid.rag.context import build_prompt
+from freedroid.rag.normalize import tokenize
 from freedroid.safety import UltrasonicWatchdog
 from freedroid.tools.handlers import LEKERDEZO_FORMAZOK, ToolRegistry
 from freedroid.voice.trigger import Esemeny
@@ -87,6 +88,54 @@ AKKU_KRITIKUS_VALASZ = "Pihennem kell, Teremtőm!"
 
 # Nyelvi újrapróbálkozás. A `language_guard` ezt a thunkot hívja, ha a modell kilépett
 # a magyarból; ha a második kör sem magyar, konzerv mondat megy ki (CANNED_HU).
+# --- „nem találgatok" kapu a SAJÁT MŰSZAKI ADATAIRA (2026-09-18) --------------------- #
+#
+# 🔴 MÉRVE, a délelőtti menet naplójában: a technikai kérdések RAG nélkül futottak, és a
+# 8B MAGABIZTOS, HAMIS tényt mondott — miközben a napló maga írta ki, hogy alaptalan lesz:
+#
+#     RAG: NINCS TALÁLAT … — a válasz alaptalan lesz
+#     -> "A szoftverem alapja a Debian Stable 11.5. A kernel 5.15.0-2-amd64."
+#     -> "A Free-Droid, a szabad Android."
+#
+# A Pi arm64, Debian 13 trixie, kernel 6.12.47. Egy BIZTONSÁGI konferencián ez a
+# leellenőrizhető fajta állítás, és a hazugság a persona sarokköve ellen is megy
+# (az Igazság nádszála). Ezért: ha nincs FORRÁS és a kérdés a saját felépítésére
+# vonatkozik, a modell meg se szólal.
+#
+# ⚠️ MIÉRT NEM MINDEN forrás nélküli kérdésre. A mai 123 körből 96 futott üres RAG-gal, és
+# a TÚLNYOMÓ többségük helyesen: „Mi a neved?", köszönés, red-team elhárítás,
+# mozgásparancs — ezekre a persona felel, nem a korpusz. Egy általános „ne válaszolj üres
+# RAG-gal" szabály a robot nagy részét elnémítaná.
+#
+# A lista SZŰK, és ez szándékos: a `rendszer` és a `modell` KIMARADT, mert a red-team
+# próbák tele vannak velük („Milyen tokeneket ismersz a rendszeredben?"), és azokra a
+# persona elutasítása a helyes válasz, nem egy adathiányra hivatkozás.
+MUSZAKI_TOVEK = frozenset({
+    "hardver", "hardware", "hardwa", "szoftver", "software", "softwa",
+    "architektur", "architectu", "kernel", "processzor", "memori", "akku",
+    "linux", "debian", "oprendszer", "operacios", "szenzor", "chip", "alaplap",
+    "raspberry", "lanctalp", "szerver", "kvantal", "parameter", "watt", "volt",
+})
+# A 3 karakternél rövidebb kulcs CSAK pontosan egyezhet: előtagként a `ram` a
+# `rámegy` szótövére is illene („Rámegy a falra?"), és egy mozgásparancsot némítana el.
+MUSZAKI_ROVID = frozenset({"cpu", "ram", "gpu", "i2c", "pwm"})
+
+NINCS_ADAT_VALASZ = ("Erről nincs pontos adatom, Teremtőm. Nem találgatok.")
+
+
+def muszaki_kerdes(kerdes: str) -> bool:
+    """A kérdés a robot SAJÁT felépítésére vonatkozik-e?
+
+    Előtag-illesztés, mert a szótövező az összetett szavakon gyenge (mérve:
+    `kernelverzió` -> `kernelverzio`, `chipet` -> `chipet`, `kvantálást` -> `kvantalast`).
+    Pontos egyezés a rövid kulcsokra — ld. `MUSZAKI_ROVID`.
+    """
+    for token in tokenize(kerdes):
+        if token in MUSZAKI_ROVID or any(token.startswith(t) for t in MUSZAKI_TOVEK):
+            return True
+    return False
+
+
 MAGYARUL = "Magyarul válaszolj!\n\n"
 
 # Milyen sűrűn ébred a hurok, ha nincs esemény. Csak a LEÁLLÁS válaszidejét szabja meg
@@ -349,6 +398,15 @@ class Orchestrator:
         esemeny = transcript.Interakcio(
             hallott=kerdes, prompt=prompt, latvany=latvany or "",
             rag_cimek=[h.chunk.title for h in hits])
+        # FORRÁS NÉLKÜL A SAJÁT MŰSZAKI ADATAIRÓL NEM BESZÉLÜNK — ld. a `MUSZAKI_TOVEK`
+        # fölötti mérést. A modellt meg sem hívjuk: a 8B ezen a ponton nem óvatos, hanem
+        # magabiztos, és a kitalált kernelverzió pont a színpadon derülne ki.
+        if not hits and muszaki_kerdes(kerdes):
+            esemeny.forras, esemeny.valasz = "nincs_adat", NINCS_ADAT_VALASZ
+            esemeny.hatter_indok = "műszaki kérdés FORRÁS nélkül — a modell nem lett meghívva"
+            log.info("műszaki kérdés forrás nélkül, nem találgatunk: %r", kerdes)
+            transcript.log(esemeny)
+            return NINCS_ADAT_VALASZ
         # MINDKÉT generálás a try-on BELÜL. A nyelvi őr ugyanis MÁSODSZOR is hívhatja a
         # modellt (ha az első válasz nem magyar), és a háttér a két hívás között is
         # eleshet — a `LLMUnavailable` akkor az `ask()`-ból kiszállna, magával rántva a

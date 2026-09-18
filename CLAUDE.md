@@ -389,6 +389,18 @@ fixed by dataset expansion, not a model swap.
   kamera szürke, feketéje áthatolhatatlan…"), so the dataset/prompt half is needed **either
   way** — a VLM would not cover a covered lens or "what is behind you?".
 
+- **Next fine-tune round (post-demo): teach "I have no data on that" for technical questions.**
+  Decided 2026-09-18 by the Creator. The demo model is **v12 + RAG, frozen**, so this cannot ship
+  before Hacktivity — the orchestrator-side gate (`muszaki_kerdes()` + `NINCS_ADAT_VALASZ`) covers
+  it until then, deterministically and without the model. What the dataset round should add, to
+  `dataset/rag_category.json`: examples where the `[FORRÁS]` block is **absent** and the right
+  answer is refusal, not invention. Why it is needed despite the gate: the gate is a hand-curated
+  keyword list (`MUSZAKI_TOVEK`), so it only covers what someone thought of — a model that has
+  *learned* not to invent version numbers covers the rest. The measured failure it fixes: with an
+  empty RAG the 8B answered "Debian Stable 11.5 / kernel 5.15.0-2-amd64 / a szabad Android" on an
+  **arm64 Debian 13 trixie, kernel 6.12.47** robot, while the log itself printed
+  "a válasz alaptalan lesz".
+
 Conscious gaps from the PR #4 review — not bugs, but things a future session should know:
 
 - **Reaching the Pi in production is via the cloud as a jump host — and the generated
