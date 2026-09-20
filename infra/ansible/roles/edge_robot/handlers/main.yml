@@ -16,3 +16,12 @@
   systemd:
     name: nftables
     state: reloaded
+
+# Csak a csoporttagság-változás használja (ld. netdev): a szerep a normál úton
+# `state: restarted` taskkal indítja újra az orchestrátort. A `when` ugyanaz a két
+# feltétel, különben egy telepítés nélküli gépen a handler elhasalna.
+- name: Restart freedroid
+  when: robot_project.stat.exists and robot_orchestrator_enabled
+  systemd:
+    name: freedroid
+    state: restarted

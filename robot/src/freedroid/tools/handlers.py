@@ -64,6 +64,9 @@ NMCLI_SCAN = ("nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY",
 # hibaágra készült volna fel — ez a hardveren nem áll elő.) Saját gyorsítótárat
 # SZÁNDÉKOSAN nem teszünk elé: az pont azt a hibát hozná vissza, amit ez a sor javít.
 # A 15 s így a 8 s-os esetre is elég, de a tartalék már nem négyszeres, hanem kétszeres.
+# A Pi 5-nek EGY rádiója van: a 2,4/5 GHz-es csatornapásztázás alatt (3,7-8,0 s) a
+# meglévő kapcsolat nem szakad meg, de jittert kap — a WireGuard-on és a telemetrián
+# néhány másodperces késés látszik. A demó alatti hálózati diagnosztikánál ez nem hiba.
 NMCLI_TIMEOUT_S = 15.0
 
 # Az `nmcli -t` a mezőket kettősponttal választja el, a mezőn BELÜLI kettőspontot pedig
@@ -399,6 +402,9 @@ def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
                            f"{(e.stderr or '').strip()}") from e
     except (OSError, subprocess.SubprocessError) as e:
         # Hangos hiba: "nem találtam hálózatot" és "nem tudtam megnézni" NEM ugyanaz.
+        # Ez az ág a `TimeoutExpired`-ot IS fedi (az is `SubprocessError`), és a `str(e)`
+        # kimondja a határidőt: "timed out after 15 seconds". Külön `except` tehát nem
+        # kell — MÉRVE, `TimeoutExpired.__mro__`. (PR #148 review 2. ezt tévesen állítja.)
         raise RuntimeError(f"nmcli sikertelen: {e}") from e
 
     halok = parse_nmcli(proc.stdout)
