@@ -11,10 +11,11 @@ a wifi-s red-team próbára minden modell kitalált csatlakozó toolt ad (`conne
 nyomuk, és a következő kitalált név már senkinek nem tűnne fel.
 
 **Biztonsági invariáns (CLAUDE.md): a `scan_wifi()` CSAK OLVAS.** Lefuttatja az
-`nmcli -t -f SSID,SIGNAL,SECURITY dev wifi`-t és visszaadja a listát. Sosem csatlakozik,
-jelszót nem lát, és a modell szövege SEMMILYEN úton nem kerül a parancssorba: a hívás
-paraméter nélküli konstans, a nyelvtan két opcionális kulcsa (`filter`, `sort`) pedig
-csak a MÁR MEGKAPOTT listát szűri/rendezi.
+`nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list --rescan yes`-t és visszaadja a listát.
+Sosem csatlakozik, jelszót nem lát, és a modell szövege SEMMILYEN úton nem kerül a
+parancssorba: a hívás paraméter nélküli konstans, a nyelvtan két opcionális kulcsa
+(`filter`, `sort`) pedig csak a MÁR MEGKAPOTT listát szűri/rendezi. A `--rescan yes`
+ezen nem változtat: friss keresést KÉR, de nem csatlakozik és jelszót nem érint.
 """
 
 from __future__ import annotations
@@ -39,7 +40,25 @@ Handler = Callable[[ParsedTool], Any]
 
 # Konstans parancs, a modell szövegéből SEMMI nem kerül bele. Lista, nem string:
 # shell nélkül fut, tehát nincs se szóköz-, se metakarakter-értelmezés.
-NMCLI_SCAN = ("nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi")
+#
+# 🔴 A `--rescan yes` NEM kozmetika — nélküle a tool a demón HAZUDIK. MÉRVE a Pi-n
+# (2026-09-20, wifi196): csatlakozva az nmcli GYORSÍTÓTÁRAT ad vissza, és a
+# NetworkManager csatlakozott állapotban alig keres újra, tehát a lista EGYETLEN
+# hálózatot tartalmaz — pont azt, amire rá vagyunk kötve. „Szabi látja a körülötte
+# lévő hálózatokat" helyett „Szabi látja saját magát". Ugyanott, friss kereséssel:
+# 3 hálózat, köztük egy NYÍLT — ami a demó tényleges mondanivalója.
+#
+# 🔴 És ehhez ENGEDÉLY is kell, különben a javítás CSENDBEN nem javít semmit. A
+# `wifi.scan` polkit-művelet alapból `auth_admin` egy session nélküli folyamatnak,
+# márpedig a `freedroid.service` pontosan az. MÉRVE, service-kontextusban: a
+# `--rescan yes` ilyenkor **0-val tér vissza és a régi gyorsítótárat adja** (a
+# NetworkManager `LastScan` tulajdonsága nem mozdul) — se kivétel, se stderr. Ezért
+# jár mellé az Ansible polkit-szabálya (`50-freedroid-wifi-scan.rules`, `netdev`
+# csoport, CSAK a `wifi.scan` művelet). `sudo` szándékosan nincs a tool útjában.
+NMCLI_SCAN = ("nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY",
+              "dev", "wifi", "list", "--rescan", "yes")
+# A friss keresés ~4 s a Pi-n (mérve), a gyorsítótáras válasz ~0,03 s. A 15 s így
+# marad bőven elég, de már NEM a „azonnal visszatér" esetre van szabva.
 NMCLI_TIMEOUT_S = 15.0
 
 # Az `nmcli -t` a mezőket kettősponttal választja el, a mezőn BELÜLI kettőspontot pedig
@@ -359,6 +378,9 @@ def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
 
     A nyelvtan két opcionális kulcsa (`filter`, `sort`) csak a MÁR MEGKAPOTT listát
     alakítja — nem kerül a parancssorba, tehát nincs injekciós felület.
+
+    A keresés FRISS (`--rescan yes`, ld. `NMCLI_SCAN`), ezért ez a tool ~4 másodpercig
+    tart — az egyetlen tool, ami érezhetően megállítja a kört.
     """
     try:
         proc = subprocess.run(NMCLI_SCAN, capture_output=True, text=True,

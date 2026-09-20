@@ -189,6 +189,22 @@ def test_scan_wifi_a_modell_szovegebol_semmi_nem_kerul_a_parancsba(monkeypatch):
     assert latott == [handlers.NMCLI_SCAN]
 
 
+def test_scan_wifi_FRISS_kerest_ker_nem_gyorsitotarat():
+    """🔴 A `--rescan yes` nélkül a tool a demón HAZUDIK — mérve a Pi-n 2026-09-20.
+
+    Csatlakozott állapotban a NetworkManager alig keres újra, és az `nmcli` a
+    gyorsítótárat adja vissza: a lista EGYETLEN hálózatot tartalmazott, azt, amire a
+    robot rá volt kötve. Friss kereséssel ugyanott 3 hálózat jött, köztük egy NYÍLT —
+    és épp a nyílt hálózat megnevezése a demó mondanivalója.
+
+    Azért a parancs alakját őrzöm, és nem a viselkedést, mert a viselkedés csak valódi
+    NetworkManageren látszik: ez a teszt off-Pi is fut, és pont a visszakopás ellen véd.
+    """
+    assert handlers.NMCLI_SCAN[-3:] == ("list", "--rescan", "yes")
+    # A read-only invariáns: a parancsban semmi nem csatlakozik.
+    assert not {"connect", "up", "password", "hotspot"} & set(handlers.NMCLI_SCAN)
+
+
 def test_scan_wifi_nmcli_hiba_HANGOS(monkeypatch):
     """"Nem találtam hálózatot" és "nem tudtam megnézni" nem ugyanaz."""
     def robban(*a, **k):

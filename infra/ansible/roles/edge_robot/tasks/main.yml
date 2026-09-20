@@ -504,6 +504,19 @@
     enabled: true
     state: started
 
+# ── wifi-keresés: a `scan_wifi` tool engedélye ───────────────────────────────
+# A tool a `freedroid.service`-ből fut, aminek nincs logind-munkamenete — a polkit
+# ezért az `implicit any: auth_admin` ágon bírálja el. A szabály nélkül a friss
+# keresés CSENDBEN elmarad (a részletek a fájl fejlécében, mérve).
+
+- name: Allow the robot to request a fresh Wi-Fi scan (read-only polkit action)
+  copy:
+    src: 50-freedroid-wifi-scan.rules
+    dest: /etc/polkit-1/rules.d/50-freedroid-wifi-scan.rules
+    owner: root
+    group: root
+    mode: '0644'
+
 # ── Tartalék hálózat: a saját 4G wifi router ─────────────────────────────────
 # Ez a HELYI út, ha a WireGuard áll. Kézzel, megbízható csatornán (Ansible-over-SSH)
 # beállított hálózat — a "soha nem csatlakozik kimondott parancsra" invariáns
