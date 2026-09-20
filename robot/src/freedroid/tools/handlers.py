@@ -357,7 +357,10 @@ def parse_nmcli(stdout: str) -> list[dict[str, Any]]:
 
     Külön, tiszta függvény, hogy `nmcli` nélkül is tesztelhető legyen.
     """
-    legjobb: dict[str, dict[str, str]] = {}
+    # `Any`, nem `str`: a `signal` INT (a `parse_nmcli`/`wifi_mondat` aláírása is az).
+    # A jelerősség-összevetés lentebb számként dől el — egy `str` annotáció itt
+    # azt sugallná, hogy a `"9" > "10"` rendezés a szándék. (PR #148 review 3C.)
+    legjobb: dict[str, dict[str, Any]] = {}
     for sor in stdout.splitlines():
         if not sor.strip():
             continue
@@ -381,7 +384,7 @@ def parse_nmcli(stdout: str) -> list[dict[str, Any]]:
     return list(legjobb.values())
 
 
-def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
+def scan_wifi(tool: ParsedTool) -> list[dict[str, Any]]:
     """CSAK OLVASÓ wifi-felsorolás. SOSEM csatlakozik, jelszót nem kezel.
 
     A nyelvtan két opcionális kulcsa (`filter`, `sort`) csak a MÁR MEGKAPOTT listát
