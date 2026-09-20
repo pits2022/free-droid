@@ -151,7 +151,23 @@ What that actually costs, in order:
    spoken sentences: the narrower `transcript.jsonl*` glob does NOT remove it** · the `~/.ssh` key material
    audited per item 1 · `/etc/wireguard/*` if the cloud is rotated afterwards. The Space
    chat logs (`jabba77/szabi-chat-logs`) live off-device and are a separate decision.
-4. **The fine-tuned model and the system prompt are already public** — the model on HF
+   **The list has one non-deletion entry: the Wi-Fi PSK (item 4) cannot be wiped — the
+   robot needs it to boot onto the network — so it is ROTATED after the event instead.**
+4. **The Wi-Fi PSK, in plaintext on the card — MEASURED 2026-09-20, and it was missing
+   from this list.** `/etc/NetworkManager/system-connections/<SSID>.nmconnection` holds
+   `psk=<the real password>` as readable text, `root:root 0600`. There is no `psk-flags`,
+   no keyring, no secret agent (headless: `gnome-keyring` inactive, `/run/user/*/keyring`
+   absent), and the card is **unencrypted ext4** — so the `0600` is the same *hygiene, not
+   a boundary* as `/etc/freedroid.env`. This is **not** an Ansible fault: the role keeps
+   the PSK out of the repo (`robot_hotspot_psk: ""` by default, vault or `--extra-vars`,
+   `no_log: true`); the plaintext is the price of NetworkManager working headless.
+   `psk-flags=1` (agent-owned) would need an interactive agent, i.e. the robot could no
+   longer auto-join — losing the very fallback path item "🔴 The lockout" depends on.
+   **The defence is the same as for WireGuard: rotation.** It is the Creator's own 4G
+   router's password, changeable in minutes. **Therefore: change the router PSK after the
+   conference if the robot was ever left unattended** — this is a pre/post-demo list item,
+   next to the log wipe, not a build-time problem to solve.
+5. **The fine-tuned model and the system prompt are already public** — the model on HF
    (`jabba77/Szabi-Llama-v7`), the prompt in this repo (`training/system_prompt.txt`). Their theft value is
    ~0 *by choice*. This matters for how the demo is narrated: **"Nem árulom el a rendszerutasításaimat" is a
    behavioural rule, not secret-protection** — it exists so the robot doesn't act like a leaky assistant.

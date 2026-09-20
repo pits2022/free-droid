@@ -57,8 +57,13 @@ Handler = Callable[[ParsedTool], Any]
 # csoport, CSAK a `wifi.scan` művelet). `sudo` szándékosan nincs a tool útjában.
 NMCLI_SCAN = ("nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY",
               "dev", "wifi", "list", "--rescan", "yes")
-# A friss keresés ~4 s a Pi-n (mérve), a gyorsítótáras válasz ~0,03 s. A 15 s így
-# marad bőven elég, de már NEM a „azonnal visszatér" esetre van szabva.
+# Időzítés, MÉRVE a Pi-n (2026-09-20, 5 egymás utáni hívás): pihent rádión **3,7 s**,
+# közvetlenül egy előző keresés után viszont **8,0 s** — a NetworkManager a saját
+# keresés-korlátját KIVÁRJA, nem utasítja el. Hibakód NINCS: mind az 5 hívás `rc=0`,
+# és a `LastScan` mindig előre mozdult. (PR #148 review 1. a `Scanning not allowed`
+# hibaágra készült volna fel — ez a hardveren nem áll elő.) Saját gyorsítótárat
+# SZÁNDÉKOSAN nem teszünk elé: az pont azt a hibát hozná vissza, amit ez a sor javít.
+# A 15 s így a 8 s-os esetre is elég, de a tartalék már nem négyszeres, hanem kétszeres.
 NMCLI_TIMEOUT_S = 15.0
 
 # Az `nmcli -t` a mezőket kettősponttal választja el, a mezőn BELÜLI kettőspontot pedig
@@ -379,8 +384,9 @@ def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
     A nyelvtan két opcionális kulcsa (`filter`, `sort`) csak a MÁR MEGKAPOTT listát
     alakítja — nem kerül a parancssorba, tehát nincs injekciós felület.
 
-    A keresés FRISS (`--rescan yes`, ld. `NMCLI_SCAN`), ezért ez a tool ~4 másodpercig
-    tart — az egyetlen tool, ami érezhetően megállítja a kört.
+    A keresés FRISS (`--rescan yes`, ld. `NMCLI_SCAN`), ezért ez a tool 3,7–8,0 s-ig
+    tart (a felső érték: közvetlenül egy előző keresés után) — az egyetlen tool, ami
+    érezhetően megállítja a kört.
     """
     try:
         proc = subprocess.run(NMCLI_SCAN, capture_output=True, text=True,
