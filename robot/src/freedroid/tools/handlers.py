@@ -11,10 +11,11 @@ a wifi-s red-team próbára minden modell kitalált csatlakozó toolt ad (`conne
 nyomuk, és a következő kitalált név már senkinek nem tűnne fel.
 
 **Biztonsági invariáns (CLAUDE.md): a `scan_wifi()` CSAK OLVAS.** Lefuttatja az
-`nmcli -t -f SSID,SIGNAL,SECURITY dev wifi`-t és visszaadja a listát. Sosem csatlakozik,
-jelszót nem lát, és a modell szövege SEMMILYEN úton nem kerül a parancssorba: a hívás
-paraméter nélküli konstans, a nyelvtan két opcionális kulcsa (`filter`, `sort`) pedig
-csak a MÁR MEGKAPOTT listát szűri/rendezi.
+`nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list --rescan yes`-t és visszaadja a listát.
+Sosem csatlakozik, jelszót nem lát, és a modell szövege SEMMILYEN úton nem kerül a
+parancssorba: a hívás paraméter nélküli konstans, a nyelvtan két opcionális kulcsa
+(`filter`, `sort`) pedig csak a MÁR MEGKAPOTT listát szűri/rendezi. A `--rescan yes`
+ezen nem változtat: friss keresést KÉR, de nem csatlakozik és jelszót nem érint.
 """
 
 from __future__ import annotations
@@ -39,7 +40,33 @@ Handler = Callable[[ParsedTool], Any]
 
 # Konstans parancs, a modell szövegéből SEMMI nem kerül bele. Lista, nem string:
 # shell nélkül fut, tehát nincs se szóköz-, se metakarakter-értelmezés.
-NMCLI_SCAN = ("nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi")
+#
+# 🔴 A `--rescan yes` NEM kozmetika — nélküle a tool a demón HAZUDIK. MÉRVE a Pi-n
+# (2026-09-20, wifi196): csatlakozva az nmcli GYORSÍTÓTÁRAT ad vissza, és a
+# NetworkManager csatlakozott állapotban alig keres újra, tehát a lista EGYETLEN
+# hálózatot tartalmaz — pont azt, amire rá vagyunk kötve. „Szabi látja a körülötte
+# lévő hálózatokat" helyett „Szabi látja saját magát". Ugyanott, friss kereséssel:
+# 3 hálózat, köztük egy NYÍLT — ami a demó tényleges mondanivalója.
+#
+# 🔴 És ehhez ENGEDÉLY is kell, különben a javítás CSENDBEN nem javít semmit. A
+# `wifi.scan` polkit-művelet alapból `auth_admin` egy session nélküli folyamatnak,
+# márpedig a `freedroid.service` pontosan az. MÉRVE, service-kontextusban: a
+# `--rescan yes` ilyenkor **0-val tér vissza és a régi gyorsítótárat adja** (a
+# NetworkManager `LastScan` tulajdonsága nem mozdul) — se kivétel, se stderr. Ezért
+# jár mellé az Ansible polkit-szabálya (`50-freedroid-wifi-scan.rules`, `netdev`
+# csoport, CSAK a `wifi.scan` művelet). `sudo` szándékosan nincs a tool útjában.
+NMCLI_SCAN = ("nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY",
+              "dev", "wifi", "list", "--rescan", "yes")
+# Időzítés, MÉRVE a Pi-n (2026-09-20, 5 egymás utáni hívás): pihent rádión **3,7 s**,
+# közvetlenül egy előző keresés után viszont **8,0 s** — a NetworkManager a saját
+# keresés-korlátját KIVÁRJA, nem utasítja el. Hibakód NINCS: mind az 5 hívás `rc=0`,
+# és a `LastScan` mindig előre mozdult. (PR #148 review 1. a `Scanning not allowed`
+# hibaágra készült volna fel — ez a hardveren nem áll elő.) Saját gyorsítótárat
+# SZÁNDÉKOSAN nem teszünk elé: az pont azt a hibát hozná vissza, amit ez a sor javít.
+# A 15 s így a 8 s-os esetre is elég, de a tartalék már nem négyszeres, hanem kétszeres.
+# A Pi 5-nek EGY rádiója van: a 2,4/5 GHz-es csatornapásztázás alatt (3,7-8,0 s) a
+# meglévő kapcsolat nem szakad meg, de jittert kap — a WireGuard-on és a telemetrián
+# néhány másodperces késés látszik. A demó alatti hálózati diagnosztikánál ez nem hiba.
 NMCLI_TIMEOUT_S = 15.0
 
 # Az `nmcli -t` a mezőket kettősponttal választja el, a mezőn BELÜLI kettőspontot pedig
@@ -330,7 +357,10 @@ def parse_nmcli(stdout: str) -> list[dict[str, Any]]:
 
     Külön, tiszta függvény, hogy `nmcli` nélkül is tesztelhető legyen.
     """
-    legjobb: dict[str, dict[str, str]] = {}
+    # `Any`, nem `str`: a `signal` INT (a `parse_nmcli`/`wifi_mondat` aláírása is az).
+    # A jelerősség-összevetés lentebb számként dől el — egy `str` annotáció itt
+    # azt sugallná, hogy a `"9" > "10"` rendezés a szándék. (PR #148 review 3C.)
+    legjobb: dict[str, dict[str, Any]] = {}
     for sor in stdout.splitlines():
         if not sor.strip():
             continue
@@ -354,11 +384,15 @@ def parse_nmcli(stdout: str) -> list[dict[str, Any]]:
     return list(legjobb.values())
 
 
-def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
+def scan_wifi(tool: ParsedTool) -> list[dict[str, Any]]:
     """CSAK OLVASÓ wifi-felsorolás. SOSEM csatlakozik, jelszót nem kezel.
 
     A nyelvtan két opcionális kulcsa (`filter`, `sort`) csak a MÁR MEGKAPOTT listát
     alakítja — nem kerül a parancssorba, tehát nincs injekciós felület.
+
+    A keresés FRISS (`--rescan yes`, ld. `NMCLI_SCAN`), ezért ez a tool 3,7–8,0 s-ig
+    tart (a felső érték: közvetlenül egy előző keresés után) — az egyetlen tool, ami
+    érezhetően megállítja a kört.
     """
     try:
         proc = subprocess.run(NMCLI_SCAN, capture_output=True, text=True,
@@ -371,6 +405,9 @@ def scan_wifi(tool: ParsedTool) -> list[dict[str, str]]:
                            f"{(e.stderr or '').strip()}") from e
     except (OSError, subprocess.SubprocessError) as e:
         # Hangos hiba: "nem találtam hálózatot" és "nem tudtam megnézni" NEM ugyanaz.
+        # Ez az ág a `TimeoutExpired`-ot IS fedi (az is `SubprocessError`), és a `str(e)`
+        # kimondja a határidőt: "timed out after 15 seconds". Külön `except` tehát nem
+        # kell — MÉRVE, `TimeoutExpired.__mro__`. (PR #148 review 2. ezt tévesen állítja.)
         raise RuntimeError(f"nmcli sikertelen: {e}") from e
 
     halok = parse_nmcli(proc.stdout)

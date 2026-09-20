@@ -504,6 +504,35 @@
     enabled: true
     state: started
 
+# ── wifi-keresés: a `scan_wifi` tool engedélye ───────────────────────────────
+# A tool a `freedroid.service`-ből fut, aminek nincs logind-munkamenete — a polkit
+# ezért az `implicit any: auth_admin` ágon bírálja el. A szabály nélkül a friss
+# keresés CSENDBEN elmarad (a részletek a fájl fejlécében, mérve).
+
+# A szabály a `netdev` CSOPORTRA szól, a szerep viszont NEM hozza létre a
+# `robot_user`-t — a csoporttagság a Raspberry Pi OS image-éből jön. Egy minimalista
+# image vagy egy átállított `robot_user` esetén tehát nem garantált, és a hiánya
+# CSENDES: a `--rescan yes` ilyenkor 0-val tér vissza a régi gyorsítótárral. (PR #148
+# review 2.) Ezért itt kimondjuk, ahelyett hogy az image-re hagyatkoznánk.
+# A `notify` nem formalitás: a kiegészítő csoportok a processz INDÍTÁSAKOR rögzülnek
+# (`initgroups`), tehát egy már futó `freedroid.service` nem kapja meg a friss netdev
+# tagságot — és a hiánya CSENDES (`rc=0` a régi gyorsítótárral). A fentebbi
+# "(re)start" task ennél a sornál KORÁBBAN fut, így az nem oldja meg. (PR #148 review 1.)
+- name: Ensure {{ robot_user }} is in the netdev group (the polkit rule matches on it)
+  user:
+    name: "{{ robot_user }}"
+    groups: netdev
+    append: true
+  notify: Restart freedroid
+
+- name: Allow the robot to request a fresh Wi-Fi scan (read-only polkit action)
+  copy:
+    src: 50-freedroid-wifi-scan.rules
+    dest: /etc/polkit-1/rules.d/50-freedroid-wifi-scan.rules
+    owner: root
+    group: root
+    mode: '0644'
+
 # ── Tartalék hálózat: a saját 4G wifi router ─────────────────────────────────
 # Ez a HELYI út, ha a WireGuard áll. Kézzel, megbízható csatornán (Ansible-over-SSH)
 # beállított hálózat — a "soha nem csatlakozik kimondott parancsra" invariáns

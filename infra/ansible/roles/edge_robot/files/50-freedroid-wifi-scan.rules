@@ -1,0 +1,25 @@
+// Free-Droid: a `scan_wifi()` tool friss wifi-keresést kérhessen.
+//
+// MIÉRT KELL: a `wifi.scan` polkit-művelet alapértelmezése `implicit any: auth_admin`,
+// és a `freedroid.service` rendszerszolgáltatás — nincs logind-munkamenete, tehát az
+// "any" ág vonatkozik rá. MÉRVE (2026-09-20, free-droid-001): enélkül az
+// `nmcli dev wifi list --rescan yes` **0-val tér vissza, és a RÉGI gyorsítótárat adja**
+// (a NetworkManager `LastScan` tulajdonsága nem mozdul). Se hibakód, se stderr — a
+// robot csendben a saját hálózatát sorolná fel a demón, friss környezet helyett.
+//
+// MIÉRT EZ, ÉS NEM `sudo`: így a `sudo` nem kerül be a tool útjába, és a jogosultság
+// pontosan EGY, CSAK OLVASÓ műveletre szól. A `scan_wifi` read-only invariánsa
+// (CLAUDE.md) sértetlen: csatlakozni, jelszót kezelni ez a szabály nem enged.
+//
+// `netdev`, nem `creator`: a felhasználónevet a `robot_user` változó állítja, a
+// csoporttagság viszont a Raspberry Pi OS alapállapota — nincs mit szinkronban tartani.
+//
+// Újraindítás NEM kell: a polkit figyeli a rules.d könyvtárat. MÉRVE — a szabály
+// eltávolítása/visszatétele után azonnal a várt választ adta, `systemctl restart`
+// nélkül. Ezért nincs handler sem.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.NetworkManager.wifi.scan" &&
+        subject.isInGroup("netdev")) {
+        return polkit.Result.YES;
+    }
+});
