@@ -336,10 +336,12 @@ def test_kozos_env_rossz_erteke_indulaskor_bukik(monkeypatch, ertek):
         load_settings()
 
 
-def test_kozos_env_rossz_erteke_a_sajat_neven_bukik(monkeypatch):
+@pytest.mark.parametrize("ertek", ["abc", "-1.0", "0", "nan", "inf"])
+def test_kozos_env_rossz_erteke_a_sajat_neven_bukik(monkeypatch, ertek):
     """A szétterítés után a hiba a szétterített nevek egyikét nevezné meg, és az
     operátor a rossz változót keresné — pont abban a helyzetben, amiért ez a kapcsoló
-    létezik."""
-    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", "abc")
+    létezik. Nem csak az értelmezhetetlen érték: a `-1.0` és a `0` átmegy a
+    `float()`-on, és a tartomány-hiba a szétterített néven jönne."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", ertek)
     with pytest.raises(ValueError, match="FREEDROID_CLOUD_PROBE_TIMEOUT_S"):
         load_settings()

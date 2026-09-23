@@ -999,11 +999,16 @@ def _kozos_proba_korlat(kornyezet: Mapping[str, str]) -> Mapping[str, str]:
     # A SAJÁT nevén bukjon: szétterítés után a hiba a szétterített nevek EGYIKÉT
     # nevezné meg (`FREEDROID_LLM_...`), és az operátor a rossz változót keresné —
     # pont abban a helyzetben, amiért ez a kapcsoló létezik.
+    # A tartomány is ITT dől el, nem csak az értelmezhetőség: a `-1.0` és a `0`
+    # átmegy a `float()`-on, és a hiba utána a szétterített néven (`probe_timeout_s
+    # must be > 0`) jönne — megint nem azon, amit az operátor átírt.
     try:
-        float(ertek)
+        szam = float(ertek)
+        if not math.isfinite(szam) or szam <= 0:
+            raise ValueError
     except ValueError:
         raise ValueError(
-            f"{KOZOS_PROBA_ENV}={ertek!r} — nem értelmezhető float-ként") from None
+            f"{KOZOS_PROBA_ENV}={ertek!r} — pozitív, véges szám kell") from None
     bovitett = dict(kornyezet)
     for nev in _PROBA_ENVEK:
         bovitett.setdefault(nev, ertek)
