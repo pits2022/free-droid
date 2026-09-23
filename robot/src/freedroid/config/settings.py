@@ -460,6 +460,14 @@ class VoiceSettings:
     # szerver gyökere viszont a HTML kezelőfelületet adja vissza — több kör, több
     # jitter. Az 1,5 itt 30-ból 4-szer bukott volna ÉP linken.
     #
+    # ponytail: a GET marad, `HEAD` helyett — MÉRVE, nem feltételezve. A `HEAD` valóban
+    # az LLM tartományába visz (medián 0,84 / p90 1,11 / max 1,45 a GET 1,14 / 1,55 /
+    # 1,89-e helyett), csak épp nincs miért: ez a korlát a LEGROSSZABB esetet fedi, azt
+    # pedig a 2,5 GET-tel is fedi. 1,5-re visszavinni a `HEAD` max 1,45-e mellett 3%
+    # tartalék volna. Cserébe függnénk attól, hogy a whisper.cpp szerver kezeli a
+    # `HEAD`-et (ma igen, 200) — és ha egy verzió 405-öt adna, az itt NÉMA: az
+    # `elerheto()` a HTTPError-ra is False-t ad, vagyis a felhő csendben eltűnne.
+    #
     # És ez az a próba, ami a KÖRT eldönti: a sorrend STT -> LLM, a körcache pedig
     # hosztra szól, tehát az LLM ezt a verdiktet örökli. Ha ez tévesen bukik, a kör
     # akkor is edge-en megy, ha a felhő él.
