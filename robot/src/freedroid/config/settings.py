@@ -453,7 +453,17 @@ class VoiceSettings:
     stt_cloud_timeout_s: float = 20.0
     # A DÖNTÉS próbája, nem a munkáé. Rövid, mert minden mondatnál lefut, és a lényege,
     # hogy egy HALOTT alagútnál ne 160 KB hang feltöltése után derüljön ki a baj.
-    stt_cloud_probe_timeout_s: float = 1.5   # ld. `probe_timeout_s` — ugyanaz az érv, ugyanaz a mérés
+    # 0,5 -> 2,5 (mérve 2026-09-23, ugyanaz a `tc netem` profil, mint a
+    # `probe_timeout_s`-nél). Ez a próba MÁS SZÁMOT ad, mint az LLM-é, és ezért kapott
+    # külön értéket: medián 1,14 / p90 1,55 / max 1,89 s, szemben az LLM 0,86 / 1,15 /
+    # 1,32-jével. Az ok kézenfekvő: az `/api/tags` pár száz bájt JSON, a whisper.cpp
+    # szerver gyökere viszont a HTML kezelőfelületet adja vissza — több kör, több
+    # jitter. Az 1,5 itt 30-ból 4-szer bukott volna ÉP linken.
+    #
+    # És ez az a próba, ami a KÖRT eldönti: a sorrend STT -> LLM, a körcache pedig
+    # hosztra szól, tehát az LLM ezt a verdiktet örökli. Ha ez tévesen bukik, a kör
+    # akkor is edge-en megy, ha a felhő él.
+    stt_cloud_probe_timeout_s: float = 2.5
 
     stt_language: str = "hu"
     stt_threads: int = 4
