@@ -265,3 +265,16 @@ def test_elgepelt_play_command_helyorzo_INDULASKOR_bukik():
     # a helyes viszont átmegy, és a helyőrző nélküli parancs is (pl. egy fix wrapper)
     assert load_settings({"FREEDROID_VOICE_PLAY_COMMAND": "aplay -r {rate}"}).voice
     assert load_settings({"FREEDROID_VOICE_PLAY_COMMAND": "sajat-lejatszo"}).voice
+
+
+def test_a_harom_proba_korlat_egyenlo():
+    """A `health.probe` cache-e HOSZTRA kulcsol, nem URL-re, és mindhárom próba
+    ugyanarra a felhő-hosztra megy. A körben az első futó próba verdiktjét örökli a
+    többi, tehát a LEGRÖVIDEBB korlát dönt mindenkiről — egy szűkebb látás-korlát
+    edge-re vinné az LLM-et is. Mérve 2026-09-23: pont ez történt, amikor a látás 0,5-ön
+    maradt az LLM 1,5-e mellett."""
+    s = load_settings()
+    assert (s.llm.probe_timeout_s
+            == s.voice.stt_cloud_probe_timeout_s
+            == s.vision.probe_timeout_s), (
+        "a három próba-korlátnak egyenlőnek kell lennie: a körcache hosztra kulcsol")

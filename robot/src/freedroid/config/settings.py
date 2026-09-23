@@ -131,7 +131,15 @@ class LLMEndpoints:
     # (~2 GB a 8-ból). A felhő az aktív háttér, azt a használat tartja bent.
     cloud_keep_alive: str = "30m"
     edge_keep_alive: str = "-1"
-    probe_timeout_s: float = 1.5
+    # 🔴 A HÁROM PRÓBA-KORLÁT EGYENLŐ, ÉS EZ KÖTELEZŐ (mérve 2026-09-23). A
+    # `jelold_elerhetetlennek` cache-e HOSZTRA kulcsol, nem URL-re, így az STT (:8080),
+    # a látás (:11434) és az LLM (:11434) UGYANAZT az egy bejegyzést írja. A körben az
+    # dönt, amelyik ELŐSZÖR fut (STT -> látás -> LLM), tehát a legrövidebb korlát
+    # mindenkire érvényes: egy szűkebb látás-korlát edge-re viszi az LLM-et is, holott
+    # a saját próbája átment volna. Külön értéket tartani ezért fikció — a `2,5` a
+    # leglassabb végpont mért legrosszabb esetét (STT 1,89 s) fedi. `test_config.py`
+    # őrzi; ha egyet lejjebb viszel, mindhármat kell.
+    probe_timeout_s: float = 2.5
     cloud_timeout_s: float = 60.0
     edge_timeout_s: float = 90.0
 
@@ -781,7 +789,7 @@ class VisionSettings:
     prompt: str = "Describe what you see in one or two short sentences."
 
     timeout_s: float = 8.0
-    probe_timeout_s: float = 0.5      # ld. `LLMEndpoints.probe_timeout_s` — ugyanaz az érv
+    probe_timeout_s: float = 2.5      # ld. `LLMEndpoints.probe_timeout_s` — KÖTÖTT, nem szabad eltérnie
 
     # 🔴 A HIDEGINDULÁS a `timeout_s` sokszorosa (WP0, mérve 2026-09-15, qwen3.5:4b):
     # lemezről az első betöltés 29,75 s, a lapcache-ből újratöltés 3,95 s, melegen
