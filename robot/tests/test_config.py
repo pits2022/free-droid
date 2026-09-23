@@ -280,19 +280,39 @@ def test_a_harom_proba_korlat_egyenlo():
         "a három próba-korlátnak egyenlőnek kell lennie: a körcache hosztra kulcsol")
 
 
-def test_egy_env_felulras_nem_csuszhat_el(monkeypatch):
+@pytest.mark.parametrize("env_nev", [
+    "FREEDROID_LLM_PROBE_TIMEOUT_S",
+    "FREEDROID_VOICE_STT_CLOUD_PROBE_TIMEOUT_S",
+    "FREEDROID_VISION_PROBE_TIMEOUT_S",
+])
+def test_egy_env_felulras_nem_csuszhat_el(monkeypatch, env_nev):
     """A körcache HOSZTRA kulcsol, tehát a legrövidebb korlát dönt mindenkiről. Egy
     env-felülírás a másik kettő nélkül ezért NÉMÁN rontana: a robot elindulna, és csak
-    a helyszínen derülne ki, hogy minden kör edge-en megy. Induláskor bukjon."""
-    monkeypatch.setenv("FREEDROID_LLM_PROBE_TIMEOUT_S", "1.0")
+    a helyszínen derülne ki, hogy minden kör edge-en megy. Induláskor bukjon —
+    BÁRMELYIK a három közül, ne csak az LLM-é."""
+    monkeypatch.setenv(env_nev, "1.0")
     with pytest.raises(ValueError, match="EGYENLŐNEK"):
         load_settings()
 
 
 def test_mindharom_env_egyutt_ervenyes(monkeypatch):
-    """A helyszíni hangolás útja: mindhármat együtt. Ennek mennie kell."""
+    """A helyszíni hangolás útja: mindhármat együtt. Mindhárom mezőt ellenőrizzük, mert
+    az env-NÉV és a dataclass-MEZŐ párosítása is elromolhat — ha csak az LLM-et néznénk,
+    egy elrontott VISION-leképezés átcsúszna."""
     for nev in ("FREEDROID_LLM_PROBE_TIMEOUT_S",
                 "FREEDROID_VOICE_STT_CLOUD_PROBE_TIMEOUT_S",
                 "FREEDROID_VISION_PROBE_TIMEOUT_S"):
         monkeypatch.setenv(nev, "4.0")
-    assert load_settings().llm.probe_timeout_s == 4.0
+    s = load_settings()
+    assert s.llm.probe_timeout_s == 4.0
+    assert s.voice.stt_cloud_probe_timeout_s == 4.0
+    assert s.vision.probe_timeout_s == 4.0
+
+
+def test_kozos_env_mindharmat_beallitja(monkeypatch):
+    """A helyszíni hangolás EGY kapcsolóból — aki nyomás alatt hármat ír át, hibázik."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", "3.5")
+    s = load_settings()
+    assert (s.llm.probe_timeout_s
+            == s.voice.stt_cloud_probe_timeout_s
+            == s.vision.probe_timeout_s == 3.5)

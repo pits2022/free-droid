@@ -875,7 +875,7 @@ class Settings:
 _EGYEB_ENV = frozenset({
     "FREEDROID_ASSUME_PI", "FREEDROID_GPIOCHIP", "FREEDROID_HEALTH_STATUS",
     "FREEDROID_SAFE_MODE_FLAG", "FREEDROID_TRANSCRIPT_LOG", "FREEDROID_MOTOR_TEST",
-    "FREEDROID_DEBUG",
+    "FREEDROID_DEBUG", "FREEDROID_CLOUD_PROBE_TIMEOUT_S",
 })
 
 _SZEKCIOK = {"LLM": ("llm", LLMEndpoints), "SAFETY": ("safety", SafetySettings),
@@ -977,6 +977,29 @@ def _szekciobol(cls, elonev: str, kornyezet) -> tuple[object, set[str]]:
     return cls(**kwargs), _ismert_kulcsai(cls, elonev)
 
 
+# A HÁROM próba-korlát EGY kapcsolóból. Ld. `CLOUD_PROBE_TIMEOUT_S`: a három érték
+# kötött, tehát a helyszíni hangolás három env-et kívánna — és aki nyomás alatt csak
+# egyet ír át, indulásnál `ValueError`-t kap. Ez a változó mindhármat beállítja.
+# A konkrét nevek FELÜLÍRJÁK, ha valaki mégis egyenként adja meg őket: a
+# `Settings.__post_init__` így is elkapja, ha az egyenkénti értékek nem egyeznek.
+KOZOS_PROBA_ENV = "FREEDROID_CLOUD_PROBE_TIMEOUT_S"
+
+_PROBA_ENVEK = ("FREEDROID_LLM_PROBE_TIMEOUT_S",
+                "FREEDROID_VOICE_STT_CLOUD_PROBE_TIMEOUT_S",
+                "FREEDROID_VISION_PROBE_TIMEOUT_S")
+
+
+def _kozos_proba_korlat(kornyezet: Mapping[str, str]) -> Mapping[str, str]:
+    """A közös kapcsolót szétteríti a három konkrét env-re (a meglévőket meghagyva)."""
+    ertek = kornyezet.get(KOZOS_PROBA_ENV)
+    if ertek is None:
+        return kornyezet
+    bovitett = dict(kornyezet)
+    for nev in _PROBA_ENVEK:
+        bovitett.setdefault(nev, ertek)
+    return bovitett
+
+
 def load_settings(env: dict[str, str] | None = None) -> Settings:
     """A hatályos beállítások: alapértelmezések + `FREEDROID_<SZEKCIÓ>_<MEZŐ>` felülírás.
 
@@ -1005,6 +1028,8 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
     # A TÉNYLEGES építés a figyelmeztetések UTÁN — a `ValueError` (rossz érték egy
     # ISMERT mezőn) továbbra is hangosan bukik, csak már azután, hogy az operátor
     # látta, melyik változót gépelte el.
+    kornyezet = _kozos_proba_korlat(kornyezet)
+
     reszek = {}
     for elonev, (mezo, cls) in _SZEKCIOK.items():
         reszek[mezo], _ = _szekciobol(cls, elonev, kornyezet)

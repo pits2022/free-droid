@@ -500,8 +500,10 @@ wins for everyone**. That is not theoretical: the vision probe sat at 0.5 s whil
 had 1.5 s, and the vision failure dropped the whole round to edge although the LLM's own
 probe would have passed. The three are therefore one number (`CLOUD_PROBE_TIMEOUT_S` in
 `settings.py`), `Settings.__post_init__` refuses a mismatch at startup, and
-`test_config.py` guards both the defaults and the env path. **If the venue link needs a
-bigger timeout, raise all three env vars, never one.**
+`test_config.py` guards both the defaults and the env path. **If the venue link needs a bigger timeout, set the single
+`FREEDROID_CLOUD_PROBE_TIMEOUT_S`** — it fans out to all three. The per-field names still
+work and still have to agree; the canonical one exists so that nobody edits three entries
+under time pressure and gets a `ValueError` on stage from editing two.
 
 **The cloud/edge switch is governed by JITTER, not bandwidth (measured 2026-09-23, `tc
 netem` on the Pi's `wlan0`).** Across the matrix, bandwidth (128 kbit → 2 Mbit), delay
