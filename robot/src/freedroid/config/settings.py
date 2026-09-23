@@ -106,6 +106,17 @@ class LLMEndpoints:
     # az `stt_cloud_probe_timeout_s` ugyanennyi, tehát körönként KÉTSZER ment el. Amit
     # cserébe kockáztatunk: egy pillanatnyi hálózati akadás hamarabb dob edge-re. Ez a jó
     # irány (az edge válaszol, csak kevésbé ékesen), és a döntési nyom naplózva van.
+    # 0,5 -> 1,5 (mérve 2026-09-23, `tc netem rate 2mbit delay 100ms 500ms loss 1%`):
+    # a "pillanatnyi akadás" kockázata nem elméleti maradt. JITTERES, de ÉP linken a
+    # próba medián 0,86 s / p90 1,15 s / max 1,32 s — vagyis 30-ból 28-szor túllépte a
+    # 0,5-öt, és fölöslegesen dobott edge-re úgy, hogy a felhő kiszolgált volna. A 0,5-öt
+    # az RTT-hez mértük (ams3 ~45 ms, tor1 ~139 ms), amiben NINCS jitter-tartalék — a
+    # konferencia 4G-je viszont pont az alacsony veszteség + magas jitter tartomány.
+    # Az aszimmetria dönt: a rossz edge-re dobás ~30 s (felhő E=9,5 s vs edge 38-41 s),
+    # a nagyobb korlát ára KÖRÖNKÉNT EGY 1,5 s — és csak halott felhőnél, ahol a válasz
+    # amúgy is 38 s. A 2,0-s múltja nem érv ellene: akkor körönként KÉTSZER ment el
+    # (LLM + STT), a körcache (`korben_elerhetetlen`) azóta felezte.
+    # Ha kiugrik: a próba bukása nem hiba, csak edge — a rossz irányba is biztonságos.
     # MEDDIG maradjon a modell a memóriában (Ollama `keep_alive`). A KETTŐ KÜLÖN, és a
     # különbség a lényeg — mérve 2026-09-08, 148 körös élő menetben:
     #
@@ -120,7 +131,7 @@ class LLMEndpoints:
     # (~2 GB a 8-ból). A felhő az aktív háttér, azt a használat tartja bent.
     cloud_keep_alive: str = "30m"
     edge_keep_alive: str = "-1"
-    probe_timeout_s: float = 0.5
+    probe_timeout_s: float = 1.5
     cloud_timeout_s: float = 60.0
     edge_timeout_s: float = 90.0
 
@@ -442,7 +453,7 @@ class VoiceSettings:
     stt_cloud_timeout_s: float = 20.0
     # A DÖNTÉS próbája, nem a munkáé. Rövid, mert minden mondatnál lefut, és a lényege,
     # hogy egy HALOTT alagútnál ne 160 KB hang feltöltése után derüljön ki a baj.
-    stt_cloud_probe_timeout_s: float = 0.5   # ld. `probe_timeout_s` — ugyanaz az érv
+    stt_cloud_probe_timeout_s: float = 1.5   # ld. `probe_timeout_s` — ugyanaz az érv, ugyanaz a mérés
 
     stt_language: str = "hu"
     stt_threads: int = 4
