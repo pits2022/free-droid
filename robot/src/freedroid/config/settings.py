@@ -100,8 +100,9 @@ def keep_alive_ertek(nyers: str | int) -> int | str:
 # körönként EGY várakozás, és CSAK halott felhőnél — élő felhőn a próba a válasz
 # megjöttekor tér vissza, nem a korlát leteltekor, tehát semmibe sem kerül.
 #
-# Ha a helyszíni háló rosszabb: MINDHÁROM env-et kell emelni, nem egyet (ld. a
-# `Settings.__post_init__` hibaüzenetét).
+# Ha a helyszíni háló rosszabb: `FREEDROID_CLOUD_PROBE_TIMEOUT_S` — EGY változó,
+# mindhármat beállítja (`KOZOS_PROBA_ENV`). A konkrét nevek is élnek, de akkor mind a
+# háromnak egyeznie kell, különben `Settings.__post_init__` induláskor bukik.
 CLOUD_PROBE_TIMEOUT_S: float = 2.5
 
 
@@ -866,8 +867,9 @@ class Settings:
             reszletek = ", ".join(f"{n}={e:g}" for n, e in korlatok.items())
             raise ValueError(
                 "a három felhő-próba időkorlátjának EGYENLŐNEK kell lennie, mert az "
-                f"elérhetőség-cache hosztra kulcsol — most: {reszletek}. Mindhármat "
-                "állítsd, ne egyet.")
+                f"elérhetőség-cache hosztra kulcsol — most: {reszletek}. Állítsd a "
+                f"{KOZOS_PROBA_ENV} változót (mindhármat beállítja), vagy add meg "
+                "mind a hármat azonos értékkel.")
 
 
 # Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt
@@ -994,6 +996,14 @@ def _kozos_proba_korlat(kornyezet: Mapping[str, str]) -> Mapping[str, str]:
     ertek = kornyezet.get(KOZOS_PROBA_ENV)
     if ertek is None:
         return kornyezet
+    # A SAJÁT nevén bukjon: szétterítés után a hiba a szétterített nevek EGYIKÉT
+    # nevezné meg (`FREEDROID_LLM_...`), és az operátor a rossz változót keresné —
+    # pont abban a helyzetben, amiért ez a kapcsoló létezik.
+    try:
+        float(ertek)
+    except ValueError:
+        raise ValueError(
+            f"{KOZOS_PROBA_ENV}={ertek!r} — nem értelmezhető float-ként") from None
     bovitett = dict(kornyezet)
     for nev in _PROBA_ENVEK:
         bovitett.setdefault(nev, ertek)

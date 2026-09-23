@@ -316,3 +316,30 @@ def test_kozos_env_mindharmat_beallitja(monkeypatch):
     assert (s.llm.probe_timeout_s
             == s.voice.stt_cloud_probe_timeout_s
             == s.vision.probe_timeout_s == 3.5)
+
+
+def test_kozos_es_egyedi_eltero_erteke_hibat_dob(monkeypatch):
+    """A közös kapcsoló `setdefault`-tal terít, tehát egy konkrét név FELÜLÍRJA. Ha a
+    kettő eltér, az elcsúszás ugyanúgy megvan — induláskor bukjon."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", "3.5")
+    monkeypatch.setenv("FREEDROID_LLM_PROBE_TIMEOUT_S", "2.0")
+    with pytest.raises(ValueError, match="EGYENLŐNEK"):
+        load_settings()
+
+
+@pytest.mark.parametrize("ertek", ["abc", "-1.0", "0"])
+def test_kozos_env_rossz_erteke_indulaskor_bukik(monkeypatch, ertek):
+    """Az értelmetlen és a tartományon kívüli érték is hangosan bukjon, ne némán
+    alapértelmezésre essen."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", ertek)
+    with pytest.raises(ValueError):
+        load_settings()
+
+
+def test_kozos_env_rossz_erteke_a_sajat_neven_bukik(monkeypatch):
+    """A szétterítés után a hiba a szétterített nevek egyikét nevezné meg, és az
+    operátor a rossz változót keresné — pont abban a helyzetben, amiért ez a kapcsoló
+    létezik."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", "abc")
+    with pytest.raises(ValueError, match="FREEDROID_CLOUD_PROBE_TIMEOUT_S"):
+        load_settings()
