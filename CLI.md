@@ -193,6 +193,43 @@ ls /run/freedroid/safe_mode          # ha LÉTEZIK: a robot safe-módban van, a 
 sudo systemctl status freedroid-health.timer   # 10 percenként + bootkor
 ```
 
+### 3.1 Hálózat a helyszínen `[pi]`
+
+A felhő/edge váltást a **jitter** vezérli, nem a sávszélesség (mérve 2026-09-23, ld.
+`CLOUD_PROBE_TIMEOUT_S`). A helyszínen tehát ezt a kettőt nézd, ne a letöltési sebességet:
+
+```bash
+ping -c 50 10.0.0.1 | tail -2        # `mdev` = jitter, `%loss` = veszteség
+nmcli -f SSID,CHAN,SIGNAL dev wifi   # a router a legcsendesebb 1/6/11 csatornára
+```
+
+A 2,4 GHz-es router ellen a leghatásosabb ellenszer nem hangolás, hanem **elhelyezés:
+tedd a routert magára a robotra**. Az adásidő-versengést a közelség nem szünteti meg,
+de az erős jel magasabb MCS-t enged, azaz rövidebb adásidőt keretenként.
+
+Rossz háló szimulálása a Pi-n (a késleltetés HOZZÁADÓDIK a valódi tor1-RTT-hez, ~139 ms):
+
+```bash
+sudo tc qdisc add dev wlan0 root netem rate 2mbit delay 150ms 150ms loss 2%   # zsúfolt terem
+sudo tc qdisc change dev wlan0 root netem rate 512kbit delay 400ms 300ms loss 5%  # legrosszabb
+sudo tc qdisc change dev wlan0 root netem rate 2mbit delay 150ms 150ms loss 20% 75%  # szakaszos
+sudo tc qdisc del dev wlan0 root     # vissza
+```
+
+A `loss 20% 75%` a **szakaszos** kiesés (a `75%` az ismétlési valószínűség: a veszteség
+csomókba áll) — ez a helyszín igazi kockázata, nem az egyenletes veszteség. Az elvárás
+profilonként MÁS: a zsúfoltnál a felhőnek nyernie kell, a legrosszabbnál elég, ha
+edge-re esik (az a tervezett viselkedés) — de a **következő körben vissza kell
+találnia**. A háttérválasztások sorrendje:
+
+```bash
+journalctl -u freedroid --since "-20 min" --no-pager \
+  | grep 'LLM válasz:' | sed 's/.*LLM válasz: //' | cut -c1-45
+```
+
+> Az ssh-d ugyanazon a `wlan0`-on jön, tehát a shell is lassul. Ha megszakad, a netem a
+> Pi-n MARAD — újracsatlakozás után a `tc qdisc del` az első dolog.
+
 ---
 
 ## 4. Hardver bring-up `[pi]`

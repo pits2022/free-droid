@@ -492,6 +492,29 @@ an unparseable one fails loudly (`bool("hamis")` is True in Python, so booleans 
 explicit word list); a **typo'd** `FREEDROID_*` name prints a warning rather than silently
 running the default. Ansible sets them per host via `edge_robot`'s `robot_env` dict.
 
+**One env override can silently poison the round (measured 2026-09-23).** The three
+cloud-reachability probes — STT (`:8080`), vision (`:11434`), LLM (`:11434`) — share
+`health.probe`'s cache, and that cache keys on **host, not URL**. Whichever probe runs
+first in a round (STT → vision → LLM) decides for all of them, so the **shortest timeout
+wins for everyone**. That is not theoretical: the vision probe sat at 0.5 s while the LLM
+had 1.5 s, and the vision failure dropped the whole round to edge although the LLM's own
+probe would have passed. The three are therefore one number (`CLOUD_PROBE_TIMEOUT_S` in
+`settings.py`), `Settings.__post_init__` refuses a mismatch at startup, and
+`test_config.py` guards both the defaults and the env path. **If the venue link needs a bigger timeout, set the single
+`FREEDROID_CLOUD_PROBE_TIMEOUT_S`** — it fans out to all three. The per-field names still
+work and still have to agree; the canonical one exists so that nobody edits three entries
+under time pressure and gets a `ValueError` on stage from editing two.
+
+**The cloud/edge switch is governed by JITTER, not bandwidth (measured 2026-09-23, `tc
+netem` on the Pi's `wlan0`).** Across the matrix, bandwidth (128 kbit → 2 Mbit), delay
+(100–300 ms) and loss up to 10% did not move the decision at all; ±500 ms jitter dropped
+the cloud **at 1% loss**. The probe was tuned to bare RTT (ams3 ~45 ms, tor1 ~139 ms),
+which carries no jitter margin — and a conference 4G cell is exactly the low-loss,
+high-jitter regime. On a healthy but jittery link the old 0.5 s failed **28 of 30**
+probes, i.e. it forced edge (~38-41 s) where the cloud would have answered (~9.5 s).
+Nothing ever failed outright: the worst case was always a correct edge answer. Field
+procedure and the `tc` profiles live in `CLI.md` §3.1.
+
 **One file, two readers (2026-09-18).** Ansible renders `robot_env_effective` to
 **`/etc/freedroid.env`**; all three units read it with `EnvironmentFile=-/etc/freedroid.env`,
 and a manual debug run must source the SAME file:

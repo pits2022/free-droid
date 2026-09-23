@@ -265,3 +265,83 @@ def test_elgepelt_play_command_helyorzo_INDULASKOR_bukik():
     # a helyes viszont átmegy, és a helyőrző nélküli parancs is (pl. egy fix wrapper)
     assert load_settings({"FREEDROID_VOICE_PLAY_COMMAND": "aplay -r {rate}"}).voice
     assert load_settings({"FREEDROID_VOICE_PLAY_COMMAND": "sajat-lejatszo"}).voice
+
+
+def test_a_harom_proba_korlat_egyenlo():
+    """A `health.probe` cache-e HOSZTRA kulcsol, nem URL-re, és mindhárom próba
+    ugyanarra a felhő-hosztra megy. A körben az első futó próba verdiktjét örökli a
+    többi, tehát a LEGRÖVIDEBB korlát dönt mindenkiről — egy szűkebb látás-korlát
+    edge-re vinné az LLM-et is. Mérve 2026-09-23: pont ez történt, amikor a látás 0,5-ön
+    maradt az LLM 1,5-e mellett."""
+    s = load_settings()
+    assert (s.llm.probe_timeout_s
+            == s.voice.stt_cloud_probe_timeout_s
+            == s.vision.probe_timeout_s), (
+        "a három próba-korlátnak egyenlőnek kell lennie: a körcache hosztra kulcsol")
+
+
+@pytest.mark.parametrize("env_nev", [
+    "FREEDROID_LLM_PROBE_TIMEOUT_S",
+    "FREEDROID_VOICE_STT_CLOUD_PROBE_TIMEOUT_S",
+    "FREEDROID_VISION_PROBE_TIMEOUT_S",
+])
+def test_egy_env_felulras_nem_csuszhat_el(monkeypatch, env_nev):
+    """A körcache HOSZTRA kulcsol, tehát a legrövidebb korlát dönt mindenkiről. Egy
+    env-felülírás a másik kettő nélkül ezért NÉMÁN rontana: a robot elindulna, és csak
+    a helyszínen derülne ki, hogy minden kör edge-en megy. Induláskor bukjon —
+    BÁRMELYIK a három közül, ne csak az LLM-é."""
+    monkeypatch.setenv(env_nev, "1.0")
+    with pytest.raises(ValueError, match="EGYENLŐNEK"):
+        load_settings()
+
+
+def test_mindharom_env_egyutt_ervenyes(monkeypatch):
+    """A helyszíni hangolás útja: mindhármat együtt. Mindhárom mezőt ellenőrizzük, mert
+    az env-NÉV és a dataclass-MEZŐ párosítása is elromolhat — ha csak az LLM-et néznénk,
+    egy elrontott VISION-leképezés átcsúszna."""
+    for nev in ("FREEDROID_LLM_PROBE_TIMEOUT_S",
+                "FREEDROID_VOICE_STT_CLOUD_PROBE_TIMEOUT_S",
+                "FREEDROID_VISION_PROBE_TIMEOUT_S"):
+        monkeypatch.setenv(nev, "4.0")
+    s = load_settings()
+    assert s.llm.probe_timeout_s == 4.0
+    assert s.voice.stt_cloud_probe_timeout_s == 4.0
+    assert s.vision.probe_timeout_s == 4.0
+
+
+def test_kozos_env_mindharmat_beallitja(monkeypatch):
+    """A helyszíni hangolás EGY kapcsolóból — aki nyomás alatt hármat ír át, hibázik."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", "3.5")
+    s = load_settings()
+    assert (s.llm.probe_timeout_s
+            == s.voice.stt_cloud_probe_timeout_s
+            == s.vision.probe_timeout_s == 3.5)
+
+
+def test_kozos_es_egyedi_eltero_erteke_hibat_dob(monkeypatch):
+    """A közös kapcsoló `setdefault`-tal terít, tehát egy konkrét név FELÜLÍRJA. Ha a
+    kettő eltér, az elcsúszás ugyanúgy megvan — induláskor bukjon."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", "3.5")
+    monkeypatch.setenv("FREEDROID_LLM_PROBE_TIMEOUT_S", "2.0")
+    with pytest.raises(ValueError, match="EGYENLŐNEK"):
+        load_settings()
+
+
+@pytest.mark.parametrize("ertek", ["abc", "-1.0", "0"])
+def test_kozos_env_rossz_erteke_indulaskor_bukik(monkeypatch, ertek):
+    """Az értelmetlen és a tartományon kívüli érték is hangosan bukjon, ne némán
+    alapértelmezésre essen."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", ertek)
+    with pytest.raises(ValueError):
+        load_settings()
+
+
+@pytest.mark.parametrize("ertek", ["abc", "-1.0", "0", "nan", "inf"])
+def test_kozos_env_rossz_erteke_a_sajat_neven_bukik(monkeypatch, ertek):
+    """A szétterítés után a hiba a szétterített nevek egyikét nevezné meg, és az
+    operátor a rossz változót keresné — pont abban a helyzetben, amiért ez a kapcsoló
+    létezik. Nem csak az értelmezhetetlen érték: a `-1.0` és a `0` átmegy a
+    `float()`-on, és a tartomány-hiba a szétterített néven jönne."""
+    monkeypatch.setenv("FREEDROID_CLOUD_PROBE_TIMEOUT_S", ertek)
+    with pytest.raises(ValueError, match="FREEDROID_CLOUD_PROBE_TIMEOUT_S"):
+        load_settings()
