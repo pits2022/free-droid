@@ -74,6 +74,37 @@ def keep_alive_ertek(nyers: str | int) -> int | str:
     return nyers
 
 
+# A FELHŐ-ELÉRHETŐSÉG PRÓBÁJÁNAK IDŐKORLÁTJA — EGY SZÁM, HÁROM OLVASÓ, ÉS EZ KÖTELEZŐ.
+#
+# A `health.probe.jelold_elerhetetlennek` cache-e HOSZTRA kulcsol, nem URL-re, így az
+# STT (:8080), a látás (:11434) és az LLM (:11434) UGYANAZT az egy bejegyzést írja. A
+# körben az dönt, amelyik ELŐSZÖR fut (STT -> látás -> LLM), tehát a legrövidebb korlát
+# mindenkire érvényes. Külön értéket tartani ezért fikció: 2026-09-23-án a látás 0,5-ön
+# maradt az LLM 1,5-e mellett, és a bukása vitte edge-re az egész kört, holott az LLM
+# saját próbája átment volna. `Settings.__post_init__` + `test_config.py` őrzi.
+#
+# 2,0 -> 0,5 (a Teremtő, 2026-09-08): a 2,0 a felhő NÉLKÜLI körökben minden kérdésre
+# néma várakozás volt, ráadásul körönként KÉTSZER (LLM + STT) — a körcache azóta
+# felezte. A 0,5-öt a puszta RTT-hez szabtuk (ams3 ~45 ms, tor1 ~139 ms).
+#
+# 0,5 -> 2,5 (mérve 2026-09-23, `tc netem rate 2mbit delay 100ms 500ms loss 1%`): az
+# RTT-hez szabott korlátban NINCS jitter-tartalék, a konferencia 4G-je viszont pont az
+# alacsony veszteség + magas jitter tartomány. ÉP, de jitteres linken, 30-30 mintán:
+#
+#     `/api/tags` (LLM, látás)   medián 0,86  p90 1,15  max 1,32
+#     `GET /`     (STT)          medián 1,14  p90 1,55  max 1,89
+#
+# A 0,5 tehát 30-ból 28-szor fölöslegesen dobott edge-re. A közös szám a LASSABB
+# végpont legrosszabb esetét fedi (1,89) tartalékkal. Az aszimmetria dönt: egy téves
+# edge-re dobás ~30 s (felhő E=9,5 s vs edge 38-41 s), a nagyobb korlát ára viszont
+# körönként EGY várakozás, és CSAK halott felhőnél — élő felhőn a próba a válasz
+# megjöttekor tér vissza, nem a korlát leteltekor, tehát semmibe sem kerül.
+#
+# Ha a helyszíni háló rosszabb: MINDHÁROM env-et kell emelni, nem egyet (ld. a
+# `Settings.__post_init__` hibaüzenetét).
+CLOUD_PROBE_TIMEOUT_S: float = 2.5
+
+
 @dataclass(frozen=True)
 class LLMEndpoints:
     # Cloud Ollama is reachable over WireGuard; edge Ollama is loopback-only.
@@ -100,23 +131,6 @@ class LLMEndpoints:
     # HÁROM külön időkorlát, és a szétválasztás a lényeg (lásd `llm/__init__.py`):
     # a `probe` dönti el, MELYIK háttér válaszol, a generálási korlátok pedig csak
     # a végső határt adják. Egy közös, rövid korlát a hideg felhőt kizárná.
-    # 2,0 -> 0,5 (a Teremtő, 2026-09-08). A próba egy `/api/tags` GET a WireGuardon át:
-    # az RTT Magyarországról ams3-ba ~45 ms, tor1-be ~139 ms, tehát a 0,5 s bőven fedi.
-    # A 2,0 a felhő NÉLKÜLI körökben MINDEN kérdésre néma várakozás volt — és nem egyszer:
-    # az `stt_cloud_probe_timeout_s` ugyanennyi, tehát körönként KÉTSZER ment el. Amit
-    # cserébe kockáztatunk: egy pillanatnyi hálózati akadás hamarabb dob edge-re. Ez a jó
-    # irány (az edge válaszol, csak kevésbé ékesen), és a döntési nyom naplózva van.
-    # 0,5 -> 1,5 (mérve 2026-09-23, `tc netem rate 2mbit delay 100ms 500ms loss 1%`):
-    # a "pillanatnyi akadás" kockázata nem elméleti maradt. JITTERES, de ÉP linken a
-    # próba medián 0,86 s / p90 1,15 s / max 1,32 s — vagyis 30-ból 28-szor túllépte a
-    # 0,5-öt, és fölöslegesen dobott edge-re úgy, hogy a felhő kiszolgált volna. A 0,5-öt
-    # az RTT-hez mértük (ams3 ~45 ms, tor1 ~139 ms), amiben NINCS jitter-tartalék — a
-    # konferencia 4G-je viszont pont az alacsony veszteség + magas jitter tartomány.
-    # Az aszimmetria dönt: a rossz edge-re dobás ~30 s (felhő E=9,5 s vs edge 38-41 s),
-    # a nagyobb korlát ára KÖRÖNKÉNT EGY 1,5 s — és csak halott felhőnél, ahol a válasz
-    # amúgy is 38 s. A 2,0-s múltja nem érv ellene: akkor körönként KÉTSZER ment el
-    # (LLM + STT), a körcache (`korben_elerhetetlen`) azóta felezte.
-    # Ha kiugrik: a próba bukása nem hiba, csak edge — a rossz irányba is biztonságos.
     # MEDDIG maradjon a modell a memóriában (Ollama `keep_alive`). A KETTŐ KÜLÖN, és a
     # különbség a lényeg — mérve 2026-09-08, 148 körös élő menetben:
     #
@@ -131,15 +145,7 @@ class LLMEndpoints:
     # (~2 GB a 8-ból). A felhő az aktív háttér, azt a használat tartja bent.
     cloud_keep_alive: str = "30m"
     edge_keep_alive: str = "-1"
-    # 🔴 A HÁROM PRÓBA-KORLÁT EGYENLŐ, ÉS EZ KÖTELEZŐ (mérve 2026-09-23). A
-    # `jelold_elerhetetlennek` cache-e HOSZTRA kulcsol, nem URL-re, így az STT (:8080),
-    # a látás (:11434) és az LLM (:11434) UGYANAZT az egy bejegyzést írja. A körben az
-    # dönt, amelyik ELŐSZÖR fut (STT -> látás -> LLM), tehát a legrövidebb korlát
-    # mindenkire érvényes: egy szűkebb látás-korlát edge-re viszi az LLM-et is, holott
-    # a saját próbája átment volna. Külön értéket tartani ezért fikció — a `2,5` a
-    # leglassabb végpont mért legrosszabb esetét (STT 1,89 s) fedi. `test_config.py`
-    # őrzi; ha egyet lejjebb viszel, mindhármat kell.
-    probe_timeout_s: float = 2.5
+    probe_timeout_s: float = CLOUD_PROBE_TIMEOUT_S
     cloud_timeout_s: float = 60.0
     edge_timeout_s: float = 90.0
 
@@ -461,25 +467,17 @@ class VoiceSettings:
     stt_cloud_timeout_s: float = 20.0
     # A DÖNTÉS próbája, nem a munkáé. Rövid, mert minden mondatnál lefut, és a lényege,
     # hogy egy HALOTT alagútnál ne 160 KB hang feltöltése után derüljön ki a baj.
-    # 0,5 -> 2,5 (mérve 2026-09-23, ugyanaz a `tc netem` profil, mint a
-    # `probe_timeout_s`-nél). Ez a próba MÁS SZÁMOT ad, mint az LLM-é, és ezért kapott
-    # külön értéket: medián 1,14 / p90 1,55 / max 1,89 s, szemben az LLM 0,86 / 1,15 /
-    # 1,32-jével. Az ok kézenfekvő: az `/api/tags` pár száz bájt JSON, a whisper.cpp
-    # szerver gyökere viszont a HTML kezelőfelületet adja vissza — több kör, több
-    # jitter. Az 1,5 itt 30-ból 4-szer bukott volna ÉP linken.
+    # Ld. `CLOUD_PROBE_TIMEOUT_S` — a szám ott van, a mérésével együtt. EZ a próba a
+    # kör kapuja (a sorrend STT -> látás -> LLM), és ez a lassabb végpont: a whisper.cpp
+    # gyökere a HTML kezelőfelületet adja vissza, nem pár száz bájt JSON-t.
     #
     # ponytail: a GET marad, `HEAD` helyett — MÉRVE, nem feltételezve. A `HEAD` valóban
     # az LLM tartományába visz (medián 0,84 / p90 1,11 / max 1,45 a GET 1,14 / 1,55 /
     # 1,89-e helyett), csak épp nincs miért: ez a korlát a LEGROSSZABB esetet fedi, azt
-    # pedig a 2,5 GET-tel is fedi. 1,5-re visszavinni a `HEAD` max 1,45-e mellett 3%
-    # tartalék volna. Cserébe függnénk attól, hogy a whisper.cpp szerver kezeli a
-    # `HEAD`-et (ma igen, 200) — és ha egy verzió 405-öt adna, az itt NÉMA: az
+    # pedig a 2,5 a GET-tel is fedi. Cserébe függnénk attól, hogy a whisper.cpp szerver
+    # kezeli a `HEAD`-et (ma igen, 200) — és ha egy verzió 405-öt adna, az itt NÉMA: az
     # `elerheto()` a HTTPError-ra is False-t ad, vagyis a felhő csendben eltűnne.
-    #
-    # És ez az a próba, ami a KÖRT eldönti: a sorrend STT -> LLM, a körcache pedig
-    # hosztra szól, tehát az LLM ezt a verdiktet örökli. Ha ez tévesen bukik, a kör
-    # akkor is edge-en megy, ha a felhő él.
-    stt_cloud_probe_timeout_s: float = 2.5
+    stt_cloud_probe_timeout_s: float = CLOUD_PROBE_TIMEOUT_S
 
     stt_language: str = "hu"
     stt_threads: int = 4
@@ -789,7 +787,7 @@ class VisionSettings:
     prompt: str = "Describe what you see in one or two short sentences."
 
     timeout_s: float = 8.0
-    probe_timeout_s: float = 2.5      # ld. `LLMEndpoints.probe_timeout_s` — KÖTÖTT, nem szabad eltérnie
+    probe_timeout_s: float = CLOUD_PROBE_TIMEOUT_S   # ld. ott: KÖTÖTT, nem térhet el
 
     # 🔴 A HIDEGINDULÁS a `timeout_s` sokszorosa (WP0, mérve 2026-09-15, qwen3.5:4b):
     # lemezről az első betöltés 29,75 s, a lapcache-ből újratöltés 3,95 s, melegen
@@ -854,6 +852,22 @@ class Settings:
     power: PowerSettings = field(default_factory=PowerSettings)
     led: LedSettings = field(default_factory=LedSettings)
     vision: VisionSettings = field(default_factory=VisionSettings)
+
+    def __post_init__(self) -> None:
+        # Az egyenlőséget a mezők alapértéke adja, de egy env-felülírás elcsúsztathatja
+        # (`FREEDROID_LLM_PROBE_TIMEOUT_S` a másik kettő nélkül) — és a cache HOSZTRA
+        # kulcsol, tehát a legrövidebb dönt mindenkiről. Ez némán rontana: a robot
+        # elindulna, és csak a helyszínen derülne ki, hogy minden kör edge-en megy.
+        korlatok = {"FREEDROID_LLM_PROBE_TIMEOUT_S": self.llm.probe_timeout_s,
+                    "FREEDROID_VOICE_STT_CLOUD_PROBE_TIMEOUT_S":
+                        self.voice.stt_cloud_probe_timeout_s,
+                    "FREEDROID_VISION_PROBE_TIMEOUT_S": self.vision.probe_timeout_s}
+        if len(set(korlatok.values())) > 1:
+            reszletek = ", ".join(f"{n}={e:g}" for n, e in korlatok.items())
+            raise ValueError(
+                "a három felhő-próba időkorlátjának EGYENLŐNEK kell lennie, mert az "
+                f"elérhetőség-cache hosztra kulcsol — most: {reszletek}. Mindhármat "
+                "állítsd, ne egyet.")
 
 
 # Az env-változók, amiket MÁS modulok olvasnak. Azért kell a lista, hogy az elgépelt

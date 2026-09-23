@@ -278,3 +278,21 @@ def test_a_harom_proba_korlat_egyenlo():
             == s.voice.stt_cloud_probe_timeout_s
             == s.vision.probe_timeout_s), (
         "a három próba-korlátnak egyenlőnek kell lennie: a körcache hosztra kulcsol")
+
+
+def test_egy_env_felulras_nem_csuszhat_el(monkeypatch):
+    """A körcache HOSZTRA kulcsol, tehát a legrövidebb korlát dönt mindenkiről. Egy
+    env-felülírás a másik kettő nélkül ezért NÉMÁN rontana: a robot elindulna, és csak
+    a helyszínen derülne ki, hogy minden kör edge-en megy. Induláskor bukjon."""
+    monkeypatch.setenv("FREEDROID_LLM_PROBE_TIMEOUT_S", "1.0")
+    with pytest.raises(ValueError, match="EGYENLŐNEK"):
+        load_settings()
+
+
+def test_mindharom_env_egyutt_ervenyes(monkeypatch):
+    """A helyszíni hangolás útja: mindhármat együtt. Ennek mennie kell."""
+    for nev in ("FREEDROID_LLM_PROBE_TIMEOUT_S",
+                "FREEDROID_VOICE_STT_CLOUD_PROBE_TIMEOUT_S",
+                "FREEDROID_VISION_PROBE_TIMEOUT_S"):
+        monkeypatch.setenv(nev, "4.0")
+    assert load_settings().llm.probe_timeout_s == 4.0
