@@ -44,13 +44,13 @@ generikus méréseken. Eredmény:
 | **v7** | **Red-team patch** (+34 célzott adverzariális példa) | A red-team blokkolók nagyrészt megoldva a 8B-n (lásd lent) |
 | v8 | **Log-vezérelt kör**: a 07-23-i éles chat-log 180 váltása alapján — 8 köszönés szétírva, **14 búcsú-példa** (addig 0) | 8B **107/125**, 3B 93/125. A lever megint az adat, és most *mért* hibákra válaszol |
 | v9 | A v8 mérésére válaszul: 22 példa „visszautasítás tool NÉLKÜL", kitalált toolok ellen | 🔴 **8B 75/125, 3B 71** — nagy visszaesés. **Egyszerre több dolog mozdult, így az okot nem lehetett azonosítani** — ez a kör tanulsága, nem az eredménye |
-| v10 | **EGY változó:** `train_on_responses_only` (a loss csak a válaszra fut). A dataset szándékosan változatlan (915 példa) | Vegyes (judge 1–5 **dimenzió-átlagok**, v6 → v10): `tool_calling` 3,8 → **4,2**, `persona_provokacio` 2,6 → **4,2**, `koherencia` 3,67 → 4,0 — de **`magyar_arnyalat` 4,0 → 2,0** és `yotengrit_melyseg` 4,0 → **2,25**. Plusz a **RAG-mérgezés** (lent) |
+| v10 | **EGY változó:** `train_on_responses_only` (a loss csak a válaszra fut). A dataset szándékosan változatlan (915 példa) | Vegyes (judge 1–5 **dimenzió-átlagok**, v6 → v10): `tool_calling` 3.8 → **4.2**, `persona_provokacio` 2.6 → **4.2**, `koherencia` 3.67 → 4.0 — de **`magyar_arnyalat` 4.0 → 2.0** és `yotengrit_melyseg` 4.0 → **2.25**. Plusz a **RAG-mérgezés** (lent) |
 | v11 | Három dolog együtt: `epochs` 1→3 + hosszú-koherencia batch + köszönés/megszólítás javítás | 8B **64%** (RAG 72%), 3B-e3 **40%** (RAG 48%) — *bináris* skálán (lent). Három változó megint egyszerre |
-| **v12** | **EGY változó:** a RAG-grounding példák aránya (v11-ben 18/976 = 1,8%) | ✅ **88%** (RAG 92%), red-team **72%** — **a demó-modell, befagyasztva** |
-| v13 | **EGY változó:** `lora_r` 8 → 16, az `alpha` VELE EGYÜTT (az `alpha/r` skálázás 1,0 marad, tisztán kapacitás) | ⚠️ Persona FEL (e2: 88%, RAG **96%**), **red-team LE: 72% → 58%**. Elvetve |
+| **v12** | **EGY változó:** a RAG-grounding példák aránya (v11-ben 18/976 = 1.8%) | ✅ **88%** (RAG 92%), red-team **72%** — **a demó-modell, befagyasztva** |
+| v13 | **EGY változó:** `lora_r` 8 → 16, az `alpha` VELE EGYÜTT (az `alpha/r` skálázás 1.0 marad, tisztán kapacitás) | ⚠️ Persona FEL (e2: 88%, RAG **96%**), **red-team LE: 72% → 58%**. Elvetve |
 | v14 | `lora_r` vissza 8-ra + új „vegyes kérés" kategória | 🔴 Red-team 70% (e3 65%), és a **nyelvi arány 88% → 44%**. Elvetve, marad a v12 |
 
-Persona-benchmark progresszió (8B +RAG, /125): **v4 79 → v5 90,5 → v6 106,5 → v8 107 → v9 75.**
+Persona-benchmark progresszió (8B +RAG, /125): **v4 79 → v5 90.5 → v6 106.5 → v8 107 → v9 75.**
 A v10-től a mérce maga változott (lásd a következő szakaszt), ezért a /125 sor ott megszakad.
 
 > ⚠️ **Módszertani fenntartás, amit a v10-es kiértékelés mondott ki:** a v8 és a v10 pontozása
@@ -142,7 +142,7 @@ A **3B** offline fallback marad (v6→v7: 2.55 → 2.85); a papíron gyenge `moz
 A demó `mode: sovereign` (a „Tudók" oracle-routing OFF).
 
 > Korábbi döntés (2026-07-07): cloud 8B **v7** + RAG. Felváltotta a v12; a v13 és a v14 **mérve
-> rosszabb** (lásd az íve-táblát), ezért a demóig nincs további kör.
+> rosszabb** (lásd a fenti táblázatot), ezért a demóig nincs további kör.
 
 **Miért áll meg itt:** két egymást követő verzió úgy nézett ki, mint haladás, és a mérés
 állította meg mindkettőt. A v13 a persona-lapon jobb volt — **és pont az a lap romlott
