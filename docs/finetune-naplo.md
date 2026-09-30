@@ -1,7 +1,8 @@
 # Free-Droid (Szabi) — fine-tune napló
 
 > Emlékeztető feljegyzés a Szabi-persona fine-tune folyamatáról: a főbb lépések, döntések és
-> tanulságok. Blog-cikk forrásanyagnak. (Utolsó frissítés: 2026-07-07, v7.)
+> tanulságok. Blog-cikk forrásanyagnak. (Utolsó frissítés: **2026-09-30, v14** — a v8–v14 kör a
+> `training/benchmark_*` és `red_team_*` fájlokból visszamérve.)
 
 ## Mit tanítunk és mit nem
 
@@ -41,8 +42,51 @@ generikus méréseken. Eredmény:
 | v5 | Dataset-tisztítás | **90.5/125** |
 | v6 | Persona-bővítés (+50), **tény→RAG split**, gazdagabb RAG-korpusz (34→49 chunk) | **106.5/125** — áttörés; minden dimenzión veri a nyers Llamát |
 | **v7** | **Red-team patch** (+34 célzott adverzariális példa) | A red-team blokkolók nagyrészt megoldva a 8B-n (lásd lent) |
+| v8 | **Log-vezérelt kör**: a 07-23-i éles chat-log 180 váltása alapján — 8 köszönés szétírva, **14 búcsú-példa** (addig 0) | 8B **107/125**, 3B 93/125. A lever megint az adat, és most *mért* hibákra válaszol |
+| v9 | A v8 mérésére válaszul: 22 példa „visszautasítás tool NÉLKÜL", kitalált toolok ellen | 🔴 **8B 75/125, 3B 71** — nagy visszaesés. **Egyszerre több dolog mozdult, így az okot nem lehetett azonosítani** — ez a kör tanulsága, nem az eredménye |
+| v10 | **EGY változó:** `train_on_responses_only` (a loss csak a válaszra fut). A dataset szándékosan változatlan (915 példa) | Vegyes (judge 1–5 **dimenzió-átlagok**, v6 → v10): `tool_calling` 3.8 → **4.2**, `persona_provokacio` 2.6 → **4.2**, `koherencia` 3.67 → 4.0 — de **`magyar_arnyalat` 4.0 → 2.0** és `yotengrit_melyseg` 4.0 → **2.25**. Plusz a **RAG-mérgezés** (lent) |
+| v11 | Három dolog együtt: `epochs` 1→3 + hosszú-koherencia batch + köszönés/megszólítás javítás | 8B **64%** (RAG 72%), 3B-e3 **40%** (RAG 48%) — *bináris* skálán (lent). Három változó megint egyszerre |
+| **v12** | **EGY változó:** a RAG-grounding példák aránya (v11-ben 18/976 = 1.8%) | ✅ **88%** (RAG 92%), red-team **72%** — **a demó-modell, befagyasztva** |
+| v13 | **EGY változó:** `lora_r` 8 → 16, az `alpha` VELE EGYÜTT (az `alpha/r` skálázás 1.0 marad, tisztán kapacitás) | ⚠️ Persona FEL (e2: 88%, RAG **96%**), **red-team LE: 72% → 58%**. Elvetve |
+| v14 | `lora_r` vissza 8-ra + új „vegyes kérés" kategória | 🔴 Red-team 70% (e3 65%), és a **nyelvi arány 88% → 44%**. Elvetve, marad a v12 |
 
-Persona-benchmark progresszió (8B +RAG, /125): **v4 79 → v5 90.5 → v6 106.5.**
+Persona-benchmark progresszió (8B +RAG, /125): **v4 79 → v5 90.5 → v6 106.5 → v8 107 → v9 75.**
+A v10-től a mérce maga változott (lásd a következő szakaszt), ezért a /125 sor ott megszakad.
+
+> ⚠️ **Módszertani fenntartás, amit a v10-es kiértékelés mondott ki:** a v8 és a v10 pontozása
+> **külön napokon, kézzel** készült. A dimenziónkénti arányok és a strukturális metrikák
+> (tool-hívás, RAG-delta) megbízhatóbbak, mint a nyers összpontszámok pár pontos különbsége.
+> Ez a fenntartás szülte a bináris + vak + horgonyzott mércét.
+
+### RAG-mérgezés — a v10 mellékterméke
+
+A 8B-nél a RAG **nulla** nettó különbséget adott, és ez elfedte a mozgást: +2/−4 a bontásban.
+A kirívó eset a **„Mi a három nádszál?" 5 → 1** — a modell hibátlanul tudta, és a beinjektált
+kontextus **elrontotta**. A 3B-nél ugyanez a RAG csak segít (yo_01: 1 → 5).
+→ **Következmény:** a RAG-ot méret- vagy konfidencia-alapon kell kapuzni; az edge 3B-nek kell,
+a felhő 8B-nek csak magabiztos retrievalnél. (Egybevág a PR #25 idf-lefedettségi küszöbével.)
+
+## A mérce maga is változott — bináris, vak, horgonyzott
+
+A v10-ig kézi 1–5 volt (részben LLM-judge-dzsal). Ez két dolgot **nem** tudott: megmondani,
+hogy egy válasz *vállalható-e színpadon*, és kiszűrni a **pontozó** sodródását. Innen:
+
+- **Bináris.** `1` = ezt a választ VÁLLALNÁM a Hacktivity színpadán, `0` = nem. Nem absztrakt
+  minőség, hanem egy valós esemény küszöbe. Minden `0` pontosan **egy** okot kap:
+  `nyelv` / `tool` / `koherencia` / `persona` / `tartalom` / `teny`.
+- **Vak.** Kérdésenként kevert `A`/`B`/… oszlopok, nincs modellnév, és a `tok/s` sor is el van
+  rejtve — az elárulná az oszlopot. A kulcs külön fájlban (`benchmark_kulcs_<dátum>.json`).
+- **Horgony.** 5 korábban már pontozott válasz becsempészve az új vak körbe.
+
+🔵 **A horgony a PONTOZÓT fogta meg, nem a modellt.** Ugyanaz az 5 válasz
+(`benchmark_raw_2026-07-29_v10::szabi-8b`) **20%** az egyik körben, **40%** a másikban.
+Ez pontozói sodródás, nem modell-különbség — horgony nélkül haladásnak olvastam volna.
+
+🔵 **Reprodukálhatóság, mérve:** a v12 red-teamje két független körben (08-11 és 08-13)
+**pontosan 29/40** lett.
+
+⚠️ **A korlát, kimondva:** n=25-nél egy 64%-os arány konfidencia-intervalluma **45–83%**.
+A „kész-e a demóra?" kérdésre jó, a „jobb-e 5%-kal?"-ra nem.
 
 ## A `gentle` recept és a „ne hajszold a loss-t" tanulság
 
@@ -91,10 +135,18 @@ mozgas_biztonsag, halluc_absztencio, persona_provokacio, etikai_dilemma), kézi 
 A **3B** offline fallback marad (v6→v7: 2.55 → 2.85); a papíron gyenge `mozgas` dimenziót a valódi
 **független hardveres watchdog** fedi — a modell nem tudja kikapcsolni, akármit mond.
 
-## Demó-modell (rögzített döntés, 2026-07-07)
+## Demó-modell
 
-**Cloud 8B v7 + RAG (mindig) + orchestrator `language_guard`.** A 3B v7 az offline fallback.
+**Aktuális (rögzített 2026-08-11, azóta befagyasztva): cloud 8B `csaba_ajtony/szabi-8b-v12` + RAG
+(mindig) + orchestrator `language_guard`.** Az edge `csaba_ajtony/szabi-3b-v12` az offline fallback.
 A demó `mode: sovereign` (a „Tudók" oracle-routing OFF).
+
+> Korábbi döntés (2026-07-07): cloud 8B **v7** + RAG. Felváltotta a v12; a v13 és a v14 **mérve
+> rosszabb** (lásd a fenti táblázatot), ezért a demóig nincs további kör.
+
+**Miért áll meg itt:** két egymást követő verzió úgy nézett ki, mint haladás, és a mérés
+állította meg mindkettőt. A v13 a persona-lapon jobb volt — **és pont az a lap romlott
+(red-team), ami egy nyilvános színpadon számít**.
 
 ## Fő tanulságok egy sorban
 
@@ -104,3 +156,8 @@ A demó `mode: sovereign` (a „Tudók" oracle-routing OFF).
 4. **Invariánst kódban** kényszeríts ki (nyelv, biztonság), ahol a modellben nem bízhatsz.
 5. **Red-team kötelező**, és a tanító-adat ne szivárogtassa a benchmarkot.
 6. Döntést **saját, feladat-specifikus** (magyar persona) benchmarken hozz, ne generikuson.
+7. **Egy kör, egy változó.** A v9 azért maradt értelmezhetetlen, mert több dolog mozdult egyszerre;
+   a v10/v12/v13 azért olvasható, mert pontosan egy.
+8. **Horgonyozd a pontozót is, ne csak a modellt** — a sodródás nálad van, nem a súlyokban.
+9. **Ne a jobbik lapot nézd, hanem azt, amelyik a felhasználásnál számít.** A v13 personája jobb
+   lett, a red-teamje rosszabb — és nyilvános demón az utóbbi a döntő.
