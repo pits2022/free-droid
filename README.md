@@ -55,7 +55,7 @@ Wake word "Szabi" (openWakeWord)
 | Chassis | Aluminium tracked tank base, 2× DC 12V motors |
 | Motor driver | Cytron HAT-MDD10 (10A/channel) |
 | Camera mount | 2-DOF pan-tilt, 2× MG996R servos via PCA9685 |
-| Sensors | 3× HC-SR04P ultrasonic (front + 2 corners) |
+| Sensors | 2× HC-SR04P ultrasonic (front + rear) |
 | Power | CNHL 3S LiPo → XT60 PDB → XL4016 / LM2596 buck converters |
 | Audio | USB mic + USB speaker |
 | Status | WS2812 RGB LED ring |

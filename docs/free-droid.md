@@ -1330,7 +1330,7 @@ Saját, elkülönített ablak, mert eddig sehol nem volt nyomon követve — se 
 ## 🎯 Meghozott döntések (lezárva)
 
 *   **Navigáció:** Nincs SLAM/térképezés. **Reaktív mozgás** — parancsra fordul/megy, ultrahanggal megáll akadálynál. A robot bevallja, ha nem ismer egy útvonalat (a dataset így kezeli). *Indok: a SLAM önmagában több hónapos projekt, felemésztené a Hacktivity-keretet.*
-*   **Szenzorok:** **3 db HC-SR04P** — elöl + bal-elöl 45° + jobb-elöl 45° (6 GPIO). Hátra nincs.
+*   **Szenzorok:** **2 db HC-SR04P** — **elöl + hátul** (4 GPIO). *(Módosítva 2026-08-16: az eredeti terv 3 db volt, elöl + 2× 45°, de a mechanika nem fogadta be a sarok-szenzorokat — lásd §4 és a GPIO-kiosztás lefedettségi figyelmeztetését. A sarkok így NINCSENEK lefedve.)*
 *   **Demó:** **Teljes persona, szabad kérdések** (nem kötött forgatókönyv). A 603 példás dataset elbírja. → **Kötelező a fine-tuning utáni „red team" tesztkör** (lásd Fázis 2), hogy lásd hol esik ki a persona váratlan/provokatív kérdéseknél.
 *   **TTS-hang:** `hu_HU-anna-medium`, fiatalosabb karakterhez **pitch-hangolás a hangmintán** (tesztelési feladat, Fázis 4.2).
 *   **Nyelv:** Magyar-only. A Hacktivity előadáson a Teremtő tolmácsol angolra — ez az üzenet része, nem korlát.
